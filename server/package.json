@@ -1,0 +1,46 @@
+{
+  "name": "hotel-sandhya-grand",
+  "version": "1.0.0",
+  "description": "Hotel Sandhya Grand Management System - Server",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "archiver": "^8.0.0",
+    "bcryptjs": "^3.0.3",
+    "compression": "^1.8.1",
+    "connect-timeout": "^1.9.1",
+    "cors": "^2.8.6",
+    "csv-parse": "^7.0.1",
+    "date-fns": "^4.4.0",
+    "dayjs": "^1.11.21",
+    "dotenv": "^17.4.2",
+    "exceljs": "^4.4.0",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.5.2",
+    "express-validator": "^7.3.2",
+    "fs-extra": "^11.3.6",
+    "helmet": "^8.2.0",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^9.7.0",
+    "mongoose-paginate-v2": "^1.9.5",
+    "multer": "^2.1.1",
+    "nodemailer": "^8.0.11",
+    "pdfkit": "^0.19.1",
+    "razorpay": "^2.9.6",
+    "sharp": "^0.35.3",
+    "socket.io": "^4.8.3",
+    "swagger-jsdoc": "^6.3.0",
+    "swagger-ui-express": "^5.0.1",
+    "winston": "^3.19.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
+  }
+}
