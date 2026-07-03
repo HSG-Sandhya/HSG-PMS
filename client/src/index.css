@@ -1,0 +1,54 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+}
+
+/* ── Dark mode: force all text to high-contrast theme color ────────────────
+   AppThemeProvider toggles `body.dark` whenever dark mode is on. The MUI theme
+   already lightens text it controls, but many components hardcode dark colors
+   (e.g. #1e293b, #1e3a8a) that stay invisible on the dark background. Force the
+   theme's text color across every text-bearing element so nothing is lost.
+
+   The color is NOT hardcoded here — it reads `--app-text-primary`, which
+   AppThemeProvider sets from the theme (its single source of truth), so this
+   follows palette/setting changes automatically.
+
+   Colored / interactive surfaces that carry their own contrast — buttons,
+   chips, alerts, badges — opt out so their meaning is preserved, and gradient
+   "clipped" text is untouched because it paints via -webkit-text-fill-color,
+   not `color`. Links keep their accent color (not listed below). */
+body.dark {
+  color: var(--app-text-primary);
+}
+body.dark
+  :is(
+    p, span, li, dt, dd, td, th, label, blockquote, figcaption, caption,
+    h1, h2, h3, h4, h5, h6,
+    .MuiTypography-root, .MuiTableCell-root,
+    .MuiListItemText-primary, .MuiListItemText-secondary,
+    .MuiFormControlLabel-label, .MuiInputBase-input, .MuiInputBase-root,
+    .MuiSelect-select, .MuiMenuItem-root, .MuiTab-root,
+    .MuiFormLabel-root, .MuiInputLabel-root, .MuiFormHelperText-root,
+    .MuiListSubheader-root, .MuiAccordionSummary-content,
+    .MuiStepLabel-label, .MuiTableSortLabel-root
+  ):not(
+    .MuiButton-root, .MuiButton-root *,
+    .MuiChip-root, .MuiChip-root *,
+    .MuiAlert-root, .MuiAlert-root *,
+    .MuiBadge-badge, .MuiBadge-badge *
+  ) {
+  color: var(--app-text-primary) !important;
+}

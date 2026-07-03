@@ -1,0 +1,332 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    background-color: #FAF7F0;
+    color: #1A1A1A;
+    font-feature-settings: "ss01", "cv11";
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  ::selection {
+    background-color: #1A1A1A;
+    color: #FAF7F0;
+  }
+
+  /* ----- Elevated heading typography (applies site-wide) -----
+     Optical sizing lets Fraunces sharpen its serifs at display sizes, balanced
+     wrapping keeps multi-line titles tidy, and the finer ligatures/contextual
+     alternates give the serif a more crafted, editorial feel. :where() keeps
+     specificity at zero so per-heading tracking utilities still win. */
+  :where(h1, h2, h3, h4, h5, h6) {
+    text-wrap: balance;
+    font-optical-sizing: auto;
+  }
+  :where(h1, h2, h3, h4).font-serif {
+    font-feature-settings: "liga" 1, "calt" 1, "dlig" 1;
+    letter-spacing: -0.018em;
+  }
+  /* Every section title — the serif heading that follows an index kicker —
+     gets a hair tighter optical set so it reads as one composed line. */
+  .index-number + h2 {
+    letter-spacing: -0.022em;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #FAF7F0;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #D2CEC5;
+    border: 2px solid #FAF7F0;
+    border-radius: 999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #A8A39A;
+  }
+
+  /* React-toastify visual overrides to match editorial language */
+  .Toastify__toast {
+    font-family: 'Inter', sans-serif !important;
+    border-radius: 4px !important;
+    background: #1A1A1A !important;
+    color: #FAF7F0 !important;
+    font-size: 0.875rem !important;
+  }
+  .Toastify__toast--success { border-left: 3px solid #B08D57 !important; }
+  .Toastify__toast--error   { border-left: 3px solid #C04848 !important; }
+  .Toastify__close-button   { color: #FAF7F0 !important; opacity: 0.7 !important; }
+  .Toastify__progress-bar   { background: #B08D57 !important; }
+}
+
+@layer components {
+  /* ----- Layout primitives ----- */
+  .edge {
+    @apply max-w-edge mx-auto px-6 md:px-10 lg:px-16;
+  }
+  .section {
+    @apply py-24 md:py-32;
+  }
+  .section-tight {
+    @apply py-16 md:py-24;
+  }
+
+  /* ----- Typography ----- */
+  .eyebrow {
+    @apply inline-flex items-center text-eyebrow uppercase font-medium text-ink-500;
+  }
+  .eyebrow-on-dark {
+    @apply inline-flex items-center text-eyebrow uppercase font-medium text-bone-200/70;
+  }
+  .display {
+    @apply font-serif font-light text-display text-ink-900;
+    text-wrap: balance;
+  }
+  .display-lg {
+    @apply font-serif font-light text-display-lg text-ink-900;
+    text-wrap: balance;
+  }
+  .display-sm {
+    @apply font-serif font-light text-display-sm text-ink-900;
+    text-wrap: balance;
+  }
+  .lede {
+    @apply text-lg md:text-xl text-ink-500 font-light leading-relaxed max-w-reading;
+  }
+  .prose-editorial p {
+    @apply text-ink-600 text-base md:text-lg leading-[1.8] font-light;
+  }
+  .prose-editorial p + p {
+    @apply mt-6;
+  }
+
+  /* ----- Buttons & links -----
+     Pill-shaped with a tactile 3D feel: a soft resting shadow, a lift +
+     deeper glow on hover, and a settle-down press on :active. */
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-3 px-7 py-4 rounded-full bg-ink-900 text-bone-100 font-sans text-sm uppercase tracking-widest font-medium shadow-[0_8px_18px_-8px_rgba(26,26,26,0.5)] transition-all duration-300 ease-editorial hover:bg-brass-500 hover:-translate-y-0.5 hover:shadow-[0_16px_30px_-8px_rgba(176,141,87,0.55)] active:translate-y-0 active:shadow-[0_4px_10px_-6px_rgba(26,26,26,0.5)];
+  }
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-3 px-7 py-4 rounded-full bg-transparent text-ink-900 border border-ink-900 font-sans text-sm uppercase tracking-widest font-medium transition-all duration-300 ease-editorial hover:bg-ink-900 hover:text-bone-100 hover:-translate-y-0.5 hover:shadow-[0_16px_30px_-10px_rgba(26,26,26,0.4)] active:translate-y-0 active:shadow-none;
+  }
+  .btn-ghost-light {
+    @apply inline-flex items-center justify-center gap-3 px-7 py-4 rounded-full bg-transparent text-bone-100 border border-bone-100/60 font-sans text-sm uppercase tracking-widest font-medium transition-all duration-300 ease-editorial hover:bg-bone-100 hover:text-ink-900 hover:-translate-y-0.5 hover:shadow-[0_16px_30px_-10px_rgba(0,0,0,0.35)] active:translate-y-0 active:shadow-none;
+  }
+
+  .link-underline {
+    @apply relative inline-flex items-center gap-2 text-sm uppercase tracking-widest font-medium pb-1;
+  }
+  .link-underline::after {
+    content: '';
+    @apply absolute left-0 bottom-0 h-px w-full bg-current opacity-50 origin-right scale-x-100;
+    transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .link-underline:hover::after {
+    @apply origin-left;
+    transform: scaleX(0);
+    animation: link-underline-in 0.7s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+  @keyframes link-underline-in {
+    0%   { transform: scaleX(1); transform-origin: right; }
+    49%  { transform: scaleX(0); transform-origin: right; }
+    50%  { transform: scaleX(0); transform-origin: left; }
+    100% { transform: scaleX(1); transform-origin: left; }
+  }
+
+  /* ----- Forms ----- */
+  .input-line {
+    @apply w-full bg-transparent border-0 border-b border-ink-200 px-0 py-3 text-ink-900 font-light placeholder-ink-300 focus:outline-none focus:border-ink-900 focus:ring-0 transition-colors duration-300;
+  }
+  .input-line:focus { box-shadow: none; }
+  .label-mini {
+    @apply block text-eyebrow uppercase tracking-widest text-ink-500 mb-3 font-medium;
+  }
+
+  /* compat aliases kept so legacy class names elsewhere render acceptably */
+  .input-field, .input-field-modern { @apply input-line; }
+  .card { @apply bg-bone-100 border border-ink-100 rounded-2xl; }
+  .card-hover { @apply bg-bone-100 border border-ink-100 rounded-2xl transition-all duration-500 ease-editorial hover:-translate-y-1.5 hover:shadow-[0_28px_56px_-20px_rgba(26,26,26,0.22)]; }
+  .glass-card { @apply bg-bone-100 border border-ink-100 rounded-2xl; }
+  .container-custom { @apply edge; }
+  .section-padding { @apply section; }
+
+  /* ----- Decorative ----- */
+  .rule {
+    @apply block h-px w-12 bg-ink-900;
+  }
+  .rule-light {
+    @apply block h-px w-12 bg-bone-100;
+  }
+  .index-number {
+    @apply font-mono text-xs tracking-widest text-brass-500;
+  }
+}
+
+@layer utilities {
+  .grain {
+    background-image: radial-gradient(rgba(26,26,26,0.025) 1px, transparent 1px);
+    background-size: 3px 3px;
+  }
+
+  .text-balance { text-wrap: balance; }
+  .text-pretty  { text-wrap: pretty; }
+
+  .ken-burns {
+    animation: kenBurns 18s ease-in-out infinite alternate;
+  }
+  @keyframes kenBurns {
+    0%   { transform: scale(1)    translate(0, 0); }
+    100% { transform: scale(1.08) translate(-1%, -1%); }
+  }
+
+  .fade-up {
+    animation: fadeUp 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Slow, drifting float — used by accent dots, brass orbs and floating glyphs */
+  .float-slow { animation: floatSlow 9s ease-in-out infinite; }
+  .float-slower { animation: floatSlow 14s ease-in-out infinite; }
+  @keyframes floatSlow {
+    0%, 100% { transform: translateY(0) translateX(0); }
+    50%      { transform: translateY(-12px) translateX(6px); }
+  }
+
+  /* A subtle vertical bounce for scroll cues */
+  .bounce-cue { animation: bounceCue 2s cubic-bezier(0.22, 1, 0.36, 1) infinite; }
+  @keyframes bounceCue {
+    0%, 100% { transform: translateY(0); opacity: 0.6; }
+    50%      { transform: translateY(8px); opacity: 1; }
+  }
+
+  /* Marquee for accent strips (the eyebrow scrollers) */
+  .marquee { display: flex; overflow: hidden; width: 100%; }
+  .marquee-track { display: flex; gap: 4rem; animation: marquee 40s linear infinite; min-width: 100%; }
+  @keyframes marquee {
+    from { transform: translateX(0); }
+    to   { transform: translateX(-50%); }
+  }
+
+  /* Shimmer for skeletons and accent lines */
+  .shimmer {
+    background: linear-gradient(90deg, transparent 0%, rgba(176,141,87,0.18) 50%, transparent 100%);
+    background-size: 200% 100%;
+    animation: shimmer 2.4s linear infinite;
+  }
+  @keyframes shimmer {
+    from { background-position: 200% 0; }
+    to   { background-position: -200% 0; }
+  }
+
+  /* Mask-reveal — clip a block in from the bottom */
+  .reveal-mask { clip-path: inset(100% 0 0 0); animation: revealMask 1.2s cubic-bezier(0.22, 1, 0.36, 1) 0.1s both; }
+  @keyframes revealMask {
+    from { clip-path: inset(100% 0 0 0); }
+    to   { clip-path: inset(0% 0 0 0); }
+  }
+
+  /* Slow pulse — used for the brass underline on active links */
+  .pulse-soft { animation: pulseSoft 3.5s ease-in-out infinite; }
+  @keyframes pulseSoft {
+    0%, 100% { opacity: 0.6; }
+    50%      { opacity: 1; }
+  }
+
+  /* Underline draw-in (used by RevealText emphasis words) */
+  .underline-draw {
+    background-image: linear-gradient(currentColor, currentColor);
+    background-position: 0 100%;
+    background-repeat: no-repeat;
+    background-size: 0% 1px;
+    transition: background-size 1.4s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .underline-draw.is-drawn { background-size: 100% 1px; }
+
+  /* Hover-lift utility for cards */
+  .lift {
+    transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .lift:hover {
+    transform: translateY(-6px) scale(1.01);
+    box-shadow: 0 24px 48px -16px rgba(26, 26, 26, 0.18);
+  }
+
+  /* Rounded card with a resting shadow that deepens into a soft 3D lift on
+     hover — the inline-card counterpart to the .card-hover component class. */
+  .card-3d {
+    @apply rounded-2xl;
+    transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+    box-shadow: 0 1px 2px rgba(26, 26, 26, 0.04);
+  }
+  .card-3d:hover {
+    transform: translateY(-6px) scale(1.01);
+    box-shadow: 0 28px 56px -20px rgba(26, 26, 26, 0.22);
+  }
+
+  /* Tactile press for inline buttons that don't use the .btn-* classes —
+     lifts a touch on hover, settles down on click. Pair with rounded-full. */
+  .press-3d {
+    transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.3s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.3s, color 0.3s, border-color 0.3s;
+  }
+  .press-3d:hover { transform: translateY(-2px); }
+  .press-3d:active { transform: translateY(0); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ken-burns,
+    .float-slow,
+    .float-slower,
+    .bounce-cue,
+    .marquee-track,
+    .shimmer,
+    .reveal-mask,
+    .pulse-soft { animation: none !important; }
+    .lift,
+    .card-3d,
+    .press-3d { transition: none !important; }
+    .lift:hover,
+    .card-3d:hover,
+    .press-3d:hover,
+    .press-3d:active { transform: none !important; }
+  }
+
+/* Vignette helper — adds a soft brass spotlight behind a section.
+     Use as a span placed inside a relative container. */
+  .vignette {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(ellipse at center, transparent 30%, rgba(26,26,26,0.18) 95%);
+  }
+
+  /* Spotlight — small brass radial glow following content */
+  .spotlight {
+    background:
+      radial-gradient(ellipse at 50% 0%, rgba(176,141,87,0.10) 0%, transparent 60%);
+  }
+
+  /* Diagonal sweep used as section divider */
+  .diag-sweep {
+    background:
+      repeating-linear-gradient(135deg,
+        transparent 0 24px,
+        rgba(176,141,87,0.10) 24px 26px);
+  }
+
+  /* Aspect helper for fluid serif numerals */
+  .serif-fluid { font-size: clamp(3rem, 9vw, 8rem); }
+}
