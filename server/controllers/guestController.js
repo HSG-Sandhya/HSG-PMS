@@ -1,4 +1,5 @@
 import Guest from '../models/Guest.js';
+import { upsertGuest } from '../services/guestDirectory.js';
 
 export const getAllGuests = async (_req, res) => {
   try {
@@ -42,8 +43,9 @@ export const getGuestById = async (req, res) => {
 
 export const createGuest = async (req, res) => {
   try {
-    const guest = new Guest(req.body);
-    const newGuest = await guest.save();
+    // Dedupe on the normalized phone so re-adding an existing guest updates their
+    // record instead of creating a country-code twin.
+    const newGuest = await upsertGuest(req.body);
     res.status(201).json(newGuest);
   } catch (error) {
     console.error('Error creating guest:', error);

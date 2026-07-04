@@ -10,6 +10,7 @@ import { emitHousekeepingTask } from '../config/socket.js';
 import { sendBookingNotification } from '../services/notificationService.js';
 import { getBilling, getOps } from '../config/operationalConfig.js';
 import { syncRoomBookingIncome, removeEntriesBySource } from '../services/accountingSync.js';
+import { upsertGuest } from '../services/guestDirectory.js';
 
 // Generate invoice number — the prefix comes from billing settings so the whole
 // numbering scheme is configurable (Billing & Tariff → Invoice prefix).
@@ -184,11 +185,7 @@ export const createBooking = async (req, res) => {
       nationality: bookingData.nationality
     };
 
-    await Guest.findOneAndUpdate(
-      { phone: bookingData.phone },
-      { $set: guestFields },
-      { upsert: true, new: true, setDefaultsOnInsert: true }
-    );
+    await upsertGuest(guestFields);
 
     // Generate invoice number
     if (!bookingData.invoiceNumber) {
@@ -711,11 +708,7 @@ const createGroupFromRoomBlock = async (res, ctx) => {
   const { defaultCheckInTime, defaultCheckOutTime } = await getBilling();
 
   // Upsert coordinator into the Guest collection once.
-  await Guest.findOneAndUpdate(
-    { phone: coordinator.phone },
-    { $set: { name: coordinator.guestName, email: coordinator.email, phone: coordinator.phone } },
-    { upsert: true, new: true, setDefaultsOnInsert: true },
-  );
+  await upsertGuest({ name: coordinator.guestName, email: coordinator.email, phone: coordinator.phone });
 
   const advanceAmount = Math.max(0, Number(body.advanceAmount) || 0);
   const cleanBlock = roomBlock.map((b) => ({
@@ -880,20 +873,14 @@ export const createGroupBooking = async (req, res) => {
     const { defaultCheckInTime, defaultCheckOutTime } = await getBilling();
 
     // Upsert the coordinator into the Guest collection once.
-    await Guest.findOneAndUpdate(
-      { phone: coordinator.phone },
-      {
-        $set: {
-          name: coordinator.guestName,
-          email: coordinator.email,
-          phone: coordinator.phone,
-          gender: coordinator.gender,
-          age: coordinator.age,
-          nationality: coordinator.nationality,
-        },
-      },
-      { upsert: true, new: true, setDefaultsOnInsert: true },
-    );
+    await upsertGuest({
+      name: coordinator.guestName,
+      email: coordinator.email,
+      phone: coordinator.phone,
+      gender: coordinator.gender,
+      age: coordinator.age,
+      nationality: coordinator.nationality,
+    });
 
     const created = [];
     for (let i = 0; i < rooms.length; i++) {
@@ -1056,11 +1043,7 @@ export const createCompanyBooking = async (req, res) => {
       : [];
 
     // Upsert the primary contact into the Guest collection.
-    await Guest.findOneAndUpdate(
-      { phone: primaryContact.phone },
-      { $set: { name: primaryContact.name, email: primaryContact.email, phone: primaryContact.phone } },
-      { upsert: true, new: true, setDefaultsOnInsert: true },
-    );
+    await upsertGuest({ name: primaryContact.name, email: primaryContact.email, phone: primaryContact.phone });
 
     const advanceAmount = Math.max(0, Number(body.advanceAmount) || 0);
     const companySub = {

@@ -63,11 +63,10 @@ tableSchema.index({ section: 1 });
 tableSchema.index({ isActive: 1 });
 
 // Pre-save middleware
-tableSchema.pre('save', function(next) {
+tableSchema.pre('save', function() {
   if (this.isModified('number')) {
     this.number = this.number.trim().toUpperCase();
   }
-  next();
 });
 
 // Static method to get available tables

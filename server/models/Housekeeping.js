@@ -54,19 +54,17 @@ const housekeepingSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 // A task must reference either a room or a banquet hall
-housekeepingSchema.pre("validate", function (next) {
+housekeepingSchema.pre("validate", function () {
   if (!this.roomId && !this.hallId) {
-    return next(new Error("A housekeeping task must reference a room or a banquet hall"));
+    throw new Error("A housekeeping task must reference a room or a banquet hall");
   }
-  next();
 });
 
 // Auto update completedAt if status is completed
-housekeepingSchema.pre("save", function (next) {
+housekeepingSchema.pre("save", function () {
   if (this.isModified("status") && this.status === "Completed" && !this.completedAt) {
     this.completedAt = Date.now();
   }
-  next();
 });
 
 // Create a cleaning task for a room or hall, skipping if an open one already exists.

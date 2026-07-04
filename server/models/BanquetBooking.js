@@ -386,7 +386,7 @@ const banquetBookingSchema = new mongoose.Schema({
 });
 
 // Pre-save middleware for calculations
-banquetBookingSchema.pre('save', function(next) {
+banquetBookingSchema.pre('save', function() {
   // If a payments ledger exists, the advance is the sum of all entries —
   // this is the source of truth. Falls back to the manual advanceAmount when
   // there are no ledger entries (legacy bookings).
@@ -410,8 +410,6 @@ banquetBookingSchema.pre('save', function(next) {
   if (!this.eventName && this.eventType) {
     this.eventName = this.eventType;
   }
-  
-  next();
 });
 
 // Instance methods

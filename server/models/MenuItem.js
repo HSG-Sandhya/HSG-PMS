@@ -59,14 +59,13 @@ menuItemSchema.index({ isAvailable: 1 });
 menuItemSchema.index({ popular: 1 });
 
 // Pre-save middleware
-menuItemSchema.pre('save', function(next) {
+menuItemSchema.pre('save', function() {
   if (this.isModified('name')) {
     this.name = this.name.trim();
   }
   if (this.isModified('price')) {
     this.price = parseFloat(this.price.toFixed(2));
   }
-  next();
 });
 
 // Static method to get available menu items

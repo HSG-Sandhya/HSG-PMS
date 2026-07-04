@@ -34,18 +34,17 @@ accountSchema.index({ type: 1 });
 accountSchema.index({ isActive: 1 });
 
 // Pre-save middleware
-accountSchema.pre('save', function(next) {
+accountSchema.pre('save', function() {
   if (this.isModified('accountNumber') && this.accountNumber) {
     this.accountNumber = this.accountNumber.trim().toUpperCase();
   }
   if (this.isModified('ifsc') && this.ifsc) {
     this.ifsc = this.ifsc.trim().toUpperCase();
   }
-  next();
 });
 
 // Keep normalization consistent on update queries too
-accountSchema.pre('findOneAndUpdate', function(next) {
+accountSchema.pre('findOneAndUpdate', function() {
   const update = this.getUpdate() || {};
   const applyNormalize = (target) => {
     if (!target || typeof target !== 'object') return;
@@ -59,7 +58,6 @@ accountSchema.pre('findOneAndUpdate', function(next) {
 
   applyNormalize(update);
   applyNormalize(update.$set);
-  next();
 });
 
 // Static method to get active accounts

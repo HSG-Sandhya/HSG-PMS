@@ -164,13 +164,12 @@ attendanceSchema.virtual('isLate').get(function() {
 });
 
 // Normalize date to start-of-day so a (staff, date) unique index works cleanly.
-attendanceSchema.pre('validate', function(next) {
+attendanceSchema.pre('validate', function() {
   if (this.date instanceof Date && !Number.isNaN(this.date.getTime())) {
     const d = new Date(this.date);
     d.setHours(0, 0, 0, 0);
     this.date = d;
   }
-  next();
 });
 
 // Methods

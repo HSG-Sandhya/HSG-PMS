@@ -148,11 +148,10 @@ staffRechargeSchema.methods.markAsFailed = function(reason) {
 };
 
 // Pre-save middleware to generate transaction ID
-staffRechargeSchema.pre('save', function(next) {
+staffRechargeSchema.pre('save', function() {
   if (this.isNew && !this.transactionId) {
     this.transactionId = `RCH${Date.now()}${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
   }
-  next();
 });
 
 export default mongoose.model('StaffRecharge', staffRechargeSchema);

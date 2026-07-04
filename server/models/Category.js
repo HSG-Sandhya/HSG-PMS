@@ -37,11 +37,10 @@ categorySchema.index({ isActive: 1 });
 categorySchema.index({ displayOrder: 1 });
 
 // Pre-save middleware
-categorySchema.pre('save', function(next) {
+categorySchema.pre('save', function() {
   if (this.isModified('name')) {
     this.name = this.name.trim();
   }
-  next();
 });
 
 // Static method to get active categories ordered by displayOrder

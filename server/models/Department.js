@@ -75,11 +75,10 @@ const departmentSchema = new mongoose.Schema({
 departmentSchema.index({ isActive: 1 });
 
 // Pre-save middleware
-departmentSchema.pre('save', function(next) {
+departmentSchema.pre('save', function() {
   if (this.isModified('name')) {
     this.name = this.name.trim();
   }
-  next();
 });
 
 // Method to get department without sensitive data

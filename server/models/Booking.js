@@ -282,9 +282,8 @@ bookingSchema.index({ bookingStatus: 1 });
 bookingSchema.index({ checkIn: 1, checkOut: 1 });
 
 // Auto-update remaining amount
-bookingSchema.pre("save", function (next) {
+bookingSchema.pre("save", function () {
   this.remainingAmount = Math.max(0, this.totalAmount - this.paidAmount);
-  next();
 });
 
 export default mongoose.models.Booking || mongoose.model("Booking", bookingSchema);

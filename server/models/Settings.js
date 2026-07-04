@@ -388,7 +388,7 @@ SettingsSchema.index({ hotelName: 1 }, { unique: true });
 SettingsSchema.index({ 'address.city': 1 });
 
 // ---- Sanitizers / Hooks ---------------------------------------------------
-SettingsSchema.pre('save', function(next) {
+SettingsSchema.pre('save', function() {
   if (this.hotelName) this.hotelName = this.hotelName.trim();
   if (this.legalName) this.legalName = this.legalName.trim();
   
@@ -437,8 +437,6 @@ SettingsSchema.pre('save', function(next) {
       }
     });
   }
-  
-  next();
 });
 
 // ---- Static helpers (optional) -------------------------------------------

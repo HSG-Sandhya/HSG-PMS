@@ -109,10 +109,9 @@ StaffSchema.pre("save", async function () {
 });
 
 // Populate references
-StaffSchema.pre(/^find/, function (next) {
+StaffSchema.pre(/^find/, function () {
   this.populate("reportsTo", "name position department")
       .populate("subordinates", "name position department");
-  next();
 });
 
 // ── Role / permission catalog ────────────────────────────────────────────────

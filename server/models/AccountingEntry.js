@@ -44,12 +44,11 @@ const accountingEntrySchema = new mongoose.Schema({
 }, { timestamps: true });
 
 // Keep gstAmount and total consistent with amount × rate on every save.
-accountingEntrySchema.pre('validate', function deriveTotals(next) {
+accountingEntrySchema.pre('validate', function deriveTotals() {
   const base = Number(this.amount) || 0;
   const rate = Number(this.gstRate) || 0;
   this.gstAmount = Math.round(base * rate) / 100;     // base * (rate/100), 2dp
   this.total = Math.round((base + this.gstAmount) * 100) / 100;
-  next();
 });
 
 accountingEntrySchema.index({ date: -1 });

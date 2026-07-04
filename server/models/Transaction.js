@@ -65,14 +65,13 @@ transactionSchema.index({ category: 1 });
 transactionSchema.index({ isReconciled: 1 });
 
 // Pre-save middleware
-transactionSchema.pre('save', function(next) {
+transactionSchema.pre('save', function() {
   if (this.isModified('amount')) {
     this.amount = parseFloat(this.amount.toFixed(2));
   }
   if (this.isModified('description')) {
     this.description = this.description.trim();
   }
-  next();
 });
 
 // Static method to get transactions by date range
