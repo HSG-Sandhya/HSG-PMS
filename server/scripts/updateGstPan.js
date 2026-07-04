@@ -25,7 +25,7 @@ const updateGstPan = async () => {
           'tax.pan': 'ASQPM7914B'
         }
       },
-      { new: true, upsert: false }
+      { returnDocument: 'after', upsert: false }
     );
     
     console.log('✅ GST and PAN updated successfully!');

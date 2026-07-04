@@ -282,7 +282,7 @@ export const updateUser = async (req, res) => {
     const user = await User.findByIdAndUpdate(
       id,
       updateData,
-      { new: true, runValidators: true }
+      { returnDocument: 'after', runValidators: true }
     ).populate('role department').select('-password');
 
     // Update department staff counts if department changed
@@ -403,7 +403,7 @@ export const toggleUserStatus = async (req, res) => {
         }
       },
       { 
-        new: true,
+        returnDocument: 'after',
         runValidators: false,
         strict: false
       }
@@ -523,7 +523,7 @@ export const deactivateUser = async (req, res) => {
     const updatedUser = await User.findByIdAndUpdate(
       userId,
       { isActive: false, updatedAt: new Date() },
-      { new: true }
+      { returnDocument: 'after' }
     ).populate('role department');
 
     // Update department staff count
@@ -565,7 +565,7 @@ export const activateUser = async (req, res) => {
     const updatedUser = await User.findByIdAndUpdate(
       userId,
       { isActive: true, updatedAt: new Date() },
-      { new: true }
+      { returnDocument: 'after' }
     ).populate('role department');
 
     if (!updatedUser) {

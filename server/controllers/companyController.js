@@ -80,7 +80,7 @@ export const updateCompany = async (req, res) => {
     if (!data.name) return res.status(400).json({ success: false, message: 'Company name is required' });
     if (typeof req.body.isActive === 'boolean') data.isActive = req.body.isActive;
 
-    const company = await Company.findByIdAndUpdate(req.params.id, { $set: data }, { new: true, runValidators: true });
+    const company = await Company.findByIdAndUpdate(req.params.id, { $set: data }, { returnDocument: 'after', runValidators: true });
     if (!company) return res.status(404).json({ success: false, message: 'Company not found' });
     return res.json({ success: true, data: company, message: 'Company updated' });
   } catch (error) {

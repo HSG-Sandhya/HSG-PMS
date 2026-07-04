@@ -113,7 +113,7 @@ export const createCategory = async (req, res) => {
 export const updateCategory = async (req, res) => {
   try {
     const category = await Category.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
+      returnDocument: 'after',
       runValidators: true,
     });
     if (!category) return res.status(404).json({ message: 'Category not found' });
@@ -203,7 +203,7 @@ export const updateMenuItem = async (req, res) => {
 
     const updateData = await buildMenuItemData(req.body, req.file, req.user?.id);
     const menuItem = await MenuItem.findByIdAndUpdate(req.params.id, updateData, {
-      new: true,
+      returnDocument: 'after',
       runValidators: true,
     }).populate('category');
     if (!menuItem) return res.status(404).json({ message: 'Menu item not found' });
@@ -225,7 +225,7 @@ export const setMenuItemAvailability = async (req, res) => {
     const menuItem = await MenuItem.findByIdAndUpdate(
       req.params.id,
       { isAvailable },
-      { new: true, runValidators: true }
+      { returnDocument: 'after', runValidators: true }
     ).populate('category');
     if (!menuItem) return res.status(404).json({ message: 'Menu item not found' });
     res.json(menuItem);
@@ -268,7 +268,7 @@ export const createTable = async (req, res) => {
 export const updateTable = async (req, res) => {
   try {
     const table = await Table.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
+      returnDocument: 'after',
       runValidators: true,
     });
     if (!table) return res.status(404).json({ message: 'Table not found' });
@@ -477,7 +477,7 @@ export const createOrder = async (req, res) => {
 export const updateOrder = async (req, res) => {
   try {
     const order = await populateOrder(
-      Order.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true })
+      Order.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after', runValidators: true })
     );
     if (!order) return res.status(404).json({ message: 'Order not found' });
     if (order.status === 'Completed' || order.status === 'Cancelled') {
@@ -574,7 +574,7 @@ export const updateOrderStatus = async (req, res) => {
       return res.status(400).json({ message: 'Invalid status' });
     }
     const order = await populateOrder(
-      Order.findByIdAndUpdate(req.params.id, { status }, { new: true, runValidators: true })
+      Order.findByIdAndUpdate(req.params.id, { status }, { returnDocument: 'after', runValidators: true })
     );
     if (!order) return res.status(404).json({ message: 'Order not found' });
     if (status === 'Completed' || status === 'Cancelled') {

@@ -245,7 +245,7 @@ router.put('/:id/checkout', isAuthenticated, requireManage('manage_bookings'), a
     const room = await Room.findByIdAndUpdate(
       booking.roomId,
       { status: 'cleaning', isAvailable: false },
-      { new: true }
+      { returnDocument: 'after' }
     );
     try {
       const task = await Housekeeping.ensureCleaningTask({

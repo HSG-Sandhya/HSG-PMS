@@ -275,7 +275,7 @@ export const createPackage = async (req, res) => {
 
 export const updatePackage = async (req, res) => {
   try {
-    const pkg = await EventPackage.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
+    const pkg = await EventPackage.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after', runValidators: true });
     if (!pkg) return res.status(404).json({ success: false, message: 'Package not found' });
     res.json({ success: true, data: pkg, message: 'Package updated successfully' });
   } catch (error) {
@@ -316,7 +316,7 @@ export const createCateringPackage = async (req, res) => {
 
 export const updateCateringPackage = async (req, res) => {
   try {
-    const pkg = await CateringPackage.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
+    const pkg = await CateringPackage.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after', runValidators: true });
     if (!pkg) return res.status(404).json({ success: false, message: 'Catering package not found' });
     res.json({ success: true, data: pkg, message: 'Catering package updated successfully' });
   } catch (error) {
@@ -357,7 +357,7 @@ export const createDecorationPackage = async (req, res) => {
 
 export const updateDecorationPackage = async (req, res) => {
   try {
-    const pkg = await DecorationPackage.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
+    const pkg = await DecorationPackage.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after', runValidators: true });
     if (!pkg) return res.status(404).json({ success: false, message: 'Decoration package not found' });
     res.json({ success: true, data: pkg, message: 'Decoration package updated successfully' });
   } catch (error) {
@@ -407,7 +407,7 @@ export const createUtensilItem = async (req, res) => {
 
 export const updateUtensilItem = async (req, res) => {
   try {
-    const item = await UtensilItem.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
+    const item = await UtensilItem.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after', runValidators: true });
     if (!item) return res.status(404).json({ success: false, message: 'Utensil item not found' });
     res.json({ success: true, data: item, message: 'Utensil item updated successfully' });
   } catch (error) {

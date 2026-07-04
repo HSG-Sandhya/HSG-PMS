@@ -58,7 +58,7 @@ export const updateGuest = async (req, res) => {
     const guest = await Guest.findByIdAndUpdate(
       req.params.id,
       req.body,
-      { new: true, runValidators: true }
+      { returnDocument: 'after', runValidators: true }
     );
     if (!guest) return res.status(404).json({ message: 'Guest not found' });
     res.json(guest);

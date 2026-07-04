@@ -107,7 +107,7 @@ export const updateAccount = async (req, res) => {
     const account = await Account.findByIdAndUpdate(
       req.params.id,
       req.body,
-      { new: true, runValidators: true }
+      { returnDocument: 'after', runValidators: true }
     );
     if (!account) {
       return res.status(404).json({ 
@@ -143,7 +143,7 @@ export const deleteAccount = async (req, res) => {
     const account = await Account.findByIdAndUpdate(
       req.params.id,
       { isActive: false },
-      { new: true }
+      { returnDocument: 'after' }
     );
     if (!account) {
       return res.status(404).json({ 

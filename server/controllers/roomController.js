@@ -125,7 +125,7 @@ export const updateRoom = async (req, res) => {
     // Settings, so no fixed-list validation here.
 
     const updatedRoom = await Room.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
+      returnDocument: 'after',
       runValidators: true,
     });
     if (!updatedRoom) return res.status(404).json({ message: 'Room not found' });
@@ -164,7 +164,7 @@ export const updateRoomStatus = async (req, res) => {
     const room = await Room.findByIdAndUpdate(
       req.params.id,
       { status },
-      { new: true, runValidators: true }
+      { returnDocument: 'after', runValidators: true }
     );
     if (!room) return res.status(404).json({ message: 'Room not found' });
 

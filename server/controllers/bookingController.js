@@ -401,7 +401,7 @@ export const updateBooking = async (req, res) => {
     const updatedBooking = await Booking.findByIdAndUpdate(
       bookingId,
       bookingData,
-      { new: true, runValidators: true }
+      { returnDocument: 'after', runValidators: true }
     ).populate('roomId');
 
     // Reconcile the room from the booking's resulting state. Category holds have

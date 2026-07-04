@@ -104,7 +104,7 @@ export const updateTransaction = async (req, res) => {
     const transaction = await Transaction.findByIdAndUpdate(
       req.params.id,
       req.body,
-      { new: true, runValidators: true }
+      { returnDocument: 'after', runValidators: true }
     );
     if (!transaction) return res.status(404).json({ message: 'Transaction not found' });
 

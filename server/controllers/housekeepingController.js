@@ -58,7 +58,7 @@ export const createTask = async (req, res) => {
       roomDoc = await Room.findByIdAndUpdate(
         task.roomId,
         { status: roomStatus },
-        { new: true }
+        { returnDocument: 'after' }
       );
     }
 

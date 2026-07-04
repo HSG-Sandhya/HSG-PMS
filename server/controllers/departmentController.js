@@ -166,7 +166,7 @@ export const updateDepartment = async (req, res) => {
     const department = await Department.findByIdAndUpdate(
       id,
       updateData,
-      { new: true, runValidators: true }
+      { returnDocument: 'after', runValidators: true }
     )
       .populate('headOfDepartment', 'name email')
       .populate('createdBy', 'name')

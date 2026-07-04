@@ -104,11 +104,20 @@ const ChangePasswordButton = ({ variant = 'icon', isDarkMode = false }) => {
             color: isDarkMode ? '#e2e8f0' : '#475569',
             background: isDarkMode ? 'rgba(30,41,59,0.3)' : 'rgba(255,255,255,0.4)',
             border: isDarkMode ? '1px solid rgba(148,163,184,0.15)' : '1px solid rgba(203,213,225,0.25)',
+            // Match the Settings/Logout rows: carry a resting glass shadow and
+            // swap to an elevated one on hover so the row lifts *with* depth,
+            // instead of fading into the background with no shape.
+            boxShadow: isDarkMode
+              ? '0 6px 16px -4px rgba(0,0,0,0.2), 0 3px 8px -2px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255, 255, 255, var(--app-surface-alpha, 0.05))'
+              : '0 6px 16px -4px rgba(0,0,0,0.1), 0 3px 8px -2px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.6)',
             backdropFilter: 'var(--app-blur)',
             WebkitBackdropFilter: 'var(--app-blur)',
             '&:hover': {
               transform: 'translateY(-2px)',
               background: isDarkMode ? 'rgba(var(--app-primary-rgb),0.15)' : 'rgba(var(--app-primary-rgb),0.08)',
+              boxShadow: isDarkMode
+                ? '0 10px 24px -4px rgba(0,0,0,0.25), 0 5px 12px -2px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255, 255, 255, calc(var(--app-surface-alpha, 0.05) * 2))'
+                : '0 10px 24px -4px rgba(0,0,0,0.15), 0 5px 12px -2px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.8)',
             },
           }}
         >

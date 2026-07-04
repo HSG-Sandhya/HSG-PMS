@@ -42,7 +42,7 @@ export const updateChannel = async (req, res) => {
     const channel = await Channel.findByIdAndUpdate(
       req.params.id,
       { ...req.body, updatedBy: req.user.id },
-      { new: true, runValidators: true }
+      { returnDocument: 'after', runValidators: true }
     ).populate('roomMappings.internalRoomId', 'number type');
     if (!channel) return res.status(404).json({ message: 'Channel not found' });
     res.json(channel);
@@ -147,7 +147,7 @@ export const updateRoomMappings = async (req, res) => {
     const channel = await Channel.findByIdAndUpdate(
       req.params.id,
       { roomMappings },
-      { new: true, runValidators: true }
+      { returnDocument: 'after', runValidators: true }
     ).populate('roomMappings.internalRoomId', 'number type');
     if (!channel) return res.status(404).json({ message: 'Channel not found' });
     res.json(channel);

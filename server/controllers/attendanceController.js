@@ -601,7 +601,7 @@ export const bulkMarkAttendance = async (req, res) => {
         const doc = await Attendance.findOneAndUpdate(
           { staff: record.staff, date: attendanceDate },
           { $set: set, $setOnInsert: { staff: record.staff, date: attendanceDate } },
-          { new: true, upsert: true, setDefaultsOnInsert: true, runValidators: true },
+          { returnDocument: 'after', upsert: true, setDefaultsOnInsert: true, runValidators: true },
         );
         if (set.clockIn || set.clockOut) {
           doc.calculateWorkHours();
