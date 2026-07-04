@@ -81,7 +81,6 @@ const DepartmentCard = ({ dept, onEdit, onDelete, onToggle, isDarkMode }) => {
     >
       {/* Color accent bar */}
       <Box sx={{ position: 'absolute', top: 0, left: 16, right: 16, height: 3, borderRadius: 2, background: color }} />
-
       <Stack
         className="dept-actions"
         direction="row"
@@ -99,8 +98,15 @@ const DepartmentCard = ({ dept, onEdit, onDelete, onToggle, isDarkMode }) => {
           </IconButton>
         </Tooltip>
       </Stack>
-
-      <Stack direction="row" spacing={1.5} alignItems="center" sx={{ pr: 7, mb: 1, mt: 0.5 }}>
+      <Stack
+        direction="row"
+        spacing={1.5}
+        sx={{
+          alignItems: "center",
+          pr: 7,
+          mb: 1,
+          mt: 0.5
+        }}>
         <Box
           sx={{
             width: 40, height: 40, borderRadius: 2, flexShrink: 0,
@@ -110,22 +116,35 @@ const DepartmentCard = ({ dept, onEdit, onDelete, onToggle, isDarkMode }) => {
         >
           <DeptIcon fontSize="small" />
         </Box>
-        <Typography variant="subtitle1" fontWeight={700} sx={{ lineHeight: 1.15 }}>
+        <Typography
+          variant="subtitle1"
+          sx={{
+            fontWeight: 700,
+            lineHeight: 1.15
+          }}>
           {dept.name}
         </Typography>
       </Stack>
-
       <Typography
         variant="body2"
-        color="text.secondary"
-        sx={{ minHeight: 40, mb: 1.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
-      >
+        sx={{
+          color: "text.secondary",
+          minHeight: 40,
+          mb: 1.5,
+          display: '-webkit-box',
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: 'vertical',
+          overflow: 'hidden'
+        }}>
         {dept.description || 'No description'}
       </Typography>
-
       <Divider sx={{ mb: 1.5, opacity: isDarkMode ? 0.2 : 0.6 }} />
-
-      <Stack direction="row" alignItems="center" justifyContent="space-between">
+      <Stack
+        direction="row"
+        sx={{
+          alignItems: "center",
+          justifyContent: "space-between"
+        }}>
         <Stack direction="row" spacing={0.75}>
           <Chip
             icon={<PeopleIcon sx={{ fontSize: 15 }} />}
@@ -253,14 +272,19 @@ const DepartmentsSection = ({ onNotify }) => {
       {/* Toolbar */}
       <Stack
         direction={{ xs: 'column', sm: 'row' }}
-        justifyContent="space-between"
-        alignItems={{ xs: 'flex-start', sm: 'center' }}
         spacing={2}
-        sx={{ mb: 3 }}
-      >
-        <Stack direction="row" spacing={1} alignItems="center">
+        sx={{
+          justifyContent: "space-between",
+          alignItems: { xs: 'flex-start', sm: 'center' },
+          mb: 3
+        }}>
+        <Stack direction="row" spacing={1} sx={{
+          alignItems: "center"
+        }}>
           <DeptIcon sx={{ color: ACCENT }} />
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>
             {loading ? 'Loading…' : `${departments.length} ${departments.length === 1 ? 'department' : 'departments'} · organisational units staff belong to`}
           </Typography>
         </Stack>
@@ -275,15 +299,23 @@ const DepartmentsSection = ({ onNotify }) => {
           </Button>
         </Stack>
       </Stack>
-
       {loading ? (
-        <Box display="flex" justifyContent="center" py={8}>
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "center",
+            py: 8
+          }}>
           <CircularProgress />
         </Box>
       ) : departments.length === 0 ? (
         <Box sx={{ textAlign: 'center', py: 8, px: 3, borderRadius: 3, border: '1px dashed', borderColor: 'divider' }}>
           <DeptIcon sx={{ fontSize: 48, color: 'text.disabled', mb: 1 }} />
-          <Typography color="text.secondary" sx={{ mb: 2 }}>No departments yet.</Typography>
+          <Typography
+            sx={{
+              color: "text.secondary",
+              mb: 2
+            }}>No departments yet.</Typography>
           <Button startIcon={<AddIcon />} variant="contained" onClick={openCreate} sx={primaryButtonSx}>
             Add your first department
           </Button>
@@ -291,7 +323,13 @@ const DepartmentsSection = ({ onNotify }) => {
       ) : (
         <Grid container spacing={2}>
           {departments.map((dept) => (
-            <Grid item xs={12} sm={6} lg={4} key={dept._id}>
+            <Grid
+              key={dept._id}
+              size={{
+                xs: 12,
+                sm: 6,
+                lg: 4
+              }}>
               <DepartmentCard
                 dept={dept}
                 onEdit={openEdit}
@@ -303,17 +341,19 @@ const DepartmentsSection = ({ onNotify }) => {
           ))}
         </Grid>
       )}
-
       <Dialog
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}
         fullWidth
         maxWidth="sm"
-        PaperProps={{ sx: dialogPaperSx(isDarkMode) }}
-        BackdropProps={{ sx: dialogBackdropSx }}
-      >
+        slotProps={{
+          backdrop: { sx: dialogBackdropSx },
+          paper: { sx: dialogPaperSx(isDarkMode) }
+        }}>
         <Box sx={headerWrapSx(isDarkMode)}>
-          <Stack direction="row" spacing={1.5} alignItems="center">
+          <Stack direction="row" spacing={1.5} sx={{
+            alignItems: "center"
+          }}>
             <Box
               sx={{
                 width: 44, height: 44, borderRadius: 2,
@@ -338,7 +378,9 @@ const DepartmentsSection = ({ onNotify }) => {
           <Stack spacing={2.5}>
             <TextField label="Name" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} fullWidth />
             <TextField label="Description" multiline rows={2} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} fullWidth />
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ sm: 'center' }}>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{
+              alignItems: { sm: 'center' }
+            }}>
               <TextField
                 label="Colour"
                 type="color"
@@ -352,13 +394,28 @@ const DepartmentsSection = ({ onNotify }) => {
                 value={form.budget}
                 onChange={(e) => setForm({ ...form, budget: e.target.value })}
                 fullWidth
-                InputProps={{ startAdornment: <InputAdornment position="start">{currencySym()}</InputAdornment> }}
+                slotProps={{
+                  input: { startAdornment: <InputAdornment position="start">{currencySym()}</InputAdornment> }
+                }}
               />
             </Stack>
-            <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ borderRadius: 2, p: 1.5, border: '1px solid', borderColor: 'divider' }}>
+            <Stack
+              direction="row"
+              sx={{
+                alignItems: "center",
+                justifyContent: "space-between",
+                borderRadius: 2,
+                p: 1.5,
+                border: '1px solid',
+                borderColor: 'divider'
+              }}>
               <Box>
-                <Typography variant="body2" fontWeight={600}>Active</Typography>
-                <Typography variant="caption" color="text.secondary">
+                <Typography variant="body2" sx={{
+                  fontWeight: 600
+                }}>Active</Typography>
+                <Typography variant="caption" sx={{
+                  color: "text.secondary"
+                }}>
                   Inactive departments stay on record but are hidden from assignment.
                 </Typography>
               </Box>

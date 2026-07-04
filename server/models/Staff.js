@@ -101,12 +101,11 @@ const StaffSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 // Auto-generate Employee ID
-StaffSchema.pre("save", async function (next) {
+StaffSchema.pre("save", async function () {
   if (this.isNew && !this.employeeId) {
     const count = await this.constructor.countDocuments();
     this.employeeId = `EMP${String(count + 1).padStart(4, "0")}`;
   }
-  next();
 });
 
 // Populate references

@@ -218,7 +218,13 @@ const ChannelManager = () => {
   // ---- render ------------------------------------------------------------
   if (loading) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          minHeight: "60vh"
+        }}>
         <CircularProgress />
       </Box>
     );
@@ -280,7 +286,6 @@ const ChannelManager = () => {
           </Button>
         </Box>
       </Box>
-
       {/* KPI cards */}
       <Grid container spacing={2.5} sx={{ mb: 3 }}>
         <StatCard icon={<StorefrontIcon />} value={stats.total} label="Total Channels" tint="var(--app-primary)" />
@@ -289,7 +294,6 @@ const ChannelManager = () => {
         <StatCard icon={<LinkIcon />} value={stats.apiConnected} label="API Connected" tint="#6366F1" />
         <StatCard icon={<MoneyIcon />} value={inr(stats.revenue)} label="Channel Revenue" tint="#0EA5E9" />
       </Grid>
-
       {/* Toolbar */}
       <Paper sx={{ p: 1.5, mb: 3, borderRadius: 3, ...GLASS, display: 'flex', flexWrap: 'wrap', gap: 1.5, alignItems: 'center' }}>
         <TextField
@@ -298,12 +302,14 @@ const ChannelManager = () => {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           sx={{ minWidth: 240, flex: '1 1 240px' }}
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <SearchIcon fontSize="small" />
-              </InputAdornment>
-            ),
+          slotProps={{
+            input: {
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon fontSize="small" />
+                </InputAdornment>
+              ),
+            }
           }}
         />
         <ToggleButtonGroup
@@ -341,7 +347,6 @@ const ChannelManager = () => {
           {filtered.length} of {channels.length}
         </Box>
       </Paper>
-
       {/* Channel grid / empty state */}
       {filtered.length === 0 ? (
         <EmptyState
@@ -354,7 +359,13 @@ const ChannelManager = () => {
       ) : (
         <Grid container spacing={2.5}>
           {filtered.map((channel) => (
-            <Grid item xs={12} sm={6} lg={4} key={channel._id}>
+            <Grid
+              key={channel._id}
+              size={{
+                xs: 12,
+                sm: 6,
+                lg: 4
+              }}>
               <ChannelCard
                 channel={channel}
                 stats={channelStats[channel._id]}
@@ -367,7 +378,6 @@ const ChannelManager = () => {
           ))}
         </Grid>
       )}
-
       {/* Row action menu */}
       <Menu anchorEl={menuAnchor} open={!!menuAnchor} onClose={closeMenu}>
         <MenuItem
@@ -429,7 +439,6 @@ const ChannelManager = () => {
           <ListItemText>Delete</ListItemText>
         </MenuItem>
       </Menu>
-
       {/* Dialogs */}
       <ChannelFormDialog
         open={formOpen}
@@ -458,7 +467,6 @@ const ChannelManager = () => {
         }}
       />
       <RateCalculatorDialog channel={rateChannel} onClose={() => setRateChannel(null)} notify={notify} />
-
       <Snackbar
         open={snackbar.open}
         autoHideDuration={5000}
@@ -482,7 +490,12 @@ const ChannelManager = () => {
 // Sub-components
 // ===========================================================================
 const StatCard = ({ icon, value, label, tint }) => (
-  <Grid item xs={6} sm={4} md={2.4}>
+  <Grid
+    size={{
+      xs: 6,
+      sm: 4,
+      md: 2.4
+    }}>
     <Box
       sx={{
         p: 2.5,
@@ -592,7 +605,7 @@ const ChannelCard = ({ channel, stats, syncing, onSync, onMenu, onView }) => {
 };
 
 const Metric = ({ label, value }) => (
-  <Grid item xs={6}>
+  <Grid size={6}>
     <Box sx={{ p: 1, borderRadius: 2, bgcolor: 'rgba(var(--app-primary-rgb),0.04)' }}>
       <Typography variant="h6" sx={{ fontWeight: 700, color: 'var(--app-primary)', lineHeight: 1.2 }}>
         {value}

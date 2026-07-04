@@ -46,7 +46,11 @@ const safeParse = (input) => {
 };
 
 const StatusPill = ({ status }) => {
-  if (!status || status === '-') return <Typography variant="body2" color="text.secondary">—</Typography>;
+  if (!status || status === '-') return (
+    <Typography variant="body2" sx={{
+      color: "text.secondary"
+    }}>—</Typography>
+  );
   const positive = ['paid', 'completed', 'confirmed', 'checked-in', 'checked in'];
   const warning = ['pending', 'partial', 'reserved'];
   const value = String(status).toLowerCase();
@@ -118,12 +122,15 @@ const BookingDetailsDialog = ({ open, onClose, booking }) => {
       onClose={onClose}
       maxWidth="md"
       fullWidth
-      PaperProps={{ sx: dialogPaperSx(isDarkMode) }}
-      BackdropProps={{ sx: dialogBackdropSx }}
-    >
+      slotProps={{
+        backdrop: { sx: dialogBackdropSx },
+        paper: { sx: dialogPaperSx(isDarkMode) }
+      }}>
       {/* Header */}
       <Box sx={headerWrapSx(isDarkMode)}>
-        <Stack direction="row" alignItems="center" spacing={2.5}>
+        <Stack direction="row" spacing={2.5} sx={{
+          alignItems: "center"
+        }}>
           <Avatar
             sx={{
               width: 56,
@@ -159,11 +166,14 @@ const BookingDetailsDialog = ({ open, onClose, booking }) => {
           </Stack>
         </Stack>
       </Box>
-
       <DialogContent sx={{ px: { xs: 3, sm: 4 }, py: 3 }}>
         <Grid container spacing={2.5}>
           {/* Guest */}
-          <Grid item xs={12} md={6}>
+          <Grid
+            size={{
+              xs: 12,
+              md: 6
+            }}>
             <Box sx={sectionCardSx(isDarkMode)}>
               <Typography sx={sectionTitleSx(isDarkMode)}>
                 <PersonIcon fontSize="inherit" />
@@ -182,7 +192,9 @@ const BookingDetailsDialog = ({ open, onClose, booking }) => {
                 {specialRequests}
               </Row>
               <Row icon={<ImageIcon fontSize="small" />} label="ID Card" isDarkMode={isDarkMode}>
-                <Stack direction="row" spacing={1.5} alignItems="center">
+                <Stack direction="row" spacing={1.5} sx={{
+                  alignItems: "center"
+                }}>
                   <Typography sx={valueSx(isDarkMode)}>
                     {booking.idCardType || '—'} {booking.idCardNumber ? `· ${booking.idCardNumber}` : ''}
                   </Typography>
@@ -209,7 +221,11 @@ const BookingDetailsDialog = ({ open, onClose, booking }) => {
           </Grid>
 
           {/* Booking */}
-          <Grid item xs={12} md={6}>
+          <Grid
+            size={{
+              xs: 12,
+              md: 6
+            }}>
             <Box sx={sectionCardSx(isDarkMode)}>
               <Typography sx={sectionTitleSx(isDarkMode)}>
                 <RoomIcon fontSize="inherit" />
@@ -238,7 +254,9 @@ const BookingDetailsDialog = ({ open, onClose, booking }) => {
                   : '—'}
               </Row>
               <Row icon={<PaymentIcon fontSize="small" />} label="Payment" isDarkMode={isDarkMode}>
-                <Stack direction="row" spacing={2} flexWrap="wrap">
+                <Stack direction="row" spacing={2} sx={{
+                  flexWrap: "wrap"
+                }}>
                   <Typography sx={valueSx(isDarkMode)}>
                     Total {fmt(booking.payment?.totalAmount || booking.totalAmount || 0)}
                   </Typography>
@@ -262,7 +280,7 @@ const BookingDetailsDialog = ({ open, onClose, booking }) => {
           </Grid>
 
           {/* Audit */}
-          <Grid item xs={12}>
+          <Grid size={12}>
             <Box
               sx={{
                 ...sectionCardSx(isDarkMode),
@@ -283,7 +301,6 @@ const BookingDetailsDialog = ({ open, onClose, booking }) => {
           </Grid>
         </Grid>
       </DialogContent>
-
       <DialogActions sx={actionsBarSx(isDarkMode)}>
         <Button onClick={onClose} variant="outlined" sx={secondaryButtonSx(isDarkMode)}>
           Close

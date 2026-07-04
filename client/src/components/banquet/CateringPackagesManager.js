@@ -90,8 +90,19 @@ const CateringPackagesManager = ({ onNotify }) => {
 
   return (
     <Box>
-      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
-        <Typography variant="h6" fontWeight={800} sx={{ color: 'var(--app-primary)' }}>
+      <Stack
+        direction="row"
+        sx={{
+          justifyContent: "space-between",
+          alignItems: "center",
+          mb: 3
+        }}>
+        <Typography
+          variant="h6"
+          sx={{
+            fontWeight: 800,
+            color: 'var(--app-primary)'
+          }}>
           Catering Packages
         </Typography>
         <Button variant="contained" startIcon={<AddIcon />} onClick={openNew}
@@ -100,48 +111,88 @@ const CateringPackagesManager = ({ onNotify }) => {
           New Catering Package
         </Button>
       </Stack>
-
       {packages.length === 0 ? (
         <Box sx={{ textAlign: 'center', py: 8, border: '1px dashed', borderColor: 'divider', borderRadius: 3 }}>
           <RestaurantMenuIcon sx={{ fontSize: 56, color: 'text.disabled', mb: 1 }} />
-          <Typography color="text.secondary">No catering packages yet. Create per-plate menus to speed up bookings.</Typography>
+          <Typography sx={{
+            color: "text.secondary"
+          }}>No catering packages yet. Create per-plate menus to speed up bookings.</Typography>
         </Box>
       ) : (
         <Grid container spacing={2}>
           {packages.map((p) => (
-            <Grid item xs={12} sm={6} md={4} key={p._id}>
+            <Grid
+              key={p._id}
+              size={{
+                xs: 12,
+                sm: 6,
+                md: 4
+              }}>
               <Card sx={{ borderRadius: 3, height: '100%', position: 'relative', overflow: 'hidden' }}>
                 <Box sx={{ height: 4, background: CATEGORY_COLOR[p.category] || 'var(--app-primary)' }} />
                 <CardContent>
-                  <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
-                    <Typography variant="h6" fontWeight={800}>{p.name}</Typography>
+                  <Stack
+                    direction="row"
+                    sx={{
+                      justifyContent: "space-between",
+                      alignItems: "flex-start"
+                    }}>
+                    <Typography variant="h6" sx={{
+                      fontWeight: 800
+                    }}>{p.name}</Typography>
                     {!p.isActive && <Chip size="small" label="Inactive" sx={{ height: 20 }} />}
                   </Stack>
                   <Stack direction="row" spacing={1} sx={{ mt: 0.75, alignItems: 'center' }}>
                     <Chip size="small" label={p.category}
                       sx={{ height: 22, fontSize: 11, fontWeight: 700, color: '#fff', bgcolor: CATEGORY_COLOR[p.category] || 'var(--app-primary)' }} />
-                    <Typography variant="h6" fontWeight={800} sx={{ color: 'var(--app-primary)' }}>
+                    <Typography
+                      variant="h6"
+                      sx={{
+                        fontWeight: 800,
+                        color: 'var(--app-primary)'
+                      }}>
                       {currencySym()}{(p.pricePerPlate || 0).toLocaleString('en-IN')}
-                      <Typography component="span" variant="caption" color="text.secondary"> /plate</Typography>
+                      <Typography component="span" variant="caption" sx={{
+                        color: "text.secondary"
+                      }}> /plate</Typography>
                     </Typography>
                   </Stack>
                   {p.description && (
-                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>{p.description}</Typography>
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        color: "text.secondary",
+                        mt: 1
+                      }}>{p.description}</Typography>
                   )}
                   {(p.items || []).length > 0 && (
                     <>
                       <Divider sx={{ my: 1.5 }} />
                       <Box>
                         {p.items.slice(0, 6).map((it, i) => (
-                          <Typography key={i} variant="caption" display="block" color="text.secondary">• {it}</Typography>
+                          <Typography
+                            key={i}
+                            variant="caption"
+                            sx={{
+                              display: "block",
+                              color: "text.secondary"
+                            }}>• {it}</Typography>
                         ))}
                         {p.items.length > 6 && (
-                          <Typography variant="caption" color="text.disabled">+{p.items.length - 6} more…</Typography>
+                          <Typography variant="caption" sx={{
+                            color: "text.disabled"
+                          }}>+{p.items.length - 6} more…</Typography>
                         )}
                       </Box>
                     </>
                   )}
-                  <Stack direction="row" justifyContent="flex-end" spacing={0.5} sx={{ mt: 1 }}>
+                  <Stack
+                    direction="row"
+                    spacing={0.5}
+                    sx={{
+                      justifyContent: "flex-end",
+                      mt: 1
+                    }}>
                     <Tooltip title="Edit"><IconButton size="small" onClick={() => openEdit(p)} sx={{ color: 'var(--app-primary)' }}><EditIcon fontSize="small" /></IconButton></Tooltip>
                     <Tooltip title="Delete"><IconButton size="small" onClick={() => handleDelete(p)} sx={{ color: '#ef4444' }}><DeleteIcon fontSize="small" /></IconButton></Tooltip>
                   </Stack>
@@ -151,7 +202,6 @@ const CateringPackagesManager = ({ onNotify }) => {
           ))}
         </Grid>
       )}
-
       <FormDialog
         open={dialogOpen}
         onClose={saving ? undefined : () => setDialogOpen(false)}
@@ -165,25 +215,27 @@ const CateringPackagesManager = ({ onNotify }) => {
       >
         <FormSection title="Package Details" icon={<RestaurantMenuIcon fontSize="small" />} iconColor="#f43f5e">
           <Grid container spacing={2} sx={{ mt: 0 }}>
-            <Grid item xs={12}><TextField fullWidth label="Package name" value={form.name} onChange={(e) => set('name', e.target.value)} required /></Grid>
-            <Grid item xs={12}><TextField fullWidth label="Description" value={form.description} onChange={(e) => set('description', e.target.value)} multiline rows={2} /></Grid>
-            <Grid item xs={6}>
+            <Grid size={12}><TextField fullWidth label="Package name" value={form.name} onChange={(e) => set('name', e.target.value)} required /></Grid>
+            <Grid size={12}><TextField fullWidth label="Description" value={form.description} onChange={(e) => set('description', e.target.value)} multiline rows={2} /></Grid>
+            <Grid size={6}>
               <TextField select fullWidth label="Category" value={form.category} onChange={(e) => set('category', e.target.value)}>
                 {CATEGORIES.map((c) => <MenuItem key={c} value={c}>{c}</MenuItem>)}
               </TextField>
             </Grid>
-            <Grid item xs={6}>
+            <Grid size={6}>
               <TextField fullWidth type="number" label="Price per plate" value={form.pricePerPlate}
                 onChange={(e) => set('pricePerPlate', e.target.value)}
-                InputProps={{ startAdornment: <InputAdornment position="start">{currencySym()}</InputAdornment> }} />
+                slotProps={{
+                  input: { startAdornment: <InputAdornment position="start">{currencySym()}</InputAdornment> }
+                }} />
             </Grid>
-            <Grid item xs={12}>
+            <Grid size={12}>
               <TextField select fullWidth label="Status" value={form.isActive ? 'active' : 'inactive'} onChange={(e) => set('isActive', e.target.value === 'active')}>
                 <MenuItem value="active">Active</MenuItem>
                 <MenuItem value="inactive">Inactive</MenuItem>
               </TextField>
             </Grid>
-            <Grid item xs={12}>
+            <Grid size={12}>
               <TextField fullWidth label="Dishes included (one per line)" multiline rows={5}
                 value={Array.isArray(form.items) ? form.items.join('\n') : form.items}
                 onChange={(e) => set('items', e.target.value.split('\n'))}

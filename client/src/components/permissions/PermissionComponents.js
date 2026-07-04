@@ -160,10 +160,14 @@ export const AdminDashboardCard = ({ children, ...props }) => {
   if (!isAdmin()) {
     return (
       <Box {...props}>
-        <Typography variant="h6" color="text.secondary" align="center">
+        <Typography variant="h6" align="center" sx={{
+          color: "text.secondary"
+        }}>
           Admin Access Required
         </Typography>
-        <Typography variant="body2" color="text.secondary" align="center">
+        <Typography variant="body2" align="center" sx={{
+          color: "text.secondary"
+        }}>
           Contact your administrator for access to this section.
         </Typography>
       </Box>

@@ -69,14 +69,24 @@ const EventCalendar = ({ bookings = [], month, year, onPrev, onNext, onSelectDat
   return (
     <Box>
       {/* Month nav */}
-      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
+      <Stack
+        direction="row"
+        sx={{
+          alignItems: "center",
+          justifyContent: "space-between",
+          mb: 2
+        }}>
         <IconButton onClick={onPrev} sx={{ color: 'var(--app-primary)' }}><ChevronLeftIcon /></IconButton>
-        <Typography variant="h6" fontWeight={800} sx={{ color: 'var(--app-primary)' }}>
+        <Typography
+          variant="h6"
+          sx={{
+            fontWeight: 800,
+            color: 'var(--app-primary)'
+          }}>
           {MONTHS[month - 1]} {year}
         </Typography>
         <IconButton onClick={onNext} sx={{ color: 'var(--app-primary)' }}><ChevronRightIcon /></IconButton>
       </Stack>
-
       {/* Weekday header */}
       <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 1, mb: 1 }}>
         {WEEKDAYS.map((w) => (
@@ -86,7 +96,6 @@ const EventCalendar = ({ bookings = [], month, year, onPrev, onNext, onSelectDat
           </Typography>
         ))}
       </Box>
-
       {/* Day grid */}
       <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 1 }}>
         {cells.map((day, idx) => {
@@ -118,9 +127,18 @@ const EventCalendar = ({ bookings = [], month, year, onPrev, onNext, onSelectDat
                 },
               }}
             >
-              <Stack direction="row" justifyContent="space-between" alignItems="center">
-                <Typography variant="caption" fontWeight={isToday ? 800 : 600}
-                  sx={{ color: isToday ? 'var(--app-primary)' : 'text.primary' }}>
+              <Stack
+                direction="row"
+                sx={{
+                  justifyContent: "space-between",
+                  alignItems: "center"
+                }}>
+                <Typography
+                  variant="caption"
+                  sx={{
+                    fontWeight: isToday ? 800 : 600,
+                    color: isToday ? 'var(--app-primary)' : 'text.primary'
+                  }}>
                   {day}
                 </Typography>
                 {events.length > 0 && (
@@ -156,18 +174,25 @@ const EventCalendar = ({ bookings = [], month, year, onPrev, onNext, onSelectDat
           );
         })}
       </Box>
-
       {/* Legend */}
       <Stack direction="row" spacing={2} sx={{ mt: 2, flexWrap: 'wrap' }}>
         {Object.entries(STATUS_COLOR).map(([label, color]) => (
-          <Stack key={label} direction="row" spacing={0.75} alignItems="center">
+          <Stack key={label} direction="row" spacing={0.75} sx={{
+            alignItems: "center"
+          }}>
             <Box sx={{ width: 10, height: 10, borderRadius: '50%', background: color }} />
-            <Typography variant="caption" color="text.secondary">{label}</Typography>
+            <Typography variant="caption" sx={{
+              color: "text.secondary"
+            }}>{label}</Typography>
           </Stack>
         ))}
-        <Stack direction="row" spacing={0.75} alignItems="center">
+        <Stack direction="row" spacing={0.75} sx={{
+          alignItems: "center"
+        }}>
           <CelebrationIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
-          <Typography variant="caption" color="text.secondary">Click a free day to book</Typography>
+          <Typography variant="caption" sx={{
+            color: "text.secondary"
+          }}>Click a free day to book</Typography>
         </Stack>
       </Stack>
     </Box>

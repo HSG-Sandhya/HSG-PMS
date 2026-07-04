@@ -86,7 +86,13 @@ const Staff = () => {
 
   if (!isAuthenticated) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          minHeight: "400px"
+        }}>
         <Alert severity="warning">Please log in to access staff management.</Alert>
       </Box>
     );
@@ -94,7 +100,13 @@ const Staff = () => {
 
   if (loading && staff.length === 0) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          minHeight: "400px"
+        }}>
         <CircularProgress />
       </Box>
     );
@@ -118,13 +130,11 @@ const Staff = () => {
       >
         Our Team
       </Typography>
-
       {error && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
           {error}
         </Alert>
       )}
-
       {/* Search Bar */}
       <Card sx={{ 
         mb: 3,
@@ -134,24 +144,43 @@ const Staff = () => {
         boxShadow: '0 8px 32px rgba(0,0,0,0.1)'
       }}>
         <CardContent>
-          <Grid container spacing={2} alignItems="center">
-            <Grid item xs={12} sm={8} md={6}>
+          <Grid container spacing={2} sx={{
+            alignItems: "center"
+          }}>
+            <Grid
+              size={{
+                xs: 12,
+                sm: 8,
+                md: 6
+              }}>
               <TextField
                 fullWidth
                 placeholder="Search team members..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <SearchIcon />
-                    </InputAdornment>
-                  ),
+                slotProps={{
+                  input: {
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <SearchIcon />
+                      </InputAdornment>
+                    ),
+                  }
                 }}
               />
             </Grid>
-            <Grid item xs={12} sm={4} md={6}>
-              <Box display="flex" gap={2} justifyContent="flex-end">
+            <Grid
+              size={{
+                xs: 12,
+                sm: 4,
+                md: 6
+              }}>
+              <Box
+                sx={{
+                  display: "flex",
+                  gap: 2,
+                  justifyContent: "flex-end"
+                }}>
                 <Chip 
                   label={`Total: ${staff.length}`} 
                   color="primary" 
@@ -177,11 +206,17 @@ const Staff = () => {
           </Grid>
         </CardContent>
       </Card>
-
       {/* Staff Cards Grid */}
       <Grid container spacing={3}>
         {filteredStaff.map(member => (
-          <Grid item xs={12} sm={6} md={4} lg={3} key={member._id}>
+          <Grid
+            key={member._id}
+            size={{
+              xs: 12,
+              sm: 6,
+              md: 4,
+              lg: 3
+            }}>
             <Card 
               sx={{ 
                 height: '100%',
@@ -202,7 +237,13 @@ const Staff = () => {
             >
               <CardContent sx={{ flexGrow: 1, p: 3 }}>
                 {/* Avatar and Status */}
-                <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
+                <Box
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    mb: 2
+                  }}>
                   <Avatar 
                     sx={{ 
                       width: 60, 
@@ -238,30 +279,50 @@ const Staff = () => {
                 </Box>
 
                 {/* Name and Employee ID */}
-                <Typography variant="h6" fontWeight="bold" gutterBottom>
+                <Typography variant="h6" gutterBottom sx={{
+                  fontWeight: "bold"
+                }}>
                   {member.firstName} {member.lastName}
                 </Typography>
-                <Typography variant="body2" color="text.secondary" gutterBottom>
+                <Typography variant="body2" gutterBottom sx={{
+                  color: "text.secondary"
+                }}>
                   ID: {member.profile?.employeeId || 'N/A'}
                 </Typography>
 
                 <Divider sx={{ my: 2 }} />
 
                 {/* Role Information */}
-                <Box display="flex" alignItems="center" gap={1} mb={1.5}>
+                <Box
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 1,
+                    mb: 1.5
+                  }}>
                   <BadgeIcon fontSize="small" color="primary" />
                   <Box>
-                    <Typography variant="body2" fontWeight="medium">
+                    <Typography variant="body2" sx={{
+                      fontWeight: "medium"
+                    }}>
                       {member.role?.name || 'No Role Assigned'}
                     </Typography>
-                    <Typography variant="caption" color="text.secondary">
+                    <Typography variant="caption" sx={{
+                      color: "text.secondary"
+                    }}>
                       Level {member.role?.hierarchy || 'N/A'}
                     </Typography>
                   </Box>
                 </Box>
 
                 {/* Department */}
-                <Box display="flex" alignItems="center" gap={1} mb={1.5}>
+                <Box
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 1,
+                    mb: 1.5
+                  }}>
                   <BusinessIcon fontSize="small" color="primary" />
                   <Typography variant="body2">
                     {member.department?.name || 'No Department'}
@@ -269,14 +330,26 @@ const Staff = () => {
                 </Box>
 
                 {/* Contact Information */}
-                <Box display="flex" alignItems="center" gap={1} mb={1}>
+                <Box
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 1,
+                    mb: 1
+                  }}>
                   <EmailIcon fontSize="small" color="action" />
                   <Typography variant="body2" sx={{ wordBreak: 'break-all' }}>
                     {member.email}
                   </Typography>
                 </Box>
 
-                <Box display="flex" alignItems="center" gap={1} mb={1.5}>
+                <Box
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 1,
+                    mb: 1.5
+                  }}>
                   <PhoneIcon fontSize="small" color="action" />
                   <Typography variant="body2">
                     {member.phone || 'No phone'}
@@ -284,18 +357,33 @@ const Staff = () => {
                 </Box>
 
                 {/* Join Date */}
-                <Box display="flex" alignItems="center" gap={1}>
+                <Box
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 1
+                  }}>
                   <CalendarIcon fontSize="small" color="action" />
-                  <Typography variant="caption" color="text.secondary">
+                  <Typography variant="caption" sx={{
+                    color: "text.secondary"
+                  }}>
                     Joined: {formatDate(member.createdAt)}
                   </Typography>
                 </Box>
 
                 {/* Location if available */}
                 {member.profile?.address && (
-                  <Box display="flex" alignItems="center" gap={1} mt={1}>
+                  <Box
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 1,
+                      mt: 1
+                    }}>
                     <LocationIcon fontSize="small" color="action" />
-                    <Typography variant="caption" color="text.secondary">
+                    <Typography variant="caption" sx={{
+                      color: "text.secondary"
+                    }}>
                       {member.profile.address.city || 'Location not specified'}
                     </Typography>
                   </Box>
@@ -306,7 +394,7 @@ const Staff = () => {
         ))}
         
         {filteredStaff.length === 0 && (
-          <Grid item xs={12}>
+          <Grid size={12}>
             <Card sx={{
               background: alpha(theme.palette.background.paper, 0.7),
               backdropFilter: 'blur(20px)',
@@ -314,12 +402,20 @@ const Staff = () => {
               boxShadow: '0 8px 32px rgba(0,0,0,0.1)'
             }}>
               <CardContent>
-                <Box textAlign="center" py={4}>
+                <Box
+                  sx={{
+                    textAlign: "center",
+                    py: 4
+                  }}>
                   <PersonIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
-                  <Typography variant="h6" color="text.secondary" gutterBottom>
+                  <Typography variant="h6" gutterBottom sx={{
+                    color: "text.secondary"
+                  }}>
                     {searchTerm ? 'No team members match your search' : 'No team members found'}
                   </Typography>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" sx={{
+                    color: "text.secondary"
+                  }}>
                     {searchTerm ? 'Try adjusting your search terms' : 'Staff members will appear here once they are added'}
                   </Typography>
                 </Box>

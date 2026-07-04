@@ -55,9 +55,25 @@ const IncomeExpenseTab = ({ range, onChanged, onNotify }) => {
 
   return (
     <Box sx={cardSx}>
-      <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" alignItems={{ md: 'center' }} spacing={1.5} sx={{ mb: 2 }}>
-        <Typography variant="h6" fontWeight={800}>Income &amp; Expense</Typography>
-        <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap" useFlexGap>
+      <Stack
+        direction={{ xs: 'column', md: 'row' }}
+        spacing={1.5}
+        sx={{
+          justifyContent: "space-between",
+          alignItems: { md: 'center' },
+          mb: 2
+        }}>
+        <Typography variant="h6" sx={{
+          fontWeight: 800
+        }}>Income &amp; Expense</Typography>
+        <Stack
+          direction="row"
+          spacing={1.5}
+          useFlexGap
+          sx={{
+            alignItems: "center",
+            flexWrap: "wrap"
+          }}>
           <TextField select size="small" label="Type" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} sx={{ minWidth: 130 }}>
             <MenuItem value="all">All types</MenuItem>
             <MenuItem value="income">Income</MenuItem>
@@ -74,7 +90,6 @@ const IncomeExpenseTab = ({ range, onChanged, onNotify }) => {
           </Button>
         </Stack>
       </Stack>
-
       {loading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}><CircularProgress /></Box>
       ) : entries.length === 0 ? (
@@ -123,7 +138,6 @@ const IncomeExpenseTab = ({ range, onChanged, onNotify }) => {
           </Table>
         </Box>
       )}
-
       <AccountingEntryDialog
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}

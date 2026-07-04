@@ -16,7 +16,7 @@ const CategoryDialog = ({ open, onClose, onSubmit, selectedCategory, categoryFor
   >
     <FormSection title="Category Details" icon={<CategoryIcon fontSize="small" />} iconColor="#f43f5e">
       <Grid container spacing={2}>
-        <Grid item xs={12}>
+        <Grid size={12}>
           <TextField
             label="Name"
             fullWidth
@@ -25,7 +25,7 @@ const CategoryDialog = ({ open, onClose, onSubmit, selectedCategory, categoryFor
             required
           />
         </Grid>
-        <Grid item xs={12}>
+        <Grid size={12}>
           <TextField
             label="Description"
             fullWidth
@@ -35,25 +35,29 @@ const CategoryDialog = ({ open, onClose, onSubmit, selectedCategory, categoryFor
             onChange={(e) => setCategoryForm({ ...categoryForm, description: e.target.value })}
           />
         </Grid>
-        <Grid item xs={12}>
+        <Grid size={12}>
           <TextField
             label="Display Order"
             fullWidth
             type="number"
             value={categoryForm.displayOrder}
             onChange={(e) => setCategoryForm({ ...categoryForm, displayOrder: e.target.value })}
-            inputProps={{ min: 1 }}
             helperText="Lower numbers appear first"
+            slotProps={{
+              htmlInput: { min: 1 }
+            }}
           />
         </Grid>
-        <Grid item xs={12}>
+        <Grid size={12}>
           <FormControl fullWidth>
             <InputLabel>Food Type</InputLabel>
             <Select
               value={categoryForm.isVegOnly}
               onChange={(e) => setCategoryForm({ ...categoryForm, isVegOnly: e.target.value })}
               label="Food Type"
-              MenuProps={{ PaperProps: { sx: { backgroundColor: '#fff' } } }}
+              MenuProps={{ slotProps: {
+                paper: { sx: { backgroundColor: '#fff' } }
+              } }}
             >
               <MenuItem value={false}>All Food (Veg & Non-Veg)</MenuItem>
               <MenuItem value={true}>Vegetarian Only</MenuItem>

@@ -99,8 +99,14 @@ const RoleCard = ({ role, onEdit, onDelete, isDarkMode }) => {
           </IconButton>
         </Tooltip>
       </Stack>
-
-      <Stack direction="row" spacing={1.5} alignItems="center" sx={{ pr: 7, mb: 1 }}>
+      <Stack
+        direction="row"
+        spacing={1.5}
+        sx={{
+          alignItems: "center",
+          pr: 7,
+          mb: 1
+        }}>
         <Box
           sx={{
             width: 40, height: 40, borderRadius: 2, flexShrink: 0,
@@ -110,22 +116,32 @@ const RoleCard = ({ role, onEdit, onDelete, isDarkMode }) => {
         >
           <ShieldIcon fontSize="small" />
         </Box>
-        <Typography variant="subtitle1" fontWeight={700} sx={{ lineHeight: 1.15 }}>
+        <Typography
+          variant="subtitle1"
+          sx={{
+            fontWeight: 700,
+            lineHeight: 1.15
+          }}>
           {role.name}
         </Typography>
       </Stack>
-
       <Typography
         variant="body2"
-        color="text.secondary"
-        sx={{ minHeight: 40, mb: 1.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
-      >
+        sx={{
+          color: "text.secondary",
+          minHeight: 40,
+          mb: 1.5,
+          display: '-webkit-box',
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: 'vertical',
+          overflow: 'hidden'
+        }}>
         {role.description || 'No description'}
       </Typography>
-
       <Divider sx={{ mb: 1.5, opacity: isDarkMode ? 0.2 : 0.6 }} />
-
-      <Stack direction="row" spacing={1} alignItems="center">
+      <Stack direction="row" spacing={1} sx={{
+        alignItems: "center"
+      }}>
         <Chip
           label={`Level ${level}`}
           size="small"
@@ -283,14 +299,19 @@ const RolesSection = ({ onNotify }) => {
       {/* Toolbar */}
       <Stack
         direction={{ xs: 'column', sm: 'row' }}
-        justifyContent="space-between"
-        alignItems={{ xs: 'flex-start', sm: 'center' }}
         spacing={2}
-        sx={{ mb: 3 }}
-      >
-        <Stack direction="row" spacing={1} alignItems="center">
+        sx={{
+          justifyContent: "space-between",
+          alignItems: { xs: 'flex-start', sm: 'center' },
+          mb: 3
+        }}>
+        <Stack direction="row" spacing={1} sx={{
+          alignItems: "center"
+        }}>
           <ShieldIcon sx={{ color: ACCENT }} />
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>
             {loading ? 'Loading…' : `${roles.length} ${roles.length === 1 ? 'role' : 'roles'} · hierarchy ranks access (10 = highest)`}
           </Typography>
         </Stack>
@@ -305,15 +326,23 @@ const RolesSection = ({ onNotify }) => {
           </Button>
         </Stack>
       </Stack>
-
       {loading ? (
-        <Box display="flex" justifyContent="center" py={8}>
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "center",
+            py: 8
+          }}>
           <CircularProgress />
         </Box>
       ) : roles.length === 0 ? (
         <Box sx={{ textAlign: 'center', py: 8, px: 3, borderRadius: 3, border: '1px dashed', borderColor: 'divider' }}>
           <ShieldIcon sx={{ fontSize: 48, color: 'text.disabled', mb: 1 }} />
-          <Typography color="text.secondary" sx={{ mb: 2 }}>No roles yet.</Typography>
+          <Typography
+            sx={{
+              color: "text.secondary",
+              mb: 2
+            }}>No roles yet.</Typography>
           <Button startIcon={<AddIcon />} variant="contained" onClick={openCreate} sx={primaryButtonSx}>
             Add your first role
           </Button>
@@ -321,23 +350,31 @@ const RolesSection = ({ onNotify }) => {
       ) : (
         <Grid container spacing={2}>
           {roles.map((role) => (
-            <Grid item xs={12} sm={6} lg={4} key={role._id || role.id}>
+            <Grid
+              key={role._id || role.id}
+              size={{
+                xs: 12,
+                sm: 6,
+                lg: 4
+              }}>
               <RoleCard role={role} onEdit={openEdit} onDelete={handleDelete} isDarkMode={isDarkMode} />
             </Grid>
           ))}
         </Grid>
       )}
-
       <Dialog
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}
         fullWidth
         maxWidth="md"
-        PaperProps={{ sx: dialogPaperSx(isDarkMode) }}
-        BackdropProps={{ sx: dialogBackdropSx }}
-      >
+        slotProps={{
+          backdrop: { sx: dialogBackdropSx },
+          paper: { sx: dialogPaperSx(isDarkMode) }
+        }}>
         <Box sx={headerWrapSx(isDarkMode)}>
-          <Stack direction="row" spacing={1.5} alignItems="center">
+          <Stack direction="row" spacing={1.5} sx={{
+            alignItems: "center"
+          }}>
             <Box
               sx={{
                 width: 44, height: 44, borderRadius: 2,
@@ -365,18 +402,24 @@ const RolesSection = ({ onNotify }) => {
               <TextField
                 label="Hierarchy"
                 type="number"
-                inputProps={{ min: 1, max: 10 }}
                 value={form.hierarchy}
                 onChange={(e) => setForm({ ...form, hierarchy: e.target.value })}
                 sx={{ width: { xs: '100%', sm: 160 } }}
                 helperText="1–10 (10 = highest)"
+                slotProps={{
+                  htmlInput: { min: 1, max: 10 }
+                }}
               />
             </Stack>
             <TextField label="Description" multiline rows={2} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} fullWidth />
 
             <Divider textAlign="left">
-              <Stack direction="row" spacing={1.5} alignItems="center">
-                <Typography variant="caption" color="text.secondary">
+              <Stack direction="row" spacing={1.5} sx={{
+                alignItems: "center"
+              }}>
+                <Typography variant="caption" sx={{
+                  color: "text.secondary"
+                }}>
                   Permissions ({form.permissions.size}{totalPermissions ? ` / ${totalPermissions}` : ''} selected)
                 </Typography>
                 {permissionGroups.length > 0 && (
@@ -389,7 +432,9 @@ const RolesSection = ({ onNotify }) => {
 
             {permissionGroups.length === 0 ? (
               <Box sx={{ textAlign: 'center', py: 3, borderRadius: 2, border: '1px dashed', borderColor: 'divider' }}>
-                <Typography variant="body2" color="text.secondary">
+                <Typography variant="body2" sx={{
+                  color: "text.secondary"
+                }}>
                   Permission catalog unavailable. Restart the server and reload.
                 </Typography>
               </Box>
@@ -414,7 +459,13 @@ const RolesSection = ({ onNotify }) => {
                       }}
                     >
                       <AccordionSummary expandIcon={<ExpandIcon />}>
-                        <Stack direction="row" spacing={1.5} alignItems="center" width="100%">
+                        <Stack
+                          direction="row"
+                          spacing={1.5}
+                          sx={{
+                            alignItems: "center",
+                            width: "100%"
+                          }}>
                           <Checkbox
                             checked={allSelected}
                             indeterminate={!allSelected && someSelected}

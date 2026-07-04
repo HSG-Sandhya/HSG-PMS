@@ -26,7 +26,11 @@ const ChannelDetailsDialog = ({ channel, stats, onClose }) => {
     >
       <FormSection title="Channel Overview" icon={<StorefrontIcon fontSize="small" />} iconColor={color}>
         <Grid container spacing={3}>
-          <Grid item xs={12} md={6}>
+          <Grid
+            size={{
+              xs: 12,
+              md: 6
+            }}>
             <Typography variant="subtitle2" sx={{ color: 'text.secondary', mb: 1 }}>
               Commercials
             </Typography>
@@ -37,7 +41,11 @@ const ChannelDetailsDialog = ({ channel, stats, onClose }) => {
               <DetailRow label="Rate multiplier" value={`× ${channel.rateSettings?.baseRateMultiplier ?? 1}`} />
             </List>
           </Grid>
-          <Grid item xs={12} md={6}>
+          <Grid
+            size={{
+              xs: 12,
+              md: 6
+            }}>
             <Typography variant="subtitle2" sx={{ color: 'text.secondary', mb: 1 }}>
               Sync & connection
             </Typography>
@@ -50,7 +58,7 @@ const ChannelDetailsDialog = ({ channel, stats, onClose }) => {
           </Grid>
 
           {channel.contact?.name || channel.contact?.email || channel.contact?.phone ? (
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Divider sx={{ mb: 1 }} />
               <Typography variant="subtitle2" sx={{ color: 'text.secondary', mb: 1 }}>
                 Contact
@@ -61,7 +69,7 @@ const ChannelDetailsDialog = ({ channel, stats, onClose }) => {
             </Grid>
           ) : null}
 
-          <Grid item xs={12}>
+          <Grid size={12}>
             <Divider sx={{ mb: 2 }} />
             <Typography variant="subtitle2" sx={{ color: 'text.secondary', mb: 1.5 }}>
               Performance
@@ -91,7 +99,11 @@ const DetailRow = ({ label, value }) => (
 );
 
 const PerfCard = ({ value, label }) => (
-  <Grid item xs={6} md={3}>
+  <Grid
+    size={{
+      xs: 6,
+      md: 3
+    }}>
     <Paper sx={{ p: 2, textAlign: 'center', borderRadius: 3, ...GLASS }}>
       <Typography variant="h6" sx={{ fontWeight: 700, color: 'var(--app-primary)' }} noWrap>
         {value}
@@ -158,8 +170,14 @@ const RoomMappingDialog = ({ channel, availableRooms, onClose, onSaved }) => {
 
         {mappings.map((m, i) => (
           <Paper key={i} variant="outlined" sx={{ p: 2, mb: 1.5, borderRadius: 2 }}>
-            <Grid container spacing={2} alignItems="center">
-              <Grid item xs={12} md={4}>
+            <Grid container spacing={2} sx={{
+              alignItems: "center"
+            }}>
+              <Grid
+                size={{
+                  xs: 12,
+                  md: 4
+                }}>
                 <FormControl fullWidth size="small">
                   <InputLabel>Internal Room</InputLabel>
                   <Select label="Internal Room" value={m.internalRoomId} onChange={(e) => update(i, 'internalRoomId', e.target.value)}>
@@ -171,18 +189,34 @@ const RoomMappingDialog = ({ channel, availableRooms, onClose, onSaved }) => {
                   </Select>
                 </FormControl>
               </Grid>
-              <Grid item xs={6} md={3}>
+              <Grid
+                size={{
+                  xs: 6,
+                  md: 3
+                }}>
                 <TextField fullWidth size="small" label="External Room ID" value={m.externalRoomId} onChange={(e) => update(i, 'externalRoomId', e.target.value)} />
               </Grid>
-              <Grid item xs={6} md={3}>
+              <Grid
+                size={{
+                  xs: 6,
+                  md: 3
+                }}>
                 <TextField fullWidth size="small" label="External Name" value={m.externalRoomName} onChange={(e) => update(i, 'externalRoomName', e.target.value)} />
               </Grid>
-              <Grid item xs={8} md={1}>
+              <Grid
+                size={{
+                  xs: 8,
+                  md: 1
+                }}>
                 <Tooltip title={m.isActive ? 'Active' : 'Inactive'}>
                   <Switch checked={m.isActive} onChange={(e) => update(i, 'isActive', e.target.checked)} size="small" />
                 </Tooltip>
               </Grid>
-              <Grid item xs={4} md={1}>
+              <Grid
+                size={{
+                  xs: 4,
+                  md: 1
+                }}>
                 <IconButton size="small" color="error" onClick={() => remove(i)}>
                   <DeleteIcon fontSize="small" />
                 </IconButton>
@@ -263,20 +297,28 @@ const RateCalculatorDialog = ({ channel, onClose, notify }) => {
           label="Base room rate"
           value={baseRate}
           onChange={(e) => setBaseRate(e.target.value)}
-          InputProps={{ startAdornment: <InputAdornment position="start">{currencySym()}</InputAdornment> }}
           sx={{ mb: 2 }}
+          slotProps={{
+            input: { startAdornment: <InputAdornment position="start">{currencySym()}</InputAdornment> }
+          }}
         />
         <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, mb: 2 }}>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-            <Typography variant="body2" color="text.secondary">Commission</Typography>
+            <Typography variant="body2" sx={{
+              color: "text.secondary"
+            }}>Commission</Typography>
             <Typography variant="body2">{channel.settings?.commission ?? 0}%</Typography>
           </Box>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-            <Typography variant="body2" color="text.secondary">Markup</Typography>
+            <Typography variant="body2" sx={{
+              color: "text.secondary"
+            }}>Markup</Typography>
             <Typography variant="body2">{channel.settings?.markup ?? 0}%</Typography>
           </Box>
           <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-            <Typography variant="body2" color="text.secondary">Currency</Typography>
+            <Typography variant="body2" sx={{
+              color: "text.secondary"
+            }}>Currency</Typography>
             <Typography variant="body2">{channel.settings?.currency}</Typography>
           </Box>
         </Paper>
@@ -291,7 +333,9 @@ const RateCalculatorDialog = ({ channel, onClose, notify }) => {
               border: '1px dashed rgba(var(--app-primary-rgb),0.3)',
             }}
           >
-            <Typography variant="caption" color="text.secondary">
+            <Typography variant="caption" sx={{
+              color: "text.secondary"
+            }}>
               {result ? 'Sell rate' : 'Estimated sell rate'}
             </Typography>
             <Typography variant="h4" sx={{ fontWeight: 700, color: 'var(--app-primary)' }}>

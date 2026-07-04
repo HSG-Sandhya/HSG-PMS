@@ -88,8 +88,14 @@ const StaffCard = ({ member, onEdit, onDelete, onResetPassword, isDarkMode }) =>
           </IconButton>
         </Tooltip>
       </Stack>
-
-      <Stack direction="row" spacing={1.5} alignItems="center" sx={{ pr: 7, mb: 1.5 }}>
+      <Stack
+        direction="row"
+        spacing={1.5}
+        sx={{
+          alignItems: "center",
+          pr: 7,
+          mb: 1.5
+        }}>
         <Avatar
           src={photoOf(member) || undefined}
           alt={`${member.firstName || ''} ${member.lastName || ''}`.trim()}
@@ -107,16 +113,30 @@ const StaffCard = ({ member, onEdit, onDelete, onResetPassword, isDarkMode }) =>
           {initials(member) || <PersonIcon />}
         </Avatar>
         <Box sx={{ minWidth: 0 }}>
-          <Typography variant="subtitle1" fontWeight={700} noWrap sx={{ lineHeight: 1.15 }}>
+          <Typography
+            variant="subtitle1"
+            noWrap
+            sx={{
+              fontWeight: 700,
+              lineHeight: 1.15
+            }}>
             {member.firstName} {member.lastName}
           </Typography>
-          <Typography variant="caption" color="text.secondary">
+          <Typography variant="caption" sx={{
+            color: "text.secondary"
+          }}>
             ID: {member.profile?.employeeId || '—'}
           </Typography>
         </Box>
       </Stack>
-
-      <Stack direction="row" spacing={0.75} sx={{ mb: 1.5 }} flexWrap="wrap" useFlexGap>
+      <Stack
+        direction="row"
+        spacing={0.75}
+        useFlexGap
+        sx={{
+          flexWrap: "wrap",
+          mb: 1.5
+        }}>
         {/* Role = what the user can DO (carries permissions). */}
         <Tooltip title="Role — controls access / permissions">
           <Chip
@@ -146,17 +166,23 @@ const StaffCard = ({ member, onEdit, onDelete, onResetPassword, isDarkMode }) =>
           sx={{ borderRadius: 999 }}
         />
       </Stack>
-
       <Divider sx={{ mb: 1.5, opacity: isDarkMode ? 0.2 : 0.6 }} />
-
       <Stack spacing={0.5}>
-        <Stack direction="row" spacing={1} alignItems="center">
+        <Stack direction="row" spacing={1} sx={{
+          alignItems: "center"
+        }}>
           <EmailIcon sx={{ fontSize: 15, color: 'text.disabled' }} />
-          <Typography variant="body2" color="text.secondary" noWrap>{member.email || '—'}</Typography>
+          <Typography variant="body2" noWrap sx={{
+            color: "text.secondary"
+          }}>{member.email || '—'}</Typography>
         </Stack>
-        <Stack direction="row" spacing={1} alignItems="center">
+        <Stack direction="row" spacing={1} sx={{
+          alignItems: "center"
+        }}>
           <PhoneIcon sx={{ fontSize: 15, color: 'text.disabled' }} />
-          <Typography variant="body2" color="text.secondary">{member.phone || '—'}</Typography>
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>{member.phone || '—'}</Typography>
         </Stack>
       </Stack>
     </Box>
@@ -282,14 +308,19 @@ const StaffSection = ({ onNotify }) => {
     <Box>
       <Stack
         direction={{ xs: 'column', sm: 'row' }}
-        justifyContent="space-between"
-        alignItems={{ xs: 'flex-start', sm: 'center' }}
         spacing={2}
-        sx={{ mb: 3 }}
-      >
-        <Stack direction="row" spacing={1} alignItems="center">
+        sx={{
+          justifyContent: "space-between",
+          alignItems: { xs: 'flex-start', sm: 'center' },
+          mb: 3
+        }}>
+        <Stack direction="row" spacing={1} sx={{
+          alignItems: "center"
+        }}>
           <BadgeIcon sx={{ color: ACCENT }} />
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>
             {loading ? 'Loading…' : `${staff.length} ${staff.length === 1 ? 'staff member' : 'staff members'}`}
           </Typography>
         </Stack>
@@ -304,7 +335,6 @@ const StaffSection = ({ onNotify }) => {
           </Button>
         </Stack>
       </Stack>
-
       <TextField
         fullWidth
         size="small"
@@ -312,17 +342,27 @@ const StaffSection = ({ onNotify }) => {
         value={search}
         onChange={(e) => setSearch(e.target.value)}
         sx={{ mb: 3 }}
-        InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> }}
+        slotProps={{
+          input: { startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> }
+        }}
       />
-
       {loading ? (
-        <Box display="flex" justifyContent="center" py={8}>
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "center",
+            py: 8
+          }}>
           <CircularProgress />
         </Box>
       ) : filtered.length === 0 ? (
         <Box sx={{ textAlign: 'center', py: 8, px: 3, borderRadius: 3, border: '1px dashed', borderColor: 'divider' }}>
           <BadgeIcon sx={{ fontSize: 48, color: 'text.disabled', mb: 1 }} />
-          <Typography color="text.secondary" sx={{ mb: 2 }}>
+          <Typography
+            sx={{
+              color: "text.secondary",
+              mb: 2
+            }}>
             {staff.length === 0 ? 'No staff members yet.' : 'No staff match your search.'}
           </Typography>
           {staff.length === 0 && (
@@ -334,20 +374,24 @@ const StaffSection = ({ onNotify }) => {
       ) : (
         <Grid container spacing={2}>
           {filtered.map((member) => (
-            <Grid item xs={12} sm={6} lg={4} key={member._id}>
+            <Grid
+              key={member._id}
+              size={{
+                xs: 12,
+                sm: 6,
+                lg: 4
+              }}>
               <StaffCard member={member} onEdit={openEdit} onDelete={handleDelete} onResetPassword={handleResetPassword} isDarkMode={isDarkMode} />
             </Grid>
           ))}
         </Grid>
       )}
-
       <StaffDialog
         open={dialogOpen}
         onClose={() => { setDialogOpen(false); setEditingStaff(null); }}
         onSuccess={handleSuccess}
         editingStaff={editingStaff}
       />
-
       {/* Show the auto-generated login once, right after creation. */}
       <FormDialog
         open={!!createdCreds}
@@ -371,10 +415,24 @@ const StaffSection = ({ onNotify }) => {
             </Alert>
             <Box sx={{ p: 2, borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
               {[['Username', createdCreds.username], ['Password', createdCreds.password]].map(([k, v]) => (
-                <Stack key={k} direction="row" alignItems="center" justifyContent="space-between" sx={{ py: 0.75 }}>
+                <Stack
+                  key={k}
+                  direction="row"
+                  sx={{
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    py: 0.75
+                  }}>
                   <Box>
-                    <Typography variant="caption" color="text.secondary">{k}</Typography>
-                    <Typography variant="body1" fontWeight={700} sx={{ fontFamily: 'monospace' }}>{v}</Typography>
+                    <Typography variant="caption" sx={{
+                      color: "text.secondary"
+                    }}>{k}</Typography>
+                    <Typography
+                      variant="body1"
+                      sx={{
+                        fontWeight: 700,
+                        fontFamily: 'monospace'
+                      }}>{v}</Typography>
                   </Box>
                   <Tooltip title={`Copy ${k.toLowerCase()}`}>
                     <IconButton size="small" onClick={() => copyText(v, `${k} copied`)}><ContentCopyIcon fontSize="small" /></IconButton>
@@ -382,7 +440,9 @@ const StaffSection = ({ onNotify }) => {
                 </Stack>
               ))}
             </Box>
-            <Typography variant="caption" color="text.secondary">
+            <Typography variant="caption" sx={{
+              color: "text.secondary"
+            }}>
               Hand these to the person — they sign in at <strong>/login</strong>. If lost, you can reset the password from the staff card later.
             </Typography>
           </Stack>

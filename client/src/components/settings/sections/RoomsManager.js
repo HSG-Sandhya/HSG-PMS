@@ -136,8 +136,14 @@ const RoomCard = ({ room, category, onEdit, onDelete, isDarkMode }) => {
           </IconButton>
         </Tooltip>
       </Stack>
-
-      <Stack direction="row" spacing={1.5} alignItems="center" sx={{ pr: 7, mb: 1 }}>
+      <Stack
+        direction="row"
+        spacing={1.5}
+        sx={{
+          alignItems: "center",
+          pr: 7,
+          mb: 1
+        }}>
         <Box
           sx={{
             width: 40, height: 40, borderRadius: 2, flexShrink: 0,
@@ -148,34 +154,56 @@ const RoomCard = ({ room, category, onEdit, onDelete, isDarkMode }) => {
           <BedIcon fontSize="small" />
         </Box>
         <Box>
-          <Typography variant="subtitle1" fontWeight={700} sx={{ lineHeight: 1.1 }}>
+          <Typography
+            variant="subtitle1"
+            sx={{
+              fontWeight: 700,
+              lineHeight: 1.1
+            }}>
             {room.roomNumber}
           </Typography>
-          <Typography variant="caption" color="text.secondary">
+          <Typography variant="caption" sx={{
+            color: "text.secondary"
+          }}>
             {room.type || category?.name || '—'} · Floor {room.floor ?? 1}
           </Typography>
         </Box>
       </Stack>
-
-      <Stack direction="row" alignItems="flex-end" justifyContent="space-between" sx={{ mb: 1.5 }}>
+      <Stack
+        direction="row"
+        sx={{
+          alignItems: "flex-end",
+          justifyContent: "space-between",
+          mb: 1.5
+        }}>
         <Box>
-          <Typography variant="h6" fontWeight={800} sx={{ color: ACCENT, lineHeight: 1 }}>
+          <Typography
+            variant="h6"
+            sx={{
+              fontWeight: 800,
+              color: ACCENT,
+              lineHeight: 1
+            }}>
             {currencySym()}{Number(room.pricePerNight || 0).toLocaleString('en-IN')}
           </Typography>
-          <Typography variant="caption" color="text.secondary">per night</Typography>
+          <Typography variant="caption" sx={{
+            color: "text.secondary"
+          }}>per night</Typography>
         </Box>
         <Stack direction="row" spacing={0.5}>
           <Chip icon={<PeopleIcon sx={{ fontSize: 15 }} />} label={`${adults}A ${children}C`} size="small" sx={{ borderRadius: 999 }} />
           <Chip label={room.status || 'available'} size="small" color={STATUS_COLORS[room.status] || 'default'} sx={{ borderRadius: 999, textTransform: 'capitalize' }} />
         </Stack>
       </Stack>
-
       <Divider sx={{ mb: 1.5, opacity: isDarkMode ? 0.2 : 0.6 }} />
-
       {amenities.length === 0 ? (
-        <Typography variant="caption" color="text.secondary">No amenities</Typography>
+        <Typography variant="caption" sx={{
+          color: "text.secondary"
+        }}>No amenities</Typography>
       ) : (
-        <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+        <Stack direction="row" spacing={0.5} useFlexGap sx={{
+          flexWrap: "wrap"
+        }}>
           {shown.map((a) => (
             <Chip key={a} label={a} size="small" variant="outlined" sx={{ borderRadius: 1.5, fontSize: 11, height: 24 }} />
           ))}
@@ -329,14 +357,19 @@ const RoomsManager = ({ categories = [], onNotify, isDarkMode }) => {
     <Box>
       <Stack
         direction={{ xs: 'column', sm: 'row' }}
-        justifyContent="space-between"
-        alignItems={{ xs: 'flex-start', sm: 'center' }}
         spacing={2}
-        sx={{ mb: 3 }}
-      >
-        <Stack direction="row" spacing={1} alignItems="center">
+        sx={{
+          justifyContent: "space-between",
+          alignItems: { xs: 'flex-start', sm: 'center' },
+          mb: 3
+        }}>
+        <Stack direction="row" spacing={1} sx={{
+          alignItems: "center"
+        }}>
           <BedIcon sx={{ color: ACCENT }} />
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>
             {loading ? 'Loading…' : `${rooms.length} ${rooms.length === 1 ? 'room' : 'rooms'} · created from categories`}
           </Typography>
         </Stack>
@@ -355,15 +388,23 @@ const RoomsManager = ({ categories = [], onNotify, isDarkMode }) => {
           </Tooltip>
         </Stack>
       </Stack>
-
       {loading ? (
-        <Box display="flex" justifyContent="center" py={8}>
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "center",
+            py: 8
+          }}>
           <CircularProgress />
         </Box>
       ) : rooms.length === 0 ? (
         <Box sx={{ textAlign: 'center', py: 8, px: 3, borderRadius: 3, border: '1px dashed', borderColor: 'divider' }}>
           <BedIcon sx={{ fontSize: 48, color: 'text.disabled', mb: 1 }} />
-          <Typography color="text.secondary" sx={{ mb: 2 }}>
+          <Typography
+            sx={{
+              color: "text.secondary",
+              mb: 2
+            }}>
             {noCategories ? 'Create a room category first, then add rooms.' : 'No rooms yet.'}
           </Typography>
           {!noCategories && (
@@ -375,7 +416,13 @@ const RoomsManager = ({ categories = [], onNotify, isDarkMode }) => {
       ) : (
         <Grid container spacing={2}>
           {rooms.map((room) => (
-            <Grid item xs={12} sm={6} lg={4} key={room._id}>
+            <Grid
+              key={room._id}
+              size={{
+                xs: 12,
+                sm: 6,
+                lg: 4
+              }}>
               <RoomCard
                 room={room}
                 category={findCategory(room)}
@@ -387,19 +434,23 @@ const RoomsManager = ({ categories = [], onNotify, isDarkMode }) => {
           ))}
         </Grid>
       )}
-
       <Dialog
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}
         fullWidth
         maxWidth="sm"
-        TransitionComponent={Grow}
         transitionDuration={{ enter: 420, exit: 200 }}
-        PaperProps={{ sx: dialogPaperSx(isDarkMode) }}
-        BackdropProps={{ sx: dialogBackdropSx }}
-      >
+        slotProps={{
+          backdrop: { sx: dialogBackdropSx },
+          paper: { sx: dialogPaperSx(isDarkMode) }
+        }}
+        slots={{
+          transition: Grow
+        }}>
         <Box sx={headerWrapSx(isDarkMode)}>
-          <Stack direction="row" spacing={1.5} alignItems="center">
+          <Stack direction="row" spacing={1.5} sx={{
+            alignItems: "center"
+          }}>
             <Box
               component={motion.div}
               initial={{ scale: 0, rotate: -40 }}
@@ -442,7 +493,9 @@ const RoomsManager = ({ categories = [], onNotify, isDarkMode }) => {
             <motion.div variants={fieldItem}>
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
                 <TextField label="Room number" required fullWidth value={form.roomNumber} onChange={(e) => setForm({ ...form, roomNumber: e.target.value })} />
-                <TextField label="Floor" type="number" fullWidth inputProps={{ min: 1 }} value={form.floor} onChange={(e) => setForm({ ...form, floor: e.target.value })} />
+                <TextField label="Floor" type="number" fullWidth value={form.floor} onChange={(e) => setForm({ ...form, floor: e.target.value })} slotProps={{
+                  htmlInput: { min: 1 }
+                }} />
               </Stack>
             </motion.div>
 
@@ -504,8 +557,12 @@ const RoomsManager = ({ categories = [], onNotify, isDarkMode }) => {
 
             <motion.div variants={fieldItem}>
               <Stack direction="row" spacing={2}>
-                <TextField label="Adults" type="number" fullWidth inputProps={{ min: 1 }} value={form.adults} onChange={(e) => setForm({ ...form, adults: e.target.value })} />
-                <TextField label="Children" type="number" fullWidth inputProps={{ min: 0 }} value={form.children} onChange={(e) => setForm({ ...form, children: e.target.value })} />
+                <TextField label="Adults" type="number" fullWidth value={form.adults} onChange={(e) => setForm({ ...form, adults: e.target.value })} slotProps={{
+                  htmlInput: { min: 1 }
+                }} />
+                <TextField label="Children" type="number" fullWidth value={form.children} onChange={(e) => setForm({ ...form, children: e.target.value })} slotProps={{
+                  htmlInput: { min: 0 }
+                }} />
               </Stack>
             </motion.div>
 
@@ -515,7 +572,14 @@ const RoomsManager = ({ categories = [], onNotify, isDarkMode }) => {
 
             <motion.div variants={fieldItem}>
               <Divider textAlign="left">
-                <Typography variant="caption" color="text.secondary" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
+                <Typography
+                  variant="caption"
+                  sx={{
+                    color: "text.secondary",
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 0.5
+                  }}>
                   Amenities (
                   <AnimatePresence mode="popLayout" initial={false}>
                     <Box

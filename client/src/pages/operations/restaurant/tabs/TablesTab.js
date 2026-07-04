@@ -69,7 +69,9 @@ const TablesTab = ({
       </Button>
     </Box>
 
-    <Grid container spacing={3} alignItems="flex-start">
+    <Grid container spacing={3} sx={{
+      alignItems: "flex-start"
+    }}>
       {tables.map((table, index) => {
         let occupiedStart = null;
         if (table.status === 'Occupied' && table.occupiedAt) {
@@ -105,7 +107,13 @@ const TablesTab = ({
         const sm = STATUS[table.status] || STATUS.Available;
 
         return (
-          <Grid item xs={12} sm={6} md={3} key={table._id}>
+          <Grid
+            key={table._id}
+            size={{
+              xs: 12,
+              sm: 6,
+              md: 3
+            }}>
             <motion.div
               initial={{ opacity: 0, y: 24 }}
               animate={{ opacity: 1, y: 0 }}

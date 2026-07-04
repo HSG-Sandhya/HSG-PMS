@@ -38,8 +38,12 @@ const ChangeDetail = ({ changes }) => {
 
   return (
     <Box sx={{ mt: 1, pl: 1.5, borderLeft: '2px solid', borderColor: 'divider' }}>
-      {nameChanged && <Typography variant="caption" display="block">Name: <s>{before.name}</s> → <strong>{after.name}</strong></Typography>}
-      {hierChanged && <Typography variant="caption" display="block">Level: {before.hierarchy} → <strong>{after.hierarchy}</strong></Typography>}
+      {nameChanged && <Typography variant="caption" sx={{
+        display: "block"
+      }}>Name: <s>{before.name}</s> → <strong>{after.name}</strong></Typography>}
+      {hierChanged && <Typography variant="caption" sx={{
+        display: "block"
+      }}>Level: {before.hierarchy} → <strong>{after.hierarchy}</strong></Typography>}
       {added.length > 0 && (
         <Box sx={{ mt: 0.5 }}>
           <Typography variant="caption" sx={{ color: '#10B981', fontWeight: 700 }}>+ Granted ({added.length})</Typography>
@@ -57,7 +61,9 @@ const ChangeDetail = ({ changes }) => {
         </Box>
       )}
       {!added.length && !removed.length && !nameChanged && !hierChanged && (after.permissions || before.permissions) && (
-        <Typography variant="caption" color="text.secondary">
+        <Typography variant="caption" sx={{
+          color: "text.secondary"
+        }}>
           {(after.permissions || before.permissions || []).length} permission(s)
         </Typography>
       )}
@@ -86,12 +92,28 @@ const AuditTrailView = ({ onNotify }) => {
 
   return (
     <Box sx={cardSx}>
-      <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} alignItems={{ md: 'center' }} sx={{ mb: 2 }}>
-        <Stack direction="row" spacing={1} alignItems="center" sx={{ flexGrow: 1 }}>
+      <Stack
+        direction={{ xs: 'column', md: 'row' }}
+        spacing={1.5}
+        sx={{
+          alignItems: { md: 'center' },
+          mb: 2
+        }}>
+        <Stack
+          direction="row"
+          spacing={1}
+          sx={{
+            alignItems: "center",
+            flexGrow: 1
+          }}>
           <SecurityIcon sx={{ color: '#EF4444' }} />
           <Box>
-            <Typography variant="h6" fontWeight={800}>Audit Trail</Typography>
-            <Typography variant="caption" color="text.secondary">Security-sensitive changes: roles, permissions, users, access</Typography>
+            <Typography variant="h6" sx={{
+              fontWeight: 800
+            }}>Audit Trail</Typography>
+            <Typography variant="caption" sx={{
+              color: "text.secondary"
+            }}>Security-sensitive changes: roles, permissions, users, access</Typography>
           </Box>
         </Stack>
         <TextField select size="small" label="Category" value={category} onChange={(e) => setCategory(e.target.value)} sx={{ minWidth: 140 }}>
@@ -101,7 +123,6 @@ const AuditTrailView = ({ onNotify }) => {
         </TextField>
         <Tooltip title="Refresh"><IconButton onClick={load} sx={{ color: 'var(--app-primary)' }}><RefreshIcon /></IconButton></Tooltip>
       </Stack>
-
       {loading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}><CircularProgress /></Box>
       ) : logs.length === 0 ? (
@@ -112,15 +133,33 @@ const AuditTrailView = ({ onNotify }) => {
         <Stack divider={<Divider />} spacing={0}>
           {logs.map((l) => (
             <Box key={l._id} sx={{ py: 1.5 }}>
-              <Stack direction="row" spacing={1.5} alignItems="flex-start" justifyContent="space-between" flexWrap="wrap">
+              <Stack
+                direction="row"
+                spacing={1.5}
+                sx={{
+                  alignItems: "flex-start",
+                  justifyContent: "space-between",
+                  flexWrap: "wrap"
+                }}>
                 <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-                  <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                  <Stack
+                    direction="row"
+                    spacing={1}
+                    useFlexGap
+                    sx={{
+                      alignItems: "center",
+                      flexWrap: "wrap"
+                    }}>
                     <Chip size="small" label={l.category}
                       sx={{ height: 20, fontWeight: 700, color: '#fff', textTransform: 'capitalize', bgcolor: CATEGORY_COLOR[l.category] || '#6B7280' }} />
-                    <Typography variant="body2" fontWeight={700}>{l.description || l.action}</Typography>
+                    <Typography variant="body2" sx={{
+                      fontWeight: 700
+                    }}>{l.description || l.action}</Typography>
                     {l.severity === 'critical' && <Chip size="small" label="critical" sx={{ height: 18, fontSize: 10, color: '#fff', bgcolor: SEVERITY_COLOR.critical }} />}
                   </Stack>
-                  <Typography variant="caption" color="text.secondary">
+                  <Typography variant="caption" sx={{
+                    color: "text.secondary"
+                  }}>
                     by {l.userName || 'System'} · {fmtDateTime(l.createdAt)}{l.ip ? ` · ${l.ip}` : ''}
                   </Typography>
                   <ChangeDetail changes={l.changes} />

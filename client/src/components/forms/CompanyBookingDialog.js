@@ -233,7 +233,11 @@ const CompanyBookingDialog = ({ open, onClose, rooms = [], onCreated, typeSelect
           </Box>
         )}
         <Grid container spacing={2}>
-          <Grid item xs={12} sm={8}>
+          <Grid
+            size={{
+              xs: 12,
+              sm: 8
+            }}>
             <Autocomplete
               freeSolo
               options={companies}
@@ -249,30 +253,53 @@ const CompanyBookingDialog = ({ open, onClose, rooms = [], onCreated, typeSelect
               )}
             />
           </Grid>
-          <Grid item xs={12} sm={4}>
+          <Grid
+            size={{
+              xs: 12,
+              sm: 4
+            }}>
             <TextField select fullWidth label="Company type" value={form.companyType}
               onChange={(e) => set('companyType', e.target.value)}>
               {COMPANY_TYPES.map((t) => <MenuItem key={t} value={t}>{t}</MenuItem>)}
             </TextField>
           </Grid>
-          <Grid item xs={12} sm={4}>
+          <Grid
+            size={{
+              xs: 12,
+              sm: 4
+            }}>
             <TextField fullWidth label="GSTIN" value={form.gstNumber}
               onChange={(e) => set('gstNumber', e.target.value.toUpperCase())} placeholder="22AAAAA0000A1Z5" />
           </Grid>
-          <Grid item xs={12} sm={4}>
+          <Grid
+            size={{
+              xs: 12,
+              sm: 4
+            }}>
             <TextField fullWidth label="PAN" value={form.pan}
               onChange={(e) => set('pan', e.target.value.toUpperCase())} placeholder="AAAAA0000A" />
           </Grid>
-          <Grid item xs={12} sm={4}>
-            <TextField fullWidth type="number" label="Credit limit" value={form.creditLimit}
-              onChange={(e) => set('creditLimit', e.target.value)} inputProps={{ min: 0 }}
-              InputProps={{ startAdornment: <InputAdornment position="start">{sym}</InputAdornment> }} />
+          <Grid
+            size={{
+              xs: 12,
+              sm: 4
+            }}>
+            <TextField
+              fullWidth
+              type="number"
+              label="Credit limit"
+              value={form.creditLimit}
+              onChange={(e) => set('creditLimit', e.target.value)}
+              slotProps={{
+                input: { startAdornment: <InputAdornment position="start">{sym}</InputAdornment> },
+                htmlInput: { min: 0 }
+              }} />
           </Grid>
-          <Grid item xs={12}>
+          <Grid size={12}>
             <TextField fullWidth label="Billing address" value={form.billingAddress}
               onChange={(e) => set('billingAddress', e.target.value)} multiline rows={2} />
           </Grid>
-          <Grid item xs={12}>
+          <Grid size={12}>
             <FormControlLabel
               control={<Switch checked={saveCompany} onChange={(e) => setSaveCompany(e.target.checked)} />}
               label={companyId ? 'Update this company profile (rates & credit terms)' : 'Save as a company profile (reuse rates & credit later)'}
@@ -280,53 +307,104 @@ const CompanyBookingDialog = ({ open, onClose, rooms = [], onCreated, typeSelect
           </Grid>
         </Grid>
       </FormSection>
-
       {/* ── Section 2: Corporate Contact ─────────────────────────────────── */}
       <FormSection title="Corporate Contact" icon={<ContactPhoneIcon fontSize="small" />} iconColor="#06b6d4">
         <Grid container spacing={2}>
-          <Grid item xs={12} sm={3}>
+          <Grid
+            size={{
+              xs: 12,
+              sm: 3
+            }}>
             <TextField fullWidth required label="Contact name" value={form.pcName} onChange={(e) => set('pcName', e.target.value)} />
           </Grid>
-          <Grid item xs={12} sm={3}>
+          <Grid
+            size={{
+              xs: 12,
+              sm: 3
+            }}>
             <TextField fullWidth label="Designation" value={form.pcDesignation} onChange={(e) => set('pcDesignation', e.target.value)} />
           </Grid>
-          <Grid item xs={12} sm={3}>
+          <Grid
+            size={{
+              xs: 12,
+              sm: 3
+            }}>
             <TextField fullWidth required label="Phone" value={form.pcPhone} onChange={(e) => set('pcPhone', e.target.value)} />
           </Grid>
-          <Grid item xs={12} sm={3}>
+          <Grid
+            size={{
+              xs: 12,
+              sm: 3
+            }}>
             <TextField fullWidth label="Email" value={form.pcEmail} onChange={(e) => set('pcEmail', e.target.value)} />
           </Grid>
-          <Grid item xs={12} sm={6}>
+          <Grid
+            size={{
+              xs: 12,
+              sm: 6
+            }}>
             <TextField fullWidth label="Alternate contact name" value={form.altName} onChange={(e) => set('altName', e.target.value)} />
           </Grid>
-          <Grid item xs={12} sm={6}>
+          <Grid
+            size={{
+              xs: 12,
+              sm: 6
+            }}>
             <TextField fullWidth label="Alternate contact phone" value={form.altPhone} onChange={(e) => set('altPhone', e.target.value)} />
           </Grid>
         </Grid>
       </FormSection>
-
       {/* ── Section 3: Employee / Guest List ─────────────────────────────── */}
       <FormSection title={`Employee Guests (${employees.filter((e) => e.name.trim()).length})`} icon={<BadgeIcon fontSize="small" />} iconColor="#a21caf">
         <Stack spacing={1}>
           {employees.map((e, i) => (
-            <Grid container spacing={1} key={i} alignItems="center"
-              sx={{ p: 1, borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
-              <Grid item xs={12} sm={3}>
+            <Grid
+              container
+              spacing={1}
+              key={i}
+              sx={{
+                alignItems: "center",
+                p: 1,
+                borderRadius: 2,
+                border: '1px solid',
+                borderColor: 'divider'
+              }}>
+              <Grid
+                size={{
+                  xs: 12,
+                  sm: 3
+                }}>
                 <TextField size="small" fullWidth label="Name" value={e.name} onChange={(ev) => setEmp(i, 'name', ev.target.value)} />
               </Grid>
-              <Grid item xs={6} sm={2}>
+              <Grid
+                size={{
+                  xs: 6,
+                  sm: 2
+                }}>
                 <TextField size="small" fullWidth label="Mobile" value={e.mobile} onChange={(ev) => setEmp(i, 'mobile', ev.target.value)} />
               </Grid>
-              <Grid item xs={6} sm={2}>
+              <Grid
+                size={{
+                  xs: 6,
+                  sm: 2
+                }}>
                 <TextField size="small" fullWidth label="Emp ID" value={e.employeeId} onChange={(ev) => setEmp(i, 'employeeId', ev.target.value)} />
               </Grid>
-              <Grid item xs={6} sm={2}>
+              <Grid
+                size={{
+                  xs: 6,
+                  sm: 2
+                }}>
                 <TextField size="small" fullWidth label="Department" value={e.department} onChange={(ev) => setEmp(i, 'department', ev.target.value)} />
               </Grid>
-              <Grid item xs={5} sm={2}>
+              <Grid
+                size={{
+                  xs: 5,
+                  sm: 2
+                }}>
                 <TextField size="small" fullWidth label="Designation" value={e.designation} onChange={(ev) => setEmp(i, 'designation', ev.target.value)} />
               </Grid>
-              <Grid item xs={1} sx={{ textAlign: 'right' }}>
+              <Grid sx={{ textAlign: 'right' }} size={1}>
                 <IconButton size="small" onClick={() => removeEmp(i)} disabled={employees.length === 1} sx={{ color: 'error.main' }}>
                   <DeleteOutlineIcon fontSize="small" />
                 </IconButton>
@@ -340,25 +418,47 @@ const CompanyBookingDialog = ({ open, onClose, rooms = [], onCreated, typeSelect
           </Box>
         </Stack>
       </FormSection>
-
       {/* ── Section 4: Stay & Room Requirement ───────────────────────────── */}
       <FormSection title="Stay & Room Requirement" icon={<MeetingRoomIcon fontSize="small" />} iconColor="#6366f1">
         <Grid container spacing={2} sx={{ mb: 1.5 }}>
-          <Grid item xs={6} sm={3}>
+          <Grid
+            size={{
+              xs: 6,
+              sm: 3
+            }}>
             <AppDatePicker label="Check-in" value={checkIn} onChange={setCheckIn} min={todayStr()} />
           </Grid>
-          <Grid item xs={6} sm={3}>
+          <Grid
+            size={{
+              xs: 6,
+              sm: 3
+            }}>
             <AppDatePicker label="Check-out" value={checkOut} onChange={setCheckOut} min={checkIn} />
           </Grid>
-          <Grid item xs={6} sm={2}>
-            <TextField fullWidth label="Nights" value={nights} InputProps={{ readOnly: true }} />
+          <Grid
+            size={{
+              xs: 6,
+              sm: 2
+            }}>
+            <TextField fullWidth label="Nights" value={nights} slotProps={{
+              input: { readOnly: true }
+            }} />
           </Grid>
-          <Grid item xs={12} sm={4} sx={{ display: 'flex', justifyContent: { sm: 'flex-end' }, alignItems: 'center' }}>
+          <Grid
+            sx={{ display: 'flex', justifyContent: { sm: 'flex-end' }, alignItems: 'center' }}
+            size={{
+              xs: 12,
+              sm: 4
+            }}>
             <TextField select size="small" value="" onChange={(ev) => addType(ev.target.value)}
               disabled={addableTypes.length === 0} sx={{ minWidth: 200 }}
-              SelectProps={{ displayEmpty: true, renderValue: () => (
-                <Stack direction="row" spacing={0.5} alignItems="center"><AddIcon fontSize="small" /> Add room type</Stack>
-              ) }}>
+              slotProps={{
+                select: { displayEmpty: true, renderValue: () => (
+                  <Stack direction="row" spacing={0.5} sx={{
+                    alignItems: "center"
+                  }}><AddIcon fontSize="small" /> Add room type</Stack>
+                ) }
+              }}>
               {addableTypes.map((t) => (
                 <MenuItem key={t.type} value={t.type}>{t.type} · {t.freeCount} free · rack {sym}{t.avgRate.toLocaleString('en-IN')}</MenuItem>
               ))}
@@ -368,7 +468,9 @@ const CompanyBookingDialog = ({ open, onClose, rooms = [], onCreated, typeSelect
 
         {requirement.length === 0 ? (
           <Box sx={{ py: 4, textAlign: 'center', border: '1px dashed', borderColor: 'divider', borderRadius: 2 }}>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" sx={{
+              color: "text.secondary"
+            }}>
               No rooms required yet. Use “Add room type”.
               {typeStats.length === 0 && ' (No rooms free for these dates.)'}
             </Typography>
@@ -376,39 +478,65 @@ const CompanyBookingDialog = ({ open, onClose, rooms = [], onCreated, typeSelect
         ) : (
           <Stack spacing={1}>
             <Grid container spacing={1} sx={{ px: 1, color: 'text.secondary', fontSize: 12, fontWeight: 700 }}>
-              <Grid item xs={3}>Room Type</Grid>
-              <Grid item xs={2}>Qty</Grid>
-              <Grid item xs={2}>Rack</Grid>
-              <Grid item xs={3}>Corporate Rate /n</Grid>
-              <Grid item xs={2} sx={{ textAlign: 'right' }}>Amount</Grid>
+              <Grid size={3}>Room Type</Grid>
+              <Grid size={2}>Qty</Grid>
+              <Grid size={2}>Rack</Grid>
+              <Grid size={3}>Corporate Rate /n</Grid>
+              <Grid sx={{ textAlign: 'right' }} size={2}>Amount</Grid>
             </Grid>
             {requirement.map((b, i) => {
               const free = freeForType(b.roomType);
               const over = (Number(b.qty) || 0) > free;
               const { lineTotal } = rowMoney(b);
               return (
-                <Grid container spacing={1} key={i} alignItems="center"
-                  sx={{ p: 1, borderRadius: 2, border: '1px solid', borderColor: over ? 'error.main' : 'divider' }}>
-                  <Grid item xs={3}>
-                    <Typography fontWeight={800} sx={{ color: 'var(--app-primary)' }}>{b.roomType}</Typography>
+                <Grid
+                  container
+                  spacing={1}
+                  key={i}
+                  sx={{
+                    alignItems: "center",
+                    p: 1,
+                    borderRadius: 2,
+                    border: '1px solid',
+                    borderColor: over ? 'error.main' : 'divider'
+                  }}>
+                  <Grid size={3}>
+                    <Typography
+                      sx={{
+                        fontWeight: 800,
+                        color: 'var(--app-primary)'
+                      }}>{b.roomType}</Typography>
                     <Typography variant="caption" color={over ? 'error' : 'text.secondary'}>{free} free</Typography>
                   </Grid>
-                  <Grid item xs={2}>
+                  <Grid size={2}>
                     <TextField size="small" type="number" value={b.qty} error={over}
-                      onChange={(e) => updateReq(i, 'qty', e.target.value)} inputProps={{ min: 1, max: free }} fullWidth />
+                      onChange={(e) => updateReq(i, 'qty', e.target.value)} fullWidth slotProps={{
+                      htmlInput: { min: 1, max: free }
+                    }} />
                   </Grid>
-                  <Grid item xs={2}>
-                    <Typography variant="body2" color="text.secondary">{sym}{rackForType(b.roomType).toLocaleString('en-IN')}</Typography>
+                  <Grid size={2}>
+                    <Typography variant="body2" sx={{
+                      color: "text.secondary"
+                    }}>{sym}{rackForType(b.roomType).toLocaleString('en-IN')}</Typography>
                   </Grid>
-                  <Grid item xs={3}>
-                    <TextField size="small" type="number" value={b.rate}
-                      onChange={(e) => updateReq(i, 'rate', e.target.value)} inputProps={{ min: 0 }} fullWidth
-                      InputProps={{ startAdornment: <InputAdornment position="start">{sym}</InputAdornment> }} />
+                  <Grid size={3}>
+                    <TextField
+                      size="small"
+                      type="number"
+                      value={b.rate}
+                      onChange={(e) => updateReq(i, 'rate', e.target.value)}
+                      fullWidth
+                      slotProps={{
+                        input: { startAdornment: <InputAdornment position="start">{sym}</InputAdornment> },
+                        htmlInput: { min: 0 }
+                      }} />
                   </Grid>
-                  <Grid item xs={1} sx={{ textAlign: 'right' }}>
-                    <Typography variant="body2" fontWeight={700}>{sym}{lineTotal.toLocaleString('en-IN')}</Typography>
+                  <Grid sx={{ textAlign: 'right' }} size={1}>
+                    <Typography variant="body2" sx={{
+                      fontWeight: 700
+                    }}>{sym}{lineTotal.toLocaleString('en-IN')}</Typography>
                   </Grid>
-                  <Grid item xs={1} sx={{ textAlign: 'right' }}>
+                  <Grid sx={{ textAlign: 'right' }} size={1}>
                     <IconButton size="small" onClick={() => removeReq(i)} sx={{ color: 'error.main' }}>
                       <DeleteOutlineIcon fontSize="small" />
                     </IconButton>
@@ -417,18 +545,27 @@ const CompanyBookingDialog = ({ open, onClose, rooms = [], onCreated, typeSelect
               );
             })}
             <Divider sx={{ my: 1 }} />
-            <Stack direction="row" spacing={1} justifyContent="flex-end" alignItems="center">
+            <Stack
+              direction="row"
+              spacing={1}
+              sx={{
+                justifyContent: "flex-end",
+                alignItems: "center"
+              }}>
               <Chip label={`Total rooms: ${totals.rooms}`} sx={{ fontWeight: 700 }} />
               <Chip color="primary" label={`Total: ${sym}${totals.amount.toLocaleString('en-IN')}`} sx={{ fontWeight: 800 }} />
             </Stack>
           </Stack>
         )}
       </FormSection>
-
       {/* ── Section 5: Billing & Credit ──────────────────────────────────── */}
       <FormSection title="Billing & Credit" icon={<AccountBalanceIcon fontSize="small" />} iconColor="#0ea5e9">
         <Grid container spacing={2}>
-          <Grid item xs={12} sm={6}>
+          <Grid
+            size={{
+              xs: 12,
+              sm: 6
+            }}>
             <FormLabel sx={{ fontSize: 13, fontWeight: 700 }}>Payment by</FormLabel>
             <RadioGroup row value={form.payBy} onChange={(e) => set('payBy', e.target.value)}>
               <FormControlLabel value="guest" control={<Radio />} label="Guest Pay" />
@@ -436,7 +573,11 @@ const CompanyBookingDialog = ({ open, onClose, rooms = [], onCreated, typeSelect
               <FormControlLabel value="split" control={<Radio />} label="Split" />
             </RadioGroup>
           </Grid>
-          <Grid item xs={12} sm={6}>
+          <Grid
+            size={{
+              xs: 12,
+              sm: 6
+            }}>
             <FormLabel sx={{ fontSize: 13, fontWeight: 700 }}>Credit type</FormLabel>
             <RadioGroup row value={form.creditType} onChange={(e) => set('creditType', e.target.value)}>
               <FormControlLabel value="advance" control={<Radio />} label="Advance" />
@@ -444,53 +585,93 @@ const CompanyBookingDialog = ({ open, onClose, rooms = [], onCreated, typeSelect
             </RadioGroup>
           </Grid>
           {isCredit && (
-            <Grid item xs={12} sm={4}>
+            <Grid
+              size={{
+                xs: 12,
+                sm: 4
+              }}>
               <TextField select fullWidth label="Credit days" value={form.creditDays}
                 onChange={(e) => set('creditDays', e.target.value)}>
                 {CREDIT_DAYS.map((d) => <MenuItem key={d} value={d}>{d} days</MenuItem>)}
               </TextField>
             </Grid>
           )}
-          <Grid item xs={12} sm={isCredit ? 4 : 6}>
+          <Grid
+            size={{
+              xs: 12,
+              sm: isCredit ? 4 : 6
+            }}>
             <TextField fullWidth label="PO number" value={form.poNumber} onChange={(e) => set('poNumber', e.target.value)} />
           </Grid>
-          <Grid item xs={12} sm={isCredit ? 4 : 6}>
+          <Grid
+            size={{
+              xs: 12,
+              sm: isCredit ? 4 : 6
+            }}>
             <TextField fullWidth label="Reference number" value={form.referenceNumber} onChange={(e) => set('referenceNumber', e.target.value)} />
           </Grid>
         </Grid>
       </FormSection>
-
       {/* ── Section 6: Advance & Invoice ─────────────────────────────────── */}
       <FormSection title="Advance & Invoice" icon={<PaymentsIcon fontSize="small" />} iconColor="#10b981">
-        <Grid container spacing={2} alignItems="center">
-          <Grid item xs={12} sm={4}>
-            <TextField fullWidth type="number" label="Advance amount" value={form.advanceAmount}
-              onChange={(e) => set('advanceAmount', e.target.value)} inputProps={{ min: 0 }}
-              InputProps={{ startAdornment: <InputAdornment position="start">{sym}</InputAdornment> }} />
+        <Grid container spacing={2} sx={{
+          alignItems: "center"
+        }}>
+          <Grid
+            size={{
+              xs: 12,
+              sm: 4
+            }}>
+            <TextField
+              fullWidth
+              type="number"
+              label="Advance amount"
+              value={form.advanceAmount}
+              onChange={(e) => set('advanceAmount', e.target.value)}
+              slotProps={{
+                input: { startAdornment: <InputAdornment position="start">{sym}</InputAdornment> },
+                htmlInput: { min: 0 }
+              }} />
           </Grid>
-          <Grid item xs={12} sm={4}>
+          <Grid
+            size={{
+              xs: 12,
+              sm: 4
+            }}>
             <TextField select fullWidth label="Payment mode" value={form.advancePaymentMode}
               onChange={(e) => set('advancePaymentMode', e.target.value)}>
               <MenuItem value="">—</MenuItem>
               {PAYMENT_MODES.map((m) => <MenuItem key={m} value={m}>{m}</MenuItem>)}
             </TextField>
           </Grid>
-          <Grid item xs={12} sm={4}>
+          <Grid
+            size={{
+              xs: 12,
+              sm: 4
+            }}>
             <TextField fullWidth label="Transaction ID" value={form.advanceTransactionId}
               onChange={(e) => set('advanceTransactionId', e.target.value)} />
           </Grid>
-          <Grid item xs={12} sm={6}>
+          <Grid
+            size={{
+              xs: 12,
+              sm: 6
+            }}>
             <FormControlLabel
               control={<Switch checked={form.gstInvoice} onChange={(e) => set('gstInvoice', e.target.checked)} />}
               label="GST invoice required"
             />
           </Grid>
-          <Grid item xs={12} sm={6}>
+          <Grid
+            size={{
+              xs: 12,
+              sm: 6
+            }}>
             <TextField select fullWidth label="Status" value={form.status} onChange={(e) => set('status', e.target.value)}>
               {CREATE_STATUSES.map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
             </TextField>
           </Grid>
-          <Grid item xs={12}>
+          <Grid size={12}>
             <TextField fullWidth label="Special instructions" value={form.specialRequests}
               onChange={(e) => set('specialRequests', e.target.value)} multiline rows={2}
               placeholder="Airport pickup · early check-in · GST invoice · floor preference…" />

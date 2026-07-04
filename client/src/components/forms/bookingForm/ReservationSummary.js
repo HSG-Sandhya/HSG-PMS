@@ -13,7 +13,13 @@ import { NAVY, NAVY_2 } from './premium';
 const money = (n) => `${currencySym()}${Number(n || 0).toLocaleString('en-IN')}`;
 
 const Line = ({ label, value, negative, muted }) => (
-  <Stack direction="row" justifyContent="space-between" alignItems="baseline" sx={{ py: 0.5 }}>
+  <Stack
+    direction="row"
+    sx={{
+      justifyContent: "space-between",
+      alignItems: "baseline",
+      py: 0.5
+    }}>
     <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.72)', fontWeight: 500 }}>{label}</Typography>
     <Typography variant="body2" sx={{ fontWeight: 700, color: muted ? 'rgba(255,255,255,0.72)' : '#fff' }}>
       {negative ? '− ' : ''}{value}
@@ -45,7 +51,14 @@ const ReservationSummary = ({
           Reservation Summary
         </Typography>
 
-        <Stack direction="row" spacing={1.25} alignItems="center" sx={{ mt: 1.5, mb: 2 }}>
+        <Stack
+          direction="row"
+          spacing={1.25}
+          sx={{
+            alignItems: "center",
+            mt: 1.5,
+            mb: 2
+          }}>
           <Box sx={{ width: 40, height: 40, borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'center',
             background: 'rgba(var(--app-primary-rgb),0.18)', color: 'var(--app-primary)' }}>
             <HotelIcon fontSize="small" />
@@ -72,7 +85,13 @@ const ReservationSummary = ({
 
         <Divider sx={{ borderColor: 'rgba(255,255,255,0.12)' }} />
 
-        <Stack direction="row" justifyContent="space-between" alignItems="baseline" sx={{ py: 1.5 }}>
+        <Stack
+          direction="row"
+          sx={{
+            justifyContent: "space-between",
+            alignItems: "baseline",
+            py: 1.5
+          }}>
           <Typography sx={{ fontWeight: 700 }}>Total</Typography>
           <Typography sx={{ fontSize: 26, fontWeight: 900, letterSpacing: '-0.02em', color: 'var(--app-primary)' }}>
             {money(total)}
@@ -97,7 +116,6 @@ const ReservationSummary = ({
           </Box>
         )}
       </Box>
-
       {/* Action bar */}
       <Box sx={{ p: 2.25, background: 'rgba(0,0,0,0.18)', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
         <Button

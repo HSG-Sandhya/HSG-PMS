@@ -51,7 +51,11 @@ const RoomStayStep = ({
         )}
         <Grid container spacing={3}>
           {!hideRoomSelect && (
-          <Grid item xs={12} sm={6}>
+          <Grid
+            size={{
+              xs: 12,
+              sm: 6
+            }}>
             <FormControl fullWidth>
               <InputLabel>Room</InputLabel>
               <Select
@@ -61,7 +65,9 @@ const RoomStayStep = ({
                 label="Room"
                 variant={inputStyle}
                 sx={fieldSx}
-                MenuProps={{ PaperProps: { sx: { backgroundColor: '#fff' } } }}
+                MenuProps={{ slotProps: {
+                  paper: { sx: { backgroundColor: '#fff' } }
+                } }}
               >
                 <MenuItem value="">Select Room</MenuItem>
                 {rooms.map((room) => (
@@ -81,7 +87,11 @@ const RoomStayStep = ({
             </FormControl>
           </Grid>
           )}
-          <Grid item xs={12} sm={6}>
+          <Grid
+            size={{
+              xs: 12,
+              sm: 6
+            }}>
             <DatePicker
               label="Check-in Date"
               value={formData.checkInDate ? parseISO(formData.checkInDate) : null}
@@ -100,7 +110,11 @@ const RoomStayStep = ({
               slotProps={{ textField: { fullWidth: true } }}
             />
           </Grid>
-          <Grid item xs={12} sm={6}>
+          <Grid
+            size={{
+              xs: 12,
+              sm: 6
+            }}>
             <TimePicker
               label="Check-in Time"
               value={timeStringToDate(formData.checkInTime)}
@@ -108,7 +122,11 @@ const RoomStayStep = ({
               slotProps={{ textField: { fullWidth: true } }}
             />
           </Grid>
-          <Grid item xs={12} sm={6}>
+          <Grid
+            size={{
+              xs: 12,
+              sm: 6
+            }}>
             <DatePicker
               label="Check-out Date"
               value={formData.checkOutDate ? parseISO(formData.checkOutDate) : (() => {
@@ -133,7 +151,11 @@ const RoomStayStep = ({
               }}
             />
           </Grid>
-          <Grid item xs={12} sm={6}>
+          <Grid
+            size={{
+              xs: 12,
+              sm: 6
+            }}>
             <TimePicker
               label="Check-out Time"
               value={timeStringToDate(formData.checkOutTime)}
@@ -142,13 +164,16 @@ const RoomStayStep = ({
               slotProps={{ textField: { fullWidth: true } }}
             />
           </Grid>
-          <Grid item xs={12} sm={6}>
+          <Grid
+            size={{
+              xs: 12,
+              sm: 6
+            }}>
             <TextField
               label="Number of Nights"
               fullWidth
               variant="outlined"
               value={calculateNights(formData.checkInDate, formData.checkInTime, formData.checkOutDate, formData.checkOutTime)}
-              InputProps={{ readOnly: true }}
               sx={{
                 '& .MuiInputBase-input': {
                   backgroundColor: '#f5f5f5',
@@ -156,9 +181,16 @@ const RoomStayStep = ({
                   color: 'primary.main',
                 },
               }}
+              slotProps={{
+                input: { readOnly: true }
+              }}
             />
           </Grid>
-          <Grid item xs={12} sm={6}>
+          <Grid
+            size={{
+              xs: 12,
+              sm: 6
+            }}>
             <TextField
               name="adults"
               label="Adults"
@@ -168,16 +200,22 @@ const RoomStayStep = ({
               onChange={handleInputChange}
               variant={inputStyle}
               sx={fieldSx}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <Typography variant="body2" color="action">👥</Typography>
-                  </InputAdornment>
-                ),
+              slotProps={{
+                input: {
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <Typography variant="body2" color="action">👥</Typography>
+                    </InputAdornment>
+                  ),
+                }
               }}
             />
           </Grid>
-          <Grid item xs={12} sm={6}>
+          <Grid
+            size={{
+              xs: 12,
+              sm: 6
+            }}>
             <TextField
               name="children"
               label="Children"
@@ -187,16 +225,18 @@ const RoomStayStep = ({
               onChange={handleInputChange}
               variant={inputStyle}
               sx={fieldSx}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <Typography variant="body2" color="action">👶</Typography>
-                  </InputAdornment>
-                ),
+              slotProps={{
+                input: {
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <Typography variant="body2" color="action">👶</Typography>
+                    </InputAdornment>
+                  ),
+                }
               }}
             />
           </Grid>
-          <Grid item xs={12}>
+          <Grid size={12}>
             <TextField
               name="specialRequests"
               label="Special Requests"

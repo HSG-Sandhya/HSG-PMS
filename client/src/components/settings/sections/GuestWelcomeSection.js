@@ -107,19 +107,32 @@ const GuestWelcomeSection = ({ onNotify }) => {
           control={<Switch checked={!!form.enabled} onChange={(e) => set({ enabled: e.target.checked })} />}
           label={
             <Box>
-              <Typography fontWeight={700}>Send WiFi & menu on check-in</Typography>
-              <Typography variant="caption" color="text.secondary">
+              <Typography sx={{
+                fontWeight: 700
+              }}>Send WiFi & menu on check-in</Typography>
+              <Typography variant="caption" sx={{
+                color: "text.secondary"
+              }}>
                 When a guest is checked in, pop up a one-tap WhatsApp message with the WiFi password and a food-menu QR/link.
               </Typography>
             </Box>
           }
         />
       </Box>
-
       <FormSection title="WiFi networks" icon={<WifiIcon fontSize="small" />} iconColor="#0ea5e9">
         <Stack spacing={2}>
-          <Stack direction="row" justifyContent="space-between" alignItems="center">
-            <Typography variant="caption" color="text.secondary" sx={{ maxWidth: 520 }}>
+          <Stack
+            direction="row"
+            sx={{
+              justifyContent: "space-between",
+              alignItems: "center"
+            }}>
+            <Typography
+              variant="caption"
+              sx={{
+                color: "text.secondary",
+                maxWidth: 520
+              }}>
               Add each access point and the rooms it covers. On check-in, the guest is sent the network nearest their room (strongest signal). If no network matches, the default is used.
             </Typography>
             <IconButton size="small" onClick={() => setShowPwd((v) => !v)} title={showPwd ? 'Hide passwords' : 'Show passwords'}>
@@ -128,7 +141,9 @@ const GuestWelcomeSection = ({ onNotify }) => {
           </Stack>
 
           {(form.wifiNetworks || []).length === 0 && (
-            <Typography variant="body2" color="text.secondary">No networks yet — add one below.</Typography>
+            <Typography variant="body2" sx={{
+              color: "text.secondary"
+            }}>No networks yet — add one below.</Typography>
           )}
 
           {(form.wifiNetworks || []).map((n, i) => (
@@ -147,9 +162,9 @@ const GuestWelcomeSection = ({ onNotify }) => {
                   options={roomOptions}
                   value={parseRooms(n.rooms)}
                   onChange={(_e, val) => setNet(i, { rooms: val.join(', ') })}
-                  renderTags={(value, getTagProps) =>
+                  renderValue={(value, getItemProps) =>
                     value.map((option, index) => (
-                      <Chip size="small" label={option} {...getTagProps({ index })} key={option + index} />
+                      <Chip size="small" label={option} {...getItemProps({ index })} key={option + index} />
                     ))
                   }
                   renderInput={(params) => (
@@ -161,7 +176,13 @@ const GuestWelcomeSection = ({ onNotify }) => {
                     />
                   )}
                 />
-                <Stack direction="row" justifyContent="space-between" alignItems="center" flexWrap="wrap">
+                <Stack
+                  direction="row"
+                  sx={{
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    flexWrap: "wrap"
+                  }}>
                   <FormControlLabel
                     control={<Radio size="small" checked={!!n.isDefault} onChange={() => setDefaultNet(i)} />}
                     label={<Typography variant="body2">Default (used when no room matches)</Typography>}
@@ -181,7 +202,6 @@ const GuestWelcomeSection = ({ onNotify }) => {
           </Button>
         </Stack>
       </FormSection>
-
       <FormSection title="Menu link & WhatsApp" icon={<LanguageIcon fontSize="small" />} iconColor="#10b981">
         <Stack spacing={2}>
           <TextField
@@ -193,12 +213,13 @@ const GuestWelcomeSection = ({ onNotify }) => {
             label="WhatsApp country code" value={form.countryCode}
             onChange={(e) => set({ countryCode: e.target.value.replace(/\D/g, '') })}
             sx={{ maxWidth: 220 }}
-            InputProps={{ startAdornment: <InputAdornment position="start">+</InputAdornment> }}
             helperText="Default 91 (India)"
+            slotProps={{
+              input: { startAdornment: <InputAdornment position="start">+</InputAdornment> }
+            }}
           />
         </Stack>
       </FormSection>
-
       <FormSection title="Message (optional)" icon={<WhatsAppIcon fontSize="small" />} iconColor="#25D366">
         <Stack spacing={1.5}>
           <TextField
@@ -208,12 +229,13 @@ const GuestWelcomeSection = ({ onNotify }) => {
             helperText="Placeholders: {guestName} {hotelName} {roomNumber} {wifiSsid} {wifiPassword} {menuUrl}"
           />
           <Box sx={{ ...cardSx, p: 2 }}>
-            <Typography variant="caption" color="text.secondary">Preview</Typography>
+            <Typography variant="caption" sx={{
+              color: "text.secondary"
+            }}>Preview</Typography>
             <Typography variant="body2" sx={{ whiteSpace: 'pre-line', mt: 0.5 }}>{samplePreview}</Typography>
           </Box>
         </Stack>
       </FormSection>
-
       <Divider />
       <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
         <Button

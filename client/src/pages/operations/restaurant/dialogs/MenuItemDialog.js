@@ -25,7 +25,7 @@ const MenuItemDialog = ({
   >
     <FormSection title="Item Details" icon={<RestaurantIcon fontSize="small" />} iconColor="#f43f5e">
       <Grid container spacing={2}>
-        <Grid item xs={12}>
+        <Grid size={12}>
           <TextField
             label="Name"
             fullWidth
@@ -34,7 +34,7 @@ const MenuItemDialog = ({
             required
           />
         </Grid>
-        <Grid item xs={12}>
+        <Grid size={12}>
           <TextField
             label="Description"
             fullWidth
@@ -44,7 +44,11 @@ const MenuItemDialog = ({
             onChange={(e) => setMenuItemForm({ ...menuItemForm, description: e.target.value })}
           />
         </Grid>
-        <Grid item xs={12} sm={6}>
+        <Grid
+          size={{
+            xs: 12,
+            sm: 6
+          }}>
           <TextField
             label={`Price (${currencySym()})`}
             fullWidth
@@ -52,10 +56,16 @@ const MenuItemDialog = ({
             value={menuItemForm.price}
             onChange={(e) => setMenuItemForm({ ...menuItemForm, price: e.target.value })}
             required
-            inputProps={{ min: 0 }}
+            slotProps={{
+              htmlInput: { min: 0 }
+            }}
           />
         </Grid>
-        <Grid item xs={12} sm={6}>
+        <Grid
+          size={{
+            xs: 12,
+            sm: 6
+          }}>
           <FormControl fullWidth>
             <InputLabel>Category</InputLabel>
             <Select
@@ -63,7 +73,9 @@ const MenuItemDialog = ({
               onChange={(e) => setMenuItemForm({ ...menuItemForm, category: e.target.value })}
               label="Category"
               required
-              MenuProps={{ PaperProps: { sx: { backgroundColor: '#fff' } } }}
+              MenuProps={{ slotProps: {
+                paper: { sx: { backgroundColor: '#fff' } }
+              } }}
             >
               {categories.map((category) => (
                 <MenuItem key={category._id} value={category._id}>
@@ -73,38 +85,52 @@ const MenuItemDialog = ({
             </Select>
           </FormControl>
         </Grid>
-        <Grid item xs={12} sm={6}>
+        <Grid
+          size={{
+            xs: 12,
+            sm: 6
+          }}>
           <FormControl fullWidth>
             <InputLabel>Type</InputLabel>
             <Select
               value={menuItemForm.isVeg}
               onChange={(e) => setMenuItemForm({ ...menuItemForm, isVeg: e.target.value })}
               label="Type"
-              MenuProps={{ PaperProps: { sx: { backgroundColor: '#fff' } } }}
+              MenuProps={{ slotProps: {
+                paper: { sx: { backgroundColor: '#fff' } }
+              } }}
             >
               <MenuItem value={true}>Vegetarian</MenuItem>
               <MenuItem value={false}>Non-Vegetarian</MenuItem>
             </Select>
           </FormControl>
         </Grid>
-        <Grid item xs={12} sm={6}>
+        <Grid
+          size={{
+            xs: 12,
+            sm: 6
+          }}>
           <TextField
             label="Preparation Time (mins)"
             fullWidth
             type="number"
             value={menuItemForm.preparationTime}
             onChange={(e) => setMenuItemForm({ ...menuItemForm, preparationTime: e.target.value })}
-            inputProps={{ min: 1 }}
+            slotProps={{
+              htmlInput: { min: 1 }
+            }}
           />
         </Grid>
-        <Grid item xs={12}>
+        <Grid size={12}>
           <FormControl fullWidth>
             <InputLabel>Popular</InputLabel>
             <Select
               value={menuItemForm.popular}
               onChange={(e) => setMenuItemForm({ ...menuItemForm, popular: e.target.value })}
               label="Popular"
-              MenuProps={{ PaperProps: { sx: { backgroundColor: '#fff' } } }}
+              MenuProps={{ slotProps: {
+                paper: { sx: { backgroundColor: '#fff' } }
+              } }}
             >
               <MenuItem value={true}>Yes</MenuItem>
               <MenuItem value={false}>No</MenuItem>

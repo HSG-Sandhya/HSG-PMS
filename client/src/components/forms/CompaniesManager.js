@@ -158,7 +158,9 @@ const CompaniesManager = ({ open, onClose, rooms = [], onChanged }) => {
             <Box sx={{ py: 4, textAlign: 'center' }}><CircularProgress size={28} /></Box>
           ) : (
             <Stack spacing={1.5}>
-              <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
+              <Stack direction="row" spacing={0.75} useFlexGap sx={{
+                flexWrap: "wrap"
+              }}>
                 <Chip label={`${history.summary.clusters} booking(s)`} sx={{ fontWeight: 700 }} />
                 <Chip color="primary" label={`Revenue ${money(history.summary.revenue)}`} sx={{ fontWeight: 700 }} />
                 <Chip color="success" label={`Paid ${money(history.summary.paid)}`} sx={{ fontWeight: 700 }} />
@@ -166,21 +168,55 @@ const CompaniesManager = ({ open, onClose, rooms = [], onChanged }) => {
                 <Chip label={`Credit used ${money(history.summary.creditUsed)}`} />
               </Stack>
               {history.clusters.length === 0 ? (
-                <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>No bookings yet.</Typography>
+                <Typography
+                  variant="body2"
+                  sx={{
+                    color: "text.secondary",
+                    py: 2,
+                    textAlign: 'center'
+                  }}>No bookings yet.</Typography>
               ) : history.clusters.map((c) => (
-                <Grid container key={c.groupId} spacing={1} alignItems="center"
-                  sx={{ p: 1, borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
-                  <Grid item xs={12} sm={5}>
-                    <Typography fontWeight={700}>{c.name}</Typography>
-                    <Typography variant="caption" color="text.secondary">
+                <Grid
+                  container
+                  key={c.groupId}
+                  spacing={1}
+                  sx={{
+                    alignItems: "center",
+                    p: 1,
+                    borderRadius: 2,
+                    border: '1px solid',
+                    borderColor: 'divider'
+                  }}>
+                  <Grid
+                    size={{
+                      xs: 12,
+                      sm: 5
+                    }}>
+                    <Typography sx={{
+                      fontWeight: 700
+                    }}>{c.name}</Typography>
+                    <Typography variant="caption" sx={{
+                      color: "text.secondary"
+                    }}>
                       {new Date(c.checkIn).toLocaleDateString('en-IN')} → {new Date(c.checkOut).toLocaleDateString('en-IN')} · {c.rooms} room(s)
                     </Typography>
                   </Grid>
-                  <Grid item xs={6} sm={4}>
+                  <Grid
+                    size={{
+                      xs: 6,
+                      sm: 4
+                    }}>
                     <Chip size="small" label={c.status} color={c.status === 'Cancelled' ? 'error' : c.status === 'Completed' ? 'success' : 'info'} />
                   </Grid>
-                  <Grid item xs={6} sm={3} sx={{ textAlign: 'right' }}>
-                    <Typography fontWeight={800}>{money(c.revenue)}</Typography>
+                  <Grid
+                    sx={{ textAlign: 'right' }}
+                    size={{
+                      xs: 6,
+                      sm: 3
+                    }}>
+                    <Typography sx={{
+                      fontWeight: 800
+                    }}>{money(c.revenue)}</Typography>
                   </Grid>
                 </Grid>
               ))}
@@ -199,18 +235,34 @@ const CompaniesManager = ({ open, onClose, rooms = [], onChanged }) => {
 
               {analytics && (
                 <Box sx={{ p: 1.5, mb: 0.5, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(var(--app-primary-rgb),0.04)' }}>
-                  <Stack direction="row" spacing={0.75} alignItems="center" sx={{ mb: 1 }}>
+                  <Stack
+                    direction="row"
+                    spacing={0.75}
+                    sx={{
+                      alignItems: "center",
+                      mb: 1
+                    }}>
                     <InsightsIcon fontSize="small" sx={{ color: 'var(--app-primary)' }} />
-                    <Typography variant="subtitle2" fontWeight={800}>Corporate revenue</Typography>
+                    <Typography variant="subtitle2" sx={{
+                      fontWeight: 800
+                    }}>Corporate revenue</Typography>
                   </Stack>
-                  <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
+                  <Stack direction="row" spacing={0.75} useFlexGap sx={{
+                    flexWrap: "wrap"
+                  }}>
                     <Chip size="small" color="primary" label={`Revenue ${money(analytics.corporateRevenue)}`} sx={{ fontWeight: 700 }} />
                     <Chip size="small" label={`${analytics.corporateBookings} booking(s)`} />
                     <Chip size="small" label={`${analytics.totalCompanies} compan${analytics.totalCompanies === 1 ? 'y' : 'ies'}`} />
                     <Chip size="small" color="warning" label={`Outstanding credit ${money(analytics.totalCreditUsed)}`} />
                   </Stack>
                   {analytics.topCompanies?.length > 0 && (
-                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        color: "text.secondary",
+                        display: 'block',
+                        mt: 1
+                      }}>
                       Top: {analytics.topCompanies.slice(0, 3).map((t) => `${t.name} (${money(t.revenue)})`).join(' · ')}
                     </Typography>
                   )}
@@ -218,25 +270,59 @@ const CompaniesManager = ({ open, onClose, rooms = [], onChanged }) => {
               )}
 
               {companies.length === 0 && (
-                <Typography variant="body2" color="text.secondary" sx={{ py: 3, textAlign: 'center' }}>
+                <Typography
+                  variant="body2"
+                  sx={{
+                    color: "text.secondary",
+                    py: 3,
+                    textAlign: 'center'
+                  }}>
                   No companies yet. Use “Add company”.
                 </Typography>
               )}
               {companies.map((c) => (
-                <Grid container key={c.id || c._id} alignItems="center" spacing={1}
-                  sx={{ p: 1, borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
-                  <Grid item xs={12} sm={4}>
-                    <Typography fontWeight={800}>{c.name}</Typography>
-                    <Typography variant="caption" color="text.secondary">{c.companyType || '—'} · {(c.contractRates || []).length} rate(s)</Typography>
+                <Grid
+                  container
+                  key={c.id || c._id}
+                  spacing={1}
+                  sx={{
+                    alignItems: "center",
+                    p: 1,
+                    borderRadius: 2,
+                    border: '1px solid',
+                    borderColor: 'divider'
+                  }}>
+                  <Grid
+                    size={{
+                      xs: 12,
+                      sm: 4
+                    }}>
+                    <Typography sx={{
+                      fontWeight: 800
+                    }}>{c.name}</Typography>
+                    <Typography variant="caption" sx={{
+                      color: "text.secondary"
+                    }}>{c.companyType || '—'} · {(c.contractRates || []).length} rate(s)</Typography>
                   </Grid>
-                  <Grid item xs={8} sm={5}>
-                    <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+                  <Grid
+                    size={{
+                      xs: 8,
+                      sm: 5
+                    }}>
+                    <Stack direction="row" spacing={0.5} useFlexGap sx={{
+                      flexWrap: "wrap"
+                    }}>
                       <Chip size="small" label={`Limit ${sym}${(c.creditLimit || 0).toLocaleString('en-IN')}`} />
                       <Chip size="small" color={c.creditUsed > 0 ? 'warning' : 'default'} label={`Used ${sym}${(c.creditUsed || 0).toLocaleString('en-IN')}`} />
                       <Chip size="small" color="success" label={`Free ${sym}${(c.creditAvailable ?? Math.max(0, (c.creditLimit || 0) - (c.creditUsed || 0))).toLocaleString('en-IN')}`} />
                     </Stack>
                   </Grid>
-                  <Grid item xs={4} sm={3} sx={{ textAlign: 'right' }}>
+                  <Grid
+                    sx={{ textAlign: 'right' }}
+                    size={{
+                      xs: 4,
+                      sm: 3
+                    }}>
                     <Tooltip title="Booking history"><IconButton size="small" onClick={() => openHistory(c)} sx={{ color: '#6366f1' }}><HistoryIcon fontSize="small" /></IconButton></Tooltip>
                     <Tooltip title="Record credit payment"><span>
                       <IconButton size="small" onClick={() => recordPayment(c)} disabled={!(c.creditUsed > 0)} sx={{ color: '#10b981' }}><PaymentsIcon fontSize="small" /></IconButton>
@@ -253,29 +339,81 @@ const CompaniesManager = ({ open, onClose, rooms = [], onChanged }) => {
         <>
           <FormSection title="Company" icon={<BusinessIcon fontSize="small" />} iconColor="#6366f1">
             <Grid container spacing={2}>
-              <Grid item xs={12} sm={8}><TextField fullWidth required label="Company name" value={form.name} onChange={(e) => set('name', e.target.value)} /></Grid>
-              <Grid item xs={12} sm={4}>
+              <Grid
+                size={{
+                  xs: 12,
+                  sm: 8
+                }}><TextField fullWidth required label="Company name" value={form.name} onChange={(e) => set('name', e.target.value)} /></Grid>
+              <Grid
+                size={{
+                  xs: 12,
+                  sm: 4
+                }}>
                 <TextField select fullWidth label="Type" value={form.companyType} onChange={(e) => set('companyType', e.target.value)}>
                   {COMPANY_TYPES.map((t) => <MenuItem key={t} value={t}>{t}</MenuItem>)}
                 </TextField>
               </Grid>
-              <Grid item xs={12} sm={4}><TextField fullWidth label="GSTIN" value={form.gstNumber} onChange={(e) => set('gstNumber', e.target.value.toUpperCase())} /></Grid>
-              <Grid item xs={12} sm={4}><TextField fullWidth label="PAN" value={form.pan} onChange={(e) => set('pan', e.target.value.toUpperCase())} /></Grid>
-              <Grid item xs={12} sm={4}><TextField fullWidth label="Billing address" value={form.billingAddress} onChange={(e) => set('billingAddress', e.target.value)} /></Grid>
-              <Grid item xs={6} sm={3}><TextField fullWidth label="Contact name" value={form.pcName} onChange={(e) => set('pcName', e.target.value)} /></Grid>
-              <Grid item xs={6} sm={3}><TextField fullWidth label="Designation" value={form.pcDesignation} onChange={(e) => set('pcDesignation', e.target.value)} /></Grid>
-              <Grid item xs={6} sm={3}><TextField fullWidth label="Contact phone" value={form.pcPhone} onChange={(e) => set('pcPhone', e.target.value)} /></Grid>
-              <Grid item xs={6} sm={3}><TextField fullWidth label="Contact email" value={form.pcEmail} onChange={(e) => set('pcEmail', e.target.value)} /></Grid>
+              <Grid
+                size={{
+                  xs: 12,
+                  sm: 4
+                }}><TextField fullWidth label="GSTIN" value={form.gstNumber} onChange={(e) => set('gstNumber', e.target.value.toUpperCase())} /></Grid>
+              <Grid
+                size={{
+                  xs: 12,
+                  sm: 4
+                }}><TextField fullWidth label="PAN" value={form.pan} onChange={(e) => set('pan', e.target.value.toUpperCase())} /></Grid>
+              <Grid
+                size={{
+                  xs: 12,
+                  sm: 4
+                }}><TextField fullWidth label="Billing address" value={form.billingAddress} onChange={(e) => set('billingAddress', e.target.value)} /></Grid>
+              <Grid
+                size={{
+                  xs: 6,
+                  sm: 3
+                }}><TextField fullWidth label="Contact name" value={form.pcName} onChange={(e) => set('pcName', e.target.value)} /></Grid>
+              <Grid
+                size={{
+                  xs: 6,
+                  sm: 3
+                }}><TextField fullWidth label="Designation" value={form.pcDesignation} onChange={(e) => set('pcDesignation', e.target.value)} /></Grid>
+              <Grid
+                size={{
+                  xs: 6,
+                  sm: 3
+                }}><TextField fullWidth label="Contact phone" value={form.pcPhone} onChange={(e) => set('pcPhone', e.target.value)} /></Grid>
+              <Grid
+                size={{
+                  xs: 6,
+                  sm: 3
+                }}><TextField fullWidth label="Contact email" value={form.pcEmail} onChange={(e) => set('pcEmail', e.target.value)} /></Grid>
             </Grid>
           </FormSection>
 
           <FormSection title="Credit account" icon={<PaymentsIcon fontSize="small" />} iconColor="#0ea5e9">
             <Grid container spacing={2}>
-              <Grid item xs={6} sm={4}>
-                <TextField fullWidth type="number" label="Credit limit" value={form.creditLimit} onChange={(e) => set('creditLimit', e.target.value)} inputProps={{ min: 0 }}
-                  InputProps={{ startAdornment: <InputAdornment position="start">{sym}</InputAdornment> }} />
+              <Grid
+                size={{
+                  xs: 6,
+                  sm: 4
+                }}>
+                <TextField
+                  fullWidth
+                  type="number"
+                  label="Credit limit"
+                  value={form.creditLimit}
+                  onChange={(e) => set('creditLimit', e.target.value)}
+                  slotProps={{
+                    input: { startAdornment: <InputAdornment position="start">{sym}</InputAdornment> },
+                    htmlInput: { min: 0 }
+                  }} />
               </Grid>
-              <Grid item xs={6} sm={4}>
+              <Grid
+                size={{
+                  xs: 6,
+                  sm: 4
+                }}>
                 <TextField select fullWidth label="Credit days" value={form.creditDays} onChange={(e) => set('creditDays', e.target.value)}>
                   {[0, 15, 30, 45, 60].map((d) => <MenuItem key={d} value={d}>{d === 0 ? 'None' : `${d} days`}</MenuItem>)}
                 </TextField>
@@ -286,19 +424,29 @@ const CompaniesManager = ({ open, onClose, rooms = [], onChanged }) => {
           <FormSection title="Contract rate plan" icon={<BusinessIcon fontSize="small" />} iconColor="#a21caf">
             <Stack spacing={1}>
               {form.contractRates.map((r, i) => (
-                <Grid container spacing={1} key={i} alignItems="center">
-                  <Grid item xs={6}>
+                <Grid container spacing={1} key={i} sx={{
+                  alignItems: "center"
+                }}>
+                  <Grid size={6}>
                     <TextField select={roomTypes.length > 0} size="small" fullWidth label="Room type" value={r.roomType}
                       onChange={(e) => setRate(i, 'roomType', e.target.value)}>
                       {roomTypes.map((t) => <MenuItem key={t} value={t}>{t}</MenuItem>)}
                     </TextField>
                   </Grid>
-                  <Grid item xs={5}>
-                    <TextField size="small" type="number" fullWidth label="Rate / night" value={r.rate}
-                      onChange={(e) => setRate(i, 'rate', e.target.value)} inputProps={{ min: 0 }}
-                      InputProps={{ startAdornment: <InputAdornment position="start">{sym}</InputAdornment> }} />
+                  <Grid size={5}>
+                    <TextField
+                      size="small"
+                      type="number"
+                      fullWidth
+                      label="Rate / night"
+                      value={r.rate}
+                      onChange={(e) => setRate(i, 'rate', e.target.value)}
+                      slotProps={{
+                        input: { startAdornment: <InputAdornment position="start">{sym}</InputAdornment> },
+                        htmlInput: { min: 0 }
+                      }} />
                   </Grid>
-                  <Grid item xs={1} sx={{ textAlign: 'right' }}>
+                  <Grid sx={{ textAlign: 'right' }} size={1}>
                     <IconButton size="small" onClick={() => removeRate(i)} sx={{ color: '#ef4444' }}><DeleteOutlineIcon fontSize="small" /></IconButton>
                   </Grid>
                 </Grid>

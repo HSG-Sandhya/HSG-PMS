@@ -364,12 +364,14 @@ const Login = () => {
                   helperText={formErrors.username}
                   disabled={loading}
                   sx={fieldSx}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <PersonOutlineIcon sx={{ color: 'var(--app-primary)' }} />
-                      </InputAdornment>
-                    ),
+                  slotProps={{
+                    input: {
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <PersonOutlineIcon sx={{ color: 'var(--app-primary)' }} />
+                        </InputAdornment>
+                      ),
+                    }
                   }}
                 />
               </MotionBox>
@@ -390,24 +392,26 @@ const Login = () => {
                   helperText={formErrors.password}
                   disabled={loading}
                   sx={fieldSx}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <LockOutlinedIcon sx={{ color: 'var(--app-primary)' }} />
-                      </InputAdornment>
-                    ),
-                    endAdornment: (
-                      <InputAdornment position="end">
-                        <IconButton
-                          aria-label="toggle password visibility"
-                          onClick={() => setShowPassword((s) => !s)}
-                          edge="end"
-                          tabIndex={-1}
-                        >
-                          {showPassword ? <VisibilityOff /> : <Visibility />}
-                        </IconButton>
-                      </InputAdornment>
-                    ),
+                  slotProps={{
+                    input: {
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <LockOutlinedIcon sx={{ color: 'var(--app-primary)' }} />
+                        </InputAdornment>
+                      ),
+                      endAdornment: (
+                        <InputAdornment position="end">
+                          <IconButton
+                            aria-label="toggle password visibility"
+                            onClick={() => setShowPassword((s) => !s)}
+                            edge="end"
+                            tabIndex={-1}
+                          >
+                            {showPassword ? <VisibilityOff /> : <Visibility />}
+                          </IconButton>
+                        </InputAdornment>
+                      ),
+                    }
                   }}
                 />
               </MotionBox>

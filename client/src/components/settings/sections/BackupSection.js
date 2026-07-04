@@ -153,13 +153,16 @@ const BackupSection = ({ onNotify }) => {
           <Stack
             direction={{ xs: 'column', sm: 'row' }}
             spacing={2}
-            justifyContent="space-between"
-            alignItems={{ xs: 'flex-start', sm: 'center' }}
-            mb={2}
-          >
+            sx={{
+              justifyContent: "space-between",
+              alignItems: { xs: 'flex-start', sm: 'center' },
+              mb: 2
+            }}>
             <Box>
               <Typography variant="h6">Database backups</Typography>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={{
+                color: "text.secondary"
+              }}>
                 JSON snapshots of every collection. Use restore with caution.
               </Typography>
             </Box>
@@ -179,7 +182,14 @@ const BackupSection = ({ onNotify }) => {
           </Stack>
 
           {stats && (
-            <Stack direction="row" spacing={2} mb={2} flexWrap="wrap" useFlexGap>
+            <Stack
+              direction="row"
+              spacing={2}
+              useFlexGap
+              sx={{
+                mb: 2,
+                flexWrap: "wrap"
+              }}>
               <Chip label={`Total backups: ${stats.totalBackups ?? backups.length}`} />
               {stats.totalSize !== undefined && (
                 <Chip label={`Total size: ${formatBytes(stats.totalSize)}`} />
@@ -191,7 +201,12 @@ const BackupSection = ({ onNotify }) => {
           )}
 
           {loading ? (
-            <Box display="flex" justifyContent="center" py={4}>
+            <Box
+              sx={{
+                display: "flex",
+                justifyContent: "center",
+                py: 4
+              }}>
               <CircularProgress />
             </Box>
           ) : backups.length === 0 ? (
@@ -214,7 +229,12 @@ const BackupSection = ({ onNotify }) => {
                     return (
                       <TableRow key={filename} hover>
                         <TableCell>
-                          <Typography variant="body2" fontWeight={500} sx={{ wordBreak: 'break-all' }}>
+                          <Typography
+                            variant="body2"
+                            sx={{
+                              fontWeight: 500,
+                              wordBreak: 'break-all'
+                            }}>
                             {filename}
                           </Typography>
                         </TableCell>

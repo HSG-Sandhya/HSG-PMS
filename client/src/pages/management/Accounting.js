@@ -39,10 +39,20 @@ const PRESETS = {
 const TAB_LABELS = ['Income & Expense', 'Cash Book', 'Ledger', 'GST Reports', 'Profit & Loss', 'Balance Sheet', 'Bank Accounts'];
 
 const StatCard = ({ label, value, color }) => (
-  <Grid item xs={12} sm={4}>
+  <Grid
+    size={{
+      xs: 12,
+      sm: 4
+    }}>
     <Box sx={{ ...cardSx, textAlign: 'center' }}>
       <Typography variant="caption" sx={{ textTransform: 'uppercase', letterSpacing: '0.1em', color: 'text.secondary' }}>{label}</Typography>
-      <Typography variant="h5" fontWeight={800} sx={{ color: color || 'text.primary', mt: 0.5 }}>{value}</Typography>
+      <Typography
+        variant="h5"
+        sx={{
+          fontWeight: 800,
+          color: color || 'text.primary',
+          mt: 0.5
+        }}>{value}</Typography>
     </Box>
   </Grid>
 );
@@ -102,7 +112,13 @@ const Accounting = () => {
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           <AccountBalanceWalletIcon sx={{ fontSize: 42, color: 'var(--app-primary)' }} />
           <Box>
-            <Typography variant="h4" fontWeight={800} sx={{ color: 'var(--app-primary)', letterSpacing: '-0.02em' }}>
+            <Typography
+              variant="h4"
+              sx={{
+                fontWeight: 800,
+                color: 'var(--app-primary)',
+                letterSpacing: '-0.02em'
+              }}>
               Accounting
             </Typography>
             <Typography variant="body1" sx={{ color: 'text.secondary' }}>
@@ -114,10 +130,16 @@ const Accounting = () => {
           <IconButton onClick={fetchReports} sx={{ color: 'var(--app-primary)' }}><RefreshIcon /></IconButton>
         </Tooltip>
       </Box>
-
       {/* Period controls */}
       <Box sx={{ ...cardSx, mb: 3 }}>
-        <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap" useFlexGap>
+        <Stack
+          direction="row"
+          spacing={1.5}
+          useFlexGap
+          sx={{
+            alignItems: "center",
+            flexWrap: "wrap"
+          }}>
           <TextField select size="small" label="Period" value={preset} onChange={(e) => applyPreset(e.target.value)} sx={{ minWidth: 150 }}>
             <MenuItem value="thisMonth">This month</MenuItem>
             <MenuItem value="lastMonth">Last month</MenuItem>
@@ -131,20 +153,22 @@ const Accounting = () => {
           <Box sx={{ flexGrow: 1 }} />
           <TextField size="small" type="number" label="Opening cash" value={openingCash}
             onChange={onOpeningChange(setOpeningCash, 'acct_openingCash')} sx={{ width: 150 }}
-            InputProps={{ startAdornment: <InputAdornment position="start">{currencySym()}</InputAdornment> }} />
+            slotProps={{
+              input: { startAdornment: <InputAdornment position="start">{currencySym()}</InputAdornment> }
+            }} />
           <TextField size="small" type="number" label="Opening bank" value={openingBank}
             onChange={onOpeningChange(setOpeningBank, 'acct_openingBank')} sx={{ width: 150 }}
-            InputProps={{ startAdornment: <InputAdornment position="start">{currencySym()}</InputAdornment> }} />
+            slotProps={{
+              input: { startAdornment: <InputAdornment position="start">{currencySym()}</InputAdornment> }
+            }} />
         </Stack>
       </Box>
-
       {/* Summary */}
       <Grid container spacing={2} sx={{ mb: 3 }}>
         <StatCard label="Total income" value={fmt(summary.totalIncome)} color={INCOME_COLOR} />
         <StatCard label="Total expense" value={fmt(summary.totalExpense)} color={EXPENSE_COLOR} />
         <StatCard label="Net" value={fmt(summary.net)} color={summary.net >= 0 ? INCOME_COLOR : EXPENSE_COLOR} />
       </Grid>
-
       {/* Tabs */}
       <Box sx={{ ...cardSx, p: 1, mb: 3 }}>
         <Tabs value={tab} onChange={(e, v) => setTab(v)} variant="scrollable" scrollButtons="auto"
@@ -152,7 +176,6 @@ const Accounting = () => {
           {TAB_LABELS.map((l) => <Tab key={l} label={l} />)}
         </Tabs>
       </Box>
-
       {/* Tab content */}
       <motion.div key={tab} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
         {tab === 0 ? (
@@ -173,7 +196,6 @@ const Accounting = () => {
           <BalanceSheetTab reports={reports} />
         )}
       </motion.div>
-
       <Snackbar open={snackbar.open} autoHideDuration={4000} onClose={() => setSnackbar((s) => ({ ...s, open: false }))}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}>
         <Alert severity={snackbar.severity} variant="filled" onClose={() => setSnackbar((s) => ({ ...s, open: false }))}>

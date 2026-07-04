@@ -112,7 +112,14 @@ const DropTile = ({ label, file, onPick, onClear }) => {
             background: 'rgba(0,0,0,0.6)', color: '#fff' }} />
         </>
       ) : (
-        <Stack alignItems="center" justifyContent="center" spacing={0.5} sx={{ height: 132, color: 'text.secondary' }}>
+        <Stack
+          spacing={0.5}
+          sx={{
+            alignItems: "center",
+            justifyContent: "center",
+            height: 132,
+            color: 'text.secondary'
+          }}>
           <CloudUploadIcon sx={{ color: 'var(--app-primary)' }} />
           <Typography variant="body2" sx={{ fontWeight: 700 }}>{label}</Typography>
           <Typography variant="caption">JPG / PNG</Typography>
@@ -183,22 +190,42 @@ const AadhaarCapture = ({ frontFile, backFile, onFront, onBack, onApply, validat
 
   return (
     <Box sx={{ mt: 1 }}>
-      <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.5 }}>
+      <Stack
+        direction="row"
+        spacing={1}
+        sx={{
+          alignItems: "center",
+          mb: 1.5
+        }}>
         <DocumentScannerIcon fontSize="small" sx={{ color: 'var(--app-primary)' }} />
         <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>Aadhaar card images</Typography>
-        <Typography variant="caption" color="text.secondary">— upload front &amp; back, then scan to auto-fill</Typography>
+        <Typography variant="caption" sx={{
+          color: "text.secondary"
+        }}>— upload front &amp; back, then scan to auto-fill</Typography>
       </Stack>
-
       <Grid container spacing={2}>
-        <Grid item xs={12} sm={6}>
+        <Grid
+          size={{
+            xs: 12,
+            sm: 6
+          }}>
           <DropTile label="Front" file={frontFile} onPick={onFront} onClear={() => onFront(null)} />
         </Grid>
-        <Grid item xs={12} sm={6}>
+        <Grid
+          size={{
+            xs: 12,
+            sm: 6
+          }}>
           <DropTile label="Back (address)" file={backFile} onPick={onBack} onClear={() => onBack(null)} />
         </Grid>
       </Grid>
-
-      <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mt: 1.5 }}>
+      <Stack
+        direction="row"
+        spacing={1.5}
+        sx={{
+          alignItems: "center",
+          mt: 1.5
+        }}>
         <Button
           onClick={runScan} disabled={(!frontFile && !backFile) || scanning}
           variant="contained" startIcon={<AutoFixHighIcon />}
@@ -207,21 +234,34 @@ const AadhaarCapture = ({ frontFile, backFile, onFront, onBack, onApply, validat
         >
           {scanning ? 'Scanning…' : 'Scan & autofill'}
         </Button>
-        {scanning && <Typography variant="caption" color="text.secondary">{status}</Typography>}
+        {scanning && <Typography variant="caption" sx={{
+          color: "text.secondary"
+        }}>{status}</Typography>}
       </Stack>
       {scanning && <LinearProgress sx={{ mt: 1.5, borderRadius: 1 }} />}
-
       {ocrError && (
-        <Stack direction="row" spacing={0.75} alignItems="center" sx={{ mt: 1.5, color: 'warning.main' }}>
+        <Stack
+          direction="row"
+          spacing={0.75}
+          sx={{
+            alignItems: "center",
+            mt: 1.5,
+            color: 'warning.main'
+          }}>
           <ErrorOutlineIcon fontSize="small" />
           <Typography variant="body2">{ocrError}</Typography>
         </Stack>
       )}
-
       {review && (
         <Box sx={{ mt: 2, p: 2, borderRadius: 2.5, border: '1px solid', borderColor: 'divider',
           background: 'rgba(var(--app-primary-rgb),0.03)' }}>
-          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.5 }}>
+          <Stack
+            direction="row"
+            sx={{
+              justifyContent: "space-between",
+              alignItems: "center",
+              mb: 1.5
+            }}>
             <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>Review extracted details</Typography>
             {aadhaarValid != null && (
               <Chip size="small"
@@ -235,7 +275,9 @@ const AadhaarCapture = ({ frontFile, backFile, onFront, onBack, onApply, validat
 
           <Stack spacing={1}>
             {REVIEW_ROWS.filter((row) => review[row.key] != null).map((row) => (
-              <Stack key={row.key} direction="row" spacing={1} alignItems="center">
+              <Stack key={row.key} direction="row" spacing={1} sx={{
+                alignItems: "center"
+              }}>
                 <Checkbox size="small" checked={include.has(row.key)} onChange={() => toggle(row.key)} sx={{ p: 0.5 }} />
                 <TextField
                   size="small" fullWidth label={row.label}
@@ -247,7 +289,13 @@ const AadhaarCapture = ({ frontFile, backFile, onFront, onBack, onApply, validat
             ))}
           </Stack>
 
-          <Stack direction="row" justifyContent="flex-end" spacing={1} sx={{ mt: 2 }}>
+          <Stack
+            direction="row"
+            spacing={1}
+            sx={{
+              justifyContent: "flex-end",
+              mt: 2
+            }}>
             <FormControlLabel
               sx={{ mr: 'auto' }}
               control={<Checkbox size="small"

@@ -244,12 +244,25 @@ const UsersManager = ({ onNotify }) => {
 
   return (
     <Box sx={cardSx}>
-      <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ sm: 'center' }} spacing={1.5} sx={{ mb: 2 }}>
+      <Stack
+        direction={{ xs: 'column', sm: 'row' }}
+        spacing={1.5}
+        sx={{
+          justifyContent: "space-between",
+          alignItems: { sm: 'center' },
+          mb: 2
+        }}>
         <Box>
-          <Typography variant="h6" fontWeight={800}>Staff Logins</Typography>
-          <Typography variant="caption" color="text.secondary">Create logins, assign roles, and enable/disable accounts</Typography>
+          <Typography variant="h6" sx={{
+            fontWeight: 800
+          }}>Staff Logins</Typography>
+          <Typography variant="caption" sx={{
+            color: "text.secondary"
+          }}>Create logins, assign roles, and enable/disable accounts</Typography>
         </Box>
-        <Stack direction="row" spacing={1} alignItems="center">
+        <Stack direction="row" spacing={1} sx={{
+          alignItems: "center"
+        }}>
           <TextField size="small" placeholder="Search users…" value={search} onChange={(e) => setSearch(e.target.value)} sx={{ minWidth: 200 }} />
           <Button
             variant="contained" startIcon={<PersonAddAlt1Icon />} onClick={openCreate}
@@ -263,7 +276,6 @@ const UsersManager = ({ onNotify }) => {
           </Button>
         </Stack>
       </Stack>
-
       {loading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}><CircularProgress /></Box>
       ) : filtered.length === 0 ? (
@@ -288,14 +300,25 @@ const UsersManager = ({ onNotify }) => {
                 return (
                   <TableRow key={idOf(u)} hover>
                     <TableCell>
-                      <Stack direction="row" spacing={1} alignItems="center">
+                      <Stack direction="row" spacing={1} sx={{
+                        alignItems: "center"
+                      }}>
                         <PersonIcon fontSize="small" sx={{ color: 'var(--app-primary)' }} />
                         <Box>
-                          <Typography component="div" variant="body2" fontWeight={600} sx={{ display: 'flex', alignItems: 'center' }}>
+                          <Typography
+                            component="div"
+                            variant="body2"
+                            sx={{
+                              fontWeight: 600,
+                              display: 'flex',
+                              alignItems: 'center'
+                            }}>
                             {[u.firstName, u.lastName].filter(Boolean).join(' ') || u.username}
                             {u.isSystemAdmin && <Chip label="System admin" size="small" sx={{ ml: 1, height: 18, fontSize: 10 }} />}
                           </Typography>
-                          <Typography variant="caption" color="text.secondary">@{u.username}</Typography>
+                          <Typography variant="caption" sx={{
+                            color: "text.secondary"
+                          }}>@{u.username}</Typography>
                         </Box>
                       </Stack>
                     </TableCell>
@@ -330,7 +353,6 @@ const UsersManager = ({ onNotify }) => {
           </Table>
         </Box>
       )}
-
       {/* ---- Create login dialog ---- */}
       <FormDialog
         open={creating}
@@ -346,17 +368,33 @@ const UsersManager = ({ onNotify }) => {
       >
         <FormSection title="Person" icon={<PersonIcon fontSize="small" />} iconColor="#6366f1">
           <Grid container spacing={2}>
-            <Grid item xs={12} sm={6}>
+            <Grid
+              size={{
+                xs: 12,
+                sm: 6
+              }}>
               <TextField fullWidth label="First name" value={cForm.firstName} onChange={(e) => onNameChange('firstName', e.target.value)} required />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid
+              size={{
+                xs: 12,
+                sm: 6
+              }}>
               <TextField fullWidth label="Last name" value={cForm.lastName} onChange={(e) => onNameChange('lastName', e.target.value)} required />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid
+              size={{
+                xs: 12,
+                sm: 6
+              }}>
               <TextField fullWidth label="Phone (10 digits)" value={cForm.phone}
                 onChange={(e) => setC({ phone: e.target.value.replace(/\D/g, '').slice(0, 10) })} required />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid
+              size={{
+                xs: 12,
+                sm: 6
+              }}>
               <TextField fullWidth label="Email" type="email" value={cForm.email} onChange={(e) => setC({ email: e.target.value })} required />
             </Grid>
           </Grid>
@@ -372,22 +410,24 @@ const UsersManager = ({ onNotify }) => {
             <TextField
               fullWidth label="Password" type={showPwd ? 'text' : 'password'} value={cForm.password}
               onChange={(e) => setC({ password: e.target.value })} required
-              InputProps={{
-                endAdornment: (
-                  <InputAdornment position="end">
-                    <Tooltip title={showPwd ? 'Hide' : 'Show'}>
-                      <IconButton size="small" onClick={() => setShowPwd((v) => !v)} edge="end">
-                        {showPwd ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Generate new password">
-                      <IconButton size="small" onClick={() => setC({ password: genPassword() })}><AutorenewIcon fontSize="small" /></IconButton>
-                    </Tooltip>
-                    <Tooltip title="Copy password">
-                      <IconButton size="small" onClick={() => copyText(cForm.password, 'Password copied')}><ContentCopyIcon fontSize="small" /></IconButton>
-                    </Tooltip>
-                  </InputAdornment>
-                ),
+              slotProps={{
+                input: {
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <Tooltip title={showPwd ? 'Hide' : 'Show'}>
+                        <IconButton size="small" onClick={() => setShowPwd((v) => !v)} edge="end">
+                          {showPwd ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Generate new password">
+                        <IconButton size="small" onClick={() => setC({ password: genPassword() })}><AutorenewIcon fontSize="small" /></IconButton>
+                      </Tooltip>
+                      <Tooltip title="Copy password">
+                        <IconButton size="small" onClick={() => copyText(cForm.password, 'Password copied')}><ContentCopyIcon fontSize="small" /></IconButton>
+                      </Tooltip>
+                    </InputAdornment>
+                  ),
+                }
               }}
             />
           </Stack>
@@ -396,12 +436,20 @@ const UsersManager = ({ onNotify }) => {
         <FormSection title="Access" icon={<VpnKeyIcon fontSize="small" />} iconColor="#10b981">
           <Stack spacing={2}>
             <Grid container spacing={2}>
-              <Grid item xs={12} sm={6}>
+              <Grid
+                size={{
+                  xs: 12,
+                  sm: 6
+                }}>
                 <TextField select fullWidth label="Role" value={cForm.role} onChange={(e) => setC({ role: e.target.value })} required>
                   {roles.map((r) => <MenuItem key={idOf(r)} value={idOf(r)}>{r.name}</MenuItem>)}
                 </TextField>
               </Grid>
-              <Grid item xs={12} sm={6}>
+              <Grid
+                size={{
+                  xs: 12,
+                  sm: 6
+                }}>
                 <TextField select fullWidth label="Department" value={cForm.department} onChange={(e) => setC({ department: e.target.value })} required>
                   {departments.map((d) => <MenuItem key={idOf(d)} value={idOf(d)}>{d.name}</MenuItem>)}
                 </TextField>
@@ -409,10 +457,14 @@ const UsersManager = ({ onNotify }) => {
             </Grid>
             {cForm.role && (
               <Box>
-                <Typography variant="caption" color="text.secondary">This role can access ({createPerms.length}):</Typography>
+                <Typography variant="caption" sx={{
+                  color: "text.secondary"
+                }}>This role can access ({createPerms.length}):</Typography>
                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 0.5, maxHeight: 120, overflowY: 'auto' }}>
                   {createPerms.length === 0
-                    ? <Typography variant="body2" color="text.secondary">Full access (administrator).</Typography>
+                    ? <Typography variant="body2" sx={{
+                    color: "text.secondary"
+                  }}>Full access (administrator).</Typography>
                     : createPerms.map((p) => <Chip key={p} size="small" label={p.replace(/_/g, ' ').replace(/^manage |^view /, '')} sx={{ textTransform: 'capitalize' }} />)}
                 </Box>
               </Box>
@@ -424,7 +476,6 @@ const UsersManager = ({ onNotify }) => {
           </Stack>
         </FormSection>
       </FormDialog>
-
       {/* ---- Credential handover dialog ---- */}
       <FormDialog
         open={!!handover}
@@ -449,10 +500,24 @@ const UsersManager = ({ onNotify }) => {
             </Alert>
             <Box sx={{ ...cardSx, p: 2 }}>
               {[['Username', handover.username], ['Password', handover.password]].map(([k, v]) => (
-                <Stack key={k} direction="row" alignItems="center" justifyContent="space-between" sx={{ py: 0.75 }}>
+                <Stack
+                  key={k}
+                  direction="row"
+                  sx={{
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    py: 0.75
+                  }}>
                   <Box>
-                    <Typography variant="caption" color="text.secondary">{k}</Typography>
-                    <Typography variant="body1" fontWeight={700} sx={{ fontFamily: 'monospace' }}>{v}</Typography>
+                    <Typography variant="caption" sx={{
+                      color: "text.secondary"
+                    }}>{k}</Typography>
+                    <Typography
+                      variant="body1"
+                      sx={{
+                        fontWeight: 700,
+                        fontFamily: 'monospace'
+                      }}>{v}</Typography>
                   </Box>
                   <Tooltip title={`Copy ${k.toLowerCase()}`}>
                     <IconButton size="small" onClick={() => copyText(v, `${k} copied`)}><ContentCopyIcon fontSize="small" /></IconButton>
@@ -460,13 +525,14 @@ const UsersManager = ({ onNotify }) => {
                 </Stack>
               ))}
             </Box>
-            <Typography variant="caption" color="text.secondary">
+            <Typography variant="caption" sx={{
+              color: "text.secondary"
+            }}>
               Hand these to the person. They sign in at <strong>/login</strong>. Ask them to change the password after first use. {!handover.active && 'Note: this account is currently disabled — activate it before they sign in.'}
             </Typography>
           </Stack>
         )}
       </FormDialog>
-
       {/* ---- Edit user dialog ---- */}
       <FormDialog
         open={!!editing}
@@ -483,7 +549,9 @@ const UsersManager = ({ onNotify }) => {
         {editing && (
           <FormSection title="Role & Access" icon={<PersonIcon fontSize="small" />} iconColor="#6366f1">
             <Stack spacing={2}>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={{
+                color: "text.secondary"
+              }}>
                 {[editing.firstName, editing.lastName].filter(Boolean).join(' ') || editing.username} · {editing.email}
               </Typography>
               <TextField select fullWidth label="Role" value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))}>
@@ -494,10 +562,14 @@ const UsersManager = ({ onNotify }) => {
                   onChange={(e) => setForm((f) => ({ ...f, isActive: e.target.checked }))} />}
                 label={form.isActive ? 'Account active' : 'Account disabled'}
               />
-              <Divider textAlign="left"><Typography variant="caption" color="text.secondary">Permissions granted by this role ({editingPerms.length})</Typography></Divider>
+              <Divider textAlign="left"><Typography variant="caption" sx={{
+                color: "text.secondary"
+              }}>Permissions granted by this role ({editingPerms.length})</Typography></Divider>
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, maxHeight: 160, overflowY: 'auto' }}>
                 {editingPerms.length === 0
-                  ? <Typography variant="body2" color="text.secondary">No permissions on this role.</Typography>
+                  ? <Typography variant="body2" sx={{
+                  color: "text.secondary"
+                }}>No permissions on this role.</Typography>
                   : editingPerms.map((p) => <Chip key={p} size="small" label={p.replace(/_/g, ' ')} sx={{ textTransform: 'capitalize' }} />)}
               </Box>
             </Stack>

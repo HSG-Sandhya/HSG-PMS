@@ -51,16 +51,18 @@ const ConfirmDialog = ({
       onClose={loading ? undefined : onClose}
       maxWidth="xs"
       fullWidth
-      PaperProps={{
-        sx: {
-          ...dialogPaperSx(isDark),
-          p: 1,
-          overflow: 'visible',
-          textAlign: 'center',
-        },
-      }}
-      BackdropProps={{ sx: dialogBackdropSx }}
-    >
+      slotProps={{
+        backdrop: { sx: dialogBackdropSx },
+
+        paper: {
+          sx: {
+            ...dialogPaperSx(isDark),
+            p: 1,
+            overflow: 'visible',
+            textAlign: 'center',
+          },
+        }
+      }}>
       <IconButton
         onClick={onClose}
         disabled={loading}
@@ -70,7 +72,6 @@ const ConfirmDialog = ({
       >
         <CloseRoundedIcon fontSize="small" />
       </IconButton>
-
       <DialogContent sx={{ pt: 4, pb: 1.5 }}>
         {/* Haloed icon */}
         <Box
@@ -94,12 +95,17 @@ const ConfirmDialog = ({
           {title}
         </Typography>
         {message && (
-          <Typography variant="body2" color="text.secondary" sx={{ px: 1, lineHeight: 1.5 }}>
+          <Typography
+            variant="body2"
+            sx={{
+              color: "text.secondary",
+              px: 1,
+              lineHeight: 1.5
+            }}>
             {message}
           </Typography>
         )}
       </DialogContent>
-
       <DialogActions sx={{ px: 3, pb: 3, pt: 1, gap: 1.25 }}>
         <Button
           onClick={onClose}

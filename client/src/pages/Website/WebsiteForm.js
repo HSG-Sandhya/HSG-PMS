@@ -168,7 +168,7 @@ const WebsiteBookingForm = () => {
           <Box component="form" onSubmit={handleSubmit}>
             <Grid container spacing={3}>
               {/* Personal Information */}
-              <Grid item xs={12}>
+              <Grid size={12}>
                 <Typography 
                   variant="h6" 
                   sx={{ 
@@ -181,7 +181,11 @@ const WebsiteBookingForm = () => {
                 </Typography>
               </Grid>
               
-              <Grid item xs={12} sm={6}>
+              <Grid
+                size={{
+                  xs: 12,
+                  sm: 6
+                }}>
                 <TextField
                   fullWidth
                   required
@@ -192,7 +196,11 @@ const WebsiteBookingForm = () => {
                 />
               </Grid>
               
-              <Grid item xs={12} sm={6}>
+              <Grid
+                size={{
+                  xs: 12,
+                  sm: 6
+                }}>
                 <TextField
                   fullWidth
                   required
@@ -203,7 +211,11 @@ const WebsiteBookingForm = () => {
                 />
               </Grid>
               
-              <Grid item xs={12} sm={6}>
+              <Grid
+                size={{
+                  xs: 12,
+                  sm: 6
+                }}>
                 <TextField
                   fullWidth
                   required
@@ -215,7 +227,11 @@ const WebsiteBookingForm = () => {
                 />
               </Grid>
               
-              <Grid item xs={12} sm={6}>
+              <Grid
+                size={{
+                  xs: 12,
+                  sm: 6
+                }}>
                 <TextField
                   fullWidth
                   required
@@ -227,7 +243,7 @@ const WebsiteBookingForm = () => {
               </Grid>
               
               {/* Booking Details */}
-              <Grid item xs={12}>
+              <Grid size={12}>
                 <Typography 
                   variant="h6" 
                   sx={{ 
@@ -241,7 +257,11 @@ const WebsiteBookingForm = () => {
                 </Typography>
               </Grid>
               
-              <Grid item xs={12} sm={6}>
+              <Grid
+                size={{
+                  xs: 12,
+                  sm: 6
+                }}>
                 <DatePicker
                   label="Check-in Date"
                   value={checkIn}
@@ -251,7 +271,11 @@ const WebsiteBookingForm = () => {
                 />
               </Grid>
               
-              <Grid item xs={12} sm={6}>
+              <Grid
+                size={{
+                  xs: 12,
+                  sm: 6
+                }}>
                 <DatePicker
                   label="Check-out Date"
                   value={checkOut}
@@ -261,14 +285,20 @@ const WebsiteBookingForm = () => {
                 />
               </Grid>
               
-              <Grid item xs={12} sm={6}>
+              <Grid
+                size={{
+                  xs: 12,
+                  sm: 6
+                }}>
                 <FormControl fullWidth required>
                   <InputLabel>Room Type</InputLabel>
                   <Select
                     value={roomType}
                     onChange={(e) => setRoomType(e.target.value)}
                     label="Room Type"
-                    MenuProps={{ PaperProps: { sx: { backgroundColor: '#fff', maxHeight: 300 } } }}
+                    MenuProps={{ slotProps: {
+                      paper: { sx: { backgroundColor: '#fff', maxHeight: 300 } }
+                    } }}
                   >
                     {roomTypes.map((room) => (
                       <MenuItem key={room.id} value={room.id}>
@@ -279,14 +309,20 @@ const WebsiteBookingForm = () => {
                 </FormControl>
               </Grid>
               
-              <Grid item xs={6} sm={3}>
+              <Grid
+                size={{
+                  xs: 6,
+                  sm: 3
+                }}>
                 <FormControl fullWidth>
                   <InputLabel>Adults</InputLabel>
                   <Select
                     value={adults}
                     onChange={(e) => setAdults(e.target.value)}
                     label="Adults"
-                    MenuProps={{ PaperProps: { sx: { backgroundColor: '#fff', maxHeight: 300 } } }}
+                    MenuProps={{ slotProps: {
+                      paper: { sx: { backgroundColor: '#fff', maxHeight: 300 } }
+                    } }}
                   >
                     {[1, 2, 3, 4].map((num) => (
                       <MenuItem key={num} value={num}>{num}</MenuItem>
@@ -295,14 +331,20 @@ const WebsiteBookingForm = () => {
                 </FormControl>
               </Grid>
               
-              <Grid item xs={6} sm={3}>
+              <Grid
+                size={{
+                  xs: 6,
+                  sm: 3
+                }}>
                 <FormControl fullWidth>
                   <InputLabel>Children</InputLabel>
                   <Select
                     value={children}
                     onChange={(e) => setChildren(e.target.value)}
                     label="Children"
-                    MenuProps={{ PaperProps: { sx: { backgroundColor: '#fff', maxHeight: 300 } } }}
+                    MenuProps={{ slotProps: {
+                      paper: { sx: { backgroundColor: '#fff', maxHeight: 300 } }
+                    } }}
                   >
                     {[0, 1, 2, 3].map((num) => (
                       <MenuItem key={num} value={num}>{num}</MenuItem>
@@ -311,7 +353,7 @@ const WebsiteBookingForm = () => {
                 </FormControl>
               </Grid>
               
-              <Grid item xs={12}>
+              <Grid size={12}>
                 <TextField
                   fullWidth
                   label="Special Requests"
@@ -325,7 +367,7 @@ const WebsiteBookingForm = () => {
               
               {/* Booking Summary */}
               {roomType && nights > 0 && (
-                <Grid item xs={12}>
+                <Grid size={12}>
                   <Paper 
                     elevation={1} 
                     sx={{ 
@@ -340,51 +382,61 @@ const WebsiteBookingForm = () => {
                     </Typography>
                     
                     <Grid container spacing={2}>
-                      <Grid item xs={6}>
+                      <Grid size={6}>
                         <Typography variant="body1">Room Type:</Typography>
                       </Grid>
-                      <Grid item xs={6}>
-                        <Typography variant="body1" fontWeight="medium">{selectedRoom.name}</Typography>
+                      <Grid size={6}>
+                        <Typography variant="body1" sx={{
+                          fontWeight: "medium"
+                        }}>{selectedRoom.name}</Typography>
                       </Grid>
                       
-                      <Grid item xs={6}>
+                      <Grid size={6}>
                         <Typography variant="body1">Check-in:</Typography>
                       </Grid>
-                      <Grid item xs={6}>
-                        <Typography variant="body1" fontWeight="medium">
+                      <Grid size={6}>
+                        <Typography variant="body1" sx={{
+                          fontWeight: "medium"
+                        }}>
                           {checkIn.toLocaleDateString()}
                         </Typography>
                       </Grid>
                       
-                      <Grid item xs={6}>
+                      <Grid size={6}>
                         <Typography variant="body1">Check-out:</Typography>
                       </Grid>
-                      <Grid item xs={6}>
-                        <Typography variant="body1" fontWeight="medium">
+                      <Grid size={6}>
+                        <Typography variant="body1" sx={{
+                          fontWeight: "medium"
+                        }}>
                           {checkOut.toLocaleDateString()}
                         </Typography>
                       </Grid>
                       
-                      <Grid item xs={6}>
+                      <Grid size={6}>
                         <Typography variant="body1">Number of Nights:</Typography>
                       </Grid>
-                      <Grid item xs={6}>
-                        <Typography variant="body1" fontWeight="medium">{nights}</Typography>
+                      <Grid size={6}>
+                        <Typography variant="body1" sx={{
+                          fontWeight: "medium"
+                        }}>{nights}</Typography>
                       </Grid>
                       
-                      <Grid item xs={6}>
+                      <Grid size={6}>
                         <Typography variant="body1">Price per Night:</Typography>
                       </Grid>
-                      <Grid item xs={6}>
-                        <Typography variant="body1" fontWeight="medium">{currencySym()}{selectedRoom.price}</Typography>
+                      <Grid size={6}>
+                        <Typography variant="body1" sx={{
+                          fontWeight: "medium"
+                        }}>{currencySym()}{selectedRoom.price}</Typography>
                       </Grid>
                       
-                      <Grid item xs={6}>
+                      <Grid size={6}>
                         <Typography variant="h6" sx={{ fontWeight: 600, color: '#1e3a8a' }}>
                           Total Amount:
                         </Typography>
                       </Grid>
-                      <Grid item xs={6}>
+                      <Grid size={6}>
                         <Typography variant="h6" sx={{ fontWeight: 600, color: '#1e3a8a' }}>
                           {currencySym()}{totalPrice}
                         </Typography>
@@ -394,7 +446,7 @@ const WebsiteBookingForm = () => {
                 </Grid>
               )}
               
-              <Grid item xs={12} sx={{ mt: 3, textAlign: 'center' }}>
+              <Grid sx={{ mt: 3, textAlign: 'center' }} size={12}>
                 <Button
                   type="submit"
                   variant="contained"
@@ -420,7 +472,6 @@ const WebsiteBookingForm = () => {
           </Box>
         </Paper>
       </Box>
-      
       <Snackbar
         open={snackbar.open}
         autoHideDuration={6000}

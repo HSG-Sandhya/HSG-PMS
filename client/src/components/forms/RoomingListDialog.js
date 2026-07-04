@@ -321,10 +321,21 @@ const RoomingListDialog = ({ open, onClose, groupId, rooms = [], onUpdated }) =>
       )}
     >
       <FormSection title="Booking Status" icon={<FlagIcon fontSize="small" />} iconColor="#f59e0b">
-        <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap" useFlexGap>
-          <Typography variant="body2" color="text.secondary">Current:</Typography>
+        <Stack
+          direction="row"
+          spacing={1.5}
+          useFlexGap
+          sx={{
+            alignItems: "center",
+            flexWrap: "wrap"
+          }}>
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>Current:</Typography>
           <Chip label={status || '—'} color={STATUS_COLOR[status] || 'default'} sx={{ fontWeight: 800 }} />
-          {(TRANSITIONS[status] || []).length > 0 && <Typography variant="body2" color="text.secondary">→</Typography>}
+          {(TRANSITIONS[status] || []).length > 0 && <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>→</Typography>}
           {(TRANSITIONS[status] || []).map((next) => (
             <Button key={next} size="small" variant={next === 'Cancelled' ? 'outlined' : 'contained'}
               color={btnColor(next)} disabled={statusBusy || loading}
@@ -333,19 +344,32 @@ const RoomingListDialog = ({ open, onClose, groupId, rooms = [], onUpdated }) =>
             </Button>
           ))}
           {(TRANSITIONS[status] || []).length === 0 && status && (
-            <Typography variant="caption" color="text.secondary">No further transitions.</Typography>
+            <Typography variant="caption" sx={{
+              color: "text.secondary"
+            }}>No further transitions.</Typography>
           )}
         </Stack>
-        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+        <Typography
+          variant="caption"
+          sx={{
+            color: "text.secondary",
+            display: 'block',
+            mt: 1
+          }}>
           Applies to the whole cluster. “Check in” marks the lifecycle stage — occupy each room from the booking row's check-in action.
         </Typography>
       </FormSection>
-
       <FormSection title="Assign rooms & occupants" icon={<ListAltIcon fontSize="small" />} iconColor="#6366f1">
         {loading ? (
           <Box sx={{ py: 5, textAlign: 'center' }}><CircularProgress size={30} /></Box>
         ) : rows.length === 0 ? (
-          <Typography variant="body2" color="text.secondary" sx={{ py: 3, textAlign: 'center' }}>
+          <Typography
+            variant="body2"
+            sx={{
+              color: "text.secondary",
+              py: 3,
+              textAlign: 'center'
+            }}>
             No rooms in this booking.
           </Typography>
         ) : (
@@ -356,16 +380,29 @@ const RoomingListDialog = ({ open, onClose, groupId, rooms = [], onUpdated }) =>
                 label={`${assignedCount}/${rows.length} assigned`} sx={{ fontWeight: 700 }} />
             </Stack>
             <Grid container spacing={1} sx={{ px: 1, color: 'text.secondary', fontSize: 12, fontWeight: 700 }}>
-              <Grid item xs={3}>Room No</Grid>
-              <Grid item xs={3}>Guest Name</Grid>
-              <Grid item xs={2}>Sharing</Grid>
-              <Grid item xs={2}>ID Proof</Grid>
-              <Grid item xs={2}>ID Number</Grid>
+              <Grid size={3}>Room No</Grid>
+              <Grid size={3}>Guest Name</Grid>
+              <Grid size={2}>Sharing</Grid>
+              <Grid size={2}>ID Proof</Grid>
+              <Grid size={2}>ID Number</Grid>
             </Grid>
             {rows.map((row, i) => (
-              <Grid container spacing={1} key={row._id} alignItems="center"
-                sx={{ p: 1, borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
-                <Grid item xs={12} sm={3}>
+              <Grid
+                container
+                spacing={1}
+                key={row._id}
+                sx={{
+                  alignItems: "center",
+                  p: 1,
+                  borderRadius: 2,
+                  border: '1px solid',
+                  borderColor: 'divider'
+                }}>
+                <Grid
+                  size={{
+                    xs: 12,
+                    sm: 3
+                  }}>
                   <TextField select size="small" fullWidth label={row.roomType || 'Room'}
                     value={row.roomId} onChange={(e) => setRow(i, 'roomId', e.target.value)}>
                     <MenuItem value=""><em>Unassigned</em></MenuItem>
@@ -377,25 +414,41 @@ const RoomingListDialog = ({ open, onClose, groupId, rooms = [], onUpdated }) =>
                   </TextField>
                   {row.isGroupMaster && <Chip size="small" label="Master" sx={{ mt: 0.5, height: 18, fontSize: 10 }} />}
                 </Grid>
-                <Grid item xs={12} sm={3}>
+                <Grid
+                  size={{
+                    xs: 12,
+                    sm: 3
+                  }}>
                   <TextField size="small" fullWidth value={row.guestName}
                     onChange={(e) => setRow(i, 'guestName', e.target.value)} placeholder="Occupant name" />
                 </Grid>
-                <Grid item xs={6} sm={2}>
+                <Grid
+                  size={{
+                    xs: 6,
+                    sm: 2
+                  }}>
                   <TextField select size="small" fullWidth value={row.sharing}
                     onChange={(e) => setRow(i, 'sharing', e.target.value)}>
                     <MenuItem value="">—</MenuItem>
                     {SHARING.map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
                   </TextField>
                 </Grid>
-                <Grid item xs={6} sm={2}>
+                <Grid
+                  size={{
+                    xs: 6,
+                    sm: 2
+                  }}>
                   <TextField select size="small" fullWidth value={row.idCardType}
                     onChange={(e) => setRow(i, 'idCardType', e.target.value)}>
                     <MenuItem value="">—</MenuItem>
                     {ID_TYPES.map((t) => <MenuItem key={t} value={t}>{t}</MenuItem>)}
                   </TextField>
                 </Grid>
-                <Grid item xs={12} sm={2}>
+                <Grid
+                  size={{
+                    xs: 12,
+                    sm: 2
+                  }}>
                   <TextField size="small" fullWidth value={row.idCardNumber}
                     onChange={(e) => setRow(i, 'idCardNumber', e.target.value)} placeholder="ID number" />
                 </Grid>
@@ -403,9 +456,21 @@ const RoomingListDialog = ({ open, onClose, groupId, rooms = [], onUpdated }) =>
             ))}
 
             {/* + Add guest — appends another room slot to the cluster */}
-            <Grid container spacing={1} alignItems="center"
-              sx={{ p: 1, borderRadius: 2, border: '1px dashed', borderColor: 'divider' }}>
-              <Grid item xs={12} sm={4}>
+            <Grid
+              container
+              spacing={1}
+              sx={{
+                alignItems: "center",
+                p: 1,
+                borderRadius: 2,
+                border: '1px dashed',
+                borderColor: 'divider'
+              }}>
+              <Grid
+                size={{
+                  xs: 12,
+                  sm: 4
+                }}>
                 <TextField select size="small" fullWidth label="Add room type" value={addType}
                   onChange={(e) => setAddType(e.target.value)} disabled={typeStats.length === 0}>
                   {typeStats.map((t) => (
@@ -413,11 +478,19 @@ const RoomingListDialog = ({ open, onClose, groupId, rooms = [], onUpdated }) =>
                   ))}
                 </TextField>
               </Grid>
-              <Grid item xs={12} sm={5}>
+              <Grid
+                size={{
+                  xs: 12,
+                  sm: 5
+                }}>
                 <TextField size="small" fullWidth label="Guest name (optional)" value={addGuest}
                   onChange={(e) => setAddGuest(e.target.value)} />
               </Grid>
-              <Grid item xs={12} sm={3}>
+              <Grid
+                size={{
+                  xs: 12,
+                  sm: 3
+                }}>
                 <Button fullWidth size="small" variant="outlined" startIcon={<AddIcon />}
                   onClick={addGuestRoom} disabled={!addType || adding}
                   sx={{ textTransform: 'none', fontWeight: 700 }}>
@@ -428,7 +501,9 @@ const RoomingListDialog = ({ open, onClose, groupId, rooms = [], onUpdated }) =>
 
             {error && <Alert severity="error">{error}</Alert>}
             {okMsg && <Alert severity="success">{okMsg}</Alert>}
-            <Typography variant="caption" color="text.secondary">
+            <Typography variant="caption" sx={{
+              color: "text.secondary"
+            }}>
               Only free rooms of each slot's type are listed. Assign a room before check-in.
             </Typography>
           </Stack>

@@ -255,7 +255,13 @@ const Dashboard = () => {
 
   if (!settingsContext) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh">
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          minHeight: "80vh"
+        }}>
         <CircularProgress size={60} thickness={4} color="primary" />
       </Box>
     );
@@ -477,7 +483,13 @@ const Dashboard = () => {
 
   if (loading && !summary.totalRooms) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh">
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          minHeight: "80vh"
+        }}>
         <CircularProgress size={60} thickness={4} color="primary" />
       </Box>
     );
@@ -485,7 +497,14 @@ const Dashboard = () => {
 
   if (error && !summary.totalRooms) {
     return (
-      <Box display="flex" flexDirection="column" justifyContent="center" alignItems="center" minHeight="80vh">
+      <Box
+        sx={{
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "center",
+          alignItems: "center",
+          minHeight: "80vh"
+        }}>
         <Typography variant="h6" color="error" gutterBottom>
           Failed to load dashboard data
         </Typography>
@@ -513,7 +532,6 @@ const Dashboard = () => {
       <ChartDefs />
       {/* Global recharts hover / tooltip / dot animations — tooltip adapts to theme */}
       <ChartGlobalFx darkMode={darkMode} />
-
       {/* Main glassy content wrapper */}
       <Box sx={{
         minHeight: '100vh',
@@ -712,19 +730,21 @@ const Dashboard = () => {
                     onClose={handleMenuClose}
                     anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
                     transformOrigin={{ vertical: 'top', horizontal: 'right' }}
-                    PaperProps={{
-                      sx: {
-                        mt: 1.25,
-                        minWidth: 300,
-                        overflow: 'visible',
-                        borderRadius: 3,
-                        p: 0,
-                        background: 'rgba(15, 23, 42, 0.92)',
-                        backdropFilter: 'var(--app-blur-strong)',
-                        WebkitBackdropFilter: 'var(--app-blur-strong)',
-                        border: '1px solid rgba(255,255,255,0.08)',
-                        boxShadow: '0 24px 56px -16px rgba(0,0,0,0.6), 0 0 0 1px rgba(var(--app-primary-rgb), 0.22)',
-                        color: '#fff',
+                    slotProps={{
+                      paper: {
+                        sx: {
+                          mt: 1.25,
+                          minWidth: 300,
+                          overflow: 'visible',
+                          borderRadius: 3,
+                          p: 0,
+                          background: 'rgba(15, 23, 42, 0.92)',
+                          backdropFilter: 'var(--app-blur-strong)',
+                          WebkitBackdropFilter: 'var(--app-blur-strong)',
+                          border: '1px solid rgba(255,255,255,0.08)',
+                          boxShadow: '0 24px 56px -16px rgba(0,0,0,0.6), 0 0 0 1px rgba(var(--app-primary-rgb), 0.22)',
+                          color: '#fff',
+                        },
                       },
                     }}
                   >
@@ -810,11 +830,14 @@ const Dashboard = () => {
                       {user?.email && (
                         <Stack
                           direction="row"
-                          alignItems="center"
-                          justifyContent="center"
                           spacing={0.75}
-                          sx={{ mt: 1.5, color: 'rgba(255,255,255,0.7)', fontSize: 12 }}
-                        >
+                          sx={{
+                            alignItems: "center",
+                            justifyContent: "center",
+                            mt: 1.5,
+                            color: 'rgba(255,255,255,0.7)',
+                            fontSize: 12
+                          }}>
                           <MailOutlineOutlined sx={{ fontSize: 14 }} />
                           <Box sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 220 }}>
                             {user.email}
@@ -1022,7 +1045,13 @@ const Dashboard = () => {
                 </Box>
                 <Grid container spacing={4} sx={{ height: 'auto' }}>
                   {/* Rooms Card - Show for all authenticated users */}
-                  <Grid item xs={12} sm={6} lg={3} sx={{ display: 'flex', height: 280, minHeight: 280, maxHeight: 280 }}>
+                  <Grid
+                    sx={{ display: 'flex', height: 280, minHeight: 280, maxHeight: 280 }}
+                    size={{
+                      xs: 12,
+                      sm: 6,
+                      lg: 3
+                    }}>
                     <Box sx={{ width: '100%', height: '100%' }}>
                       <MemoizedStatsCard
                         title="Rooms Occupied"
@@ -1040,7 +1069,13 @@ const Dashboard = () => {
                   </Grid>
                   
                   {/* Bookings Card - Show for all authenticated users */}
-                  <Grid item xs={12} sm={6} lg={3} sx={{ display: 'flex', height: 280, minHeight: 280, maxHeight: 280 }}>
+                  <Grid
+                    sx={{ display: 'flex', height: 280, minHeight: 280, maxHeight: 280 }}
+                    size={{
+                      xs: 12,
+                      sm: 6,
+                      lg: 3
+                    }}>
                     <Box sx={{ width: '100%', height: '100%' }}>
                       <MemoizedStatsCard
                         title="Total Bookings"
@@ -1058,7 +1093,13 @@ const Dashboard = () => {
                   </Grid>
                   
                   {/* Activity Card - Show for all authenticated users */}
-                  <Grid item xs={12} sm={6} lg={3} sx={{ display: 'flex', height: 280, minHeight: 280, maxHeight: 280 }}>
+                  <Grid
+                    sx={{ display: 'flex', height: 280, minHeight: 280, maxHeight: 280 }}
+                    size={{
+                      xs: 12,
+                      sm: 6,
+                      lg: 3
+                    }}>
                     <Box sx={{ width: '100%', height: '100%' }}>
                       <MemoizedStatsCard
                         title="Today's Activity"
@@ -1077,7 +1118,13 @@ const Dashboard = () => {
                   
                   {/* Revenue Card - Show if user has manage_payments permission */}
                   {hasPermission('manage_payments') && (
-                    <Grid item xs={12} sm={6} lg={3} sx={{ display: 'flex', height: 280, minHeight: 280, maxHeight: 280 }}>
+                    <Grid
+                      sx={{ display: 'flex', height: 280, minHeight: 280, maxHeight: 280 }}
+                      size={{
+                        xs: 12,
+                        sm: 6,
+                        lg: 3
+                      }}>
                       <Box sx={{ width: '100%', height: '100%' }}>
                         <MemoizedStatsCard
                           title="Total Revenue"
@@ -1097,7 +1144,13 @@ const Dashboard = () => {
 
                   {/* Banquet Card - Show if user can manage events */}
                   {(isAdmin() || hasPermission('manage_events')) && (
-                    <Grid item xs={12} sm={6} lg={3} sx={{ display: 'flex', height: 280, minHeight: 280, maxHeight: 280 }}>
+                    <Grid
+                      sx={{ display: 'flex', height: 280, minHeight: 280, maxHeight: 280 }}
+                      size={{
+                        xs: 12,
+                        sm: 6,
+                        lg: 3
+                      }}>
                       <Box sx={{ width: '100%', height: '100%' }}>
                         <MemoizedStatsCard
                           title="Banquet Events"
@@ -1117,7 +1170,13 @@ const Dashboard = () => {
 
                   {/* Restaurant Card - Show if user can manage restaurant */}
                   {(isAdmin() || hasPermission('manage_restaurant')) && (
-                    <Grid item xs={12} sm={6} lg={3} sx={{ display: 'flex', height: 280, minHeight: 280, maxHeight: 280 }}>
+                    <Grid
+                      sx={{ display: 'flex', height: 280, minHeight: 280, maxHeight: 280 }}
+                      size={{
+                        xs: 12,
+                        sm: 6,
+                        lg: 3
+                      }}>
                       <Box sx={{ width: '100%', height: '100%' }}>
                         <MemoizedStatsCard
                           title="Restaurant Orders"
@@ -1185,7 +1244,14 @@ const Dashboard = () => {
                     { icon: <CelebrationIcon />, value: banquetData.today || 0, label: 'Banquet Events' },
                     { icon: <RestaurantIcon />, value: restaurantStatsData.todayOrders || 0, label: 'Restaurant Orders' },
                   ].map((item, index) => (
-                    <Grid item xs={12} sm={6} lg={3} key={index} sx={{ display: 'flex', height: 280, minHeight: 280, maxHeight: 280 }}>
+                    <Grid
+                      key={index}
+                      sx={{ display: 'flex', height: 280, minHeight: 280, maxHeight: 280 }}
+                      size={{
+                        xs: 12,
+                        sm: 6,
+                        lg: 3
+                      }}>
                       <Box sx={{ width: '100%', height: '100%' }}>
                         <ActivityCard>
                           <Box sx={{ color: 'rgba(68,68,68,0.9)', fontSize: 32, mb: 1 }}>
@@ -1235,7 +1301,11 @@ const Dashboard = () => {
                   </Typography>
                 </Box>
                 <Grid container spacing={4}>
-                  <Grid item xs={12} lg={6}>
+                  <Grid
+                    size={{
+                      xs: 12,
+                      lg: 6
+                    }}>
                     <motion.div
                       initial={{ opacity: 0, scale: 0.95 }}
                       animate={{ opacity: 1, scale: 1 }}
@@ -1365,7 +1435,11 @@ const Dashboard = () => {
                       </Box>
                     </motion.div>
                   </Grid>
-                  <Grid item xs={12} lg={6}>
+                  <Grid
+                    size={{
+                      xs: 12,
+                      lg: 6
+                    }}>
                     <motion.div
                       initial={{ opacity: 0, scale: 0.95 }}
                       animate={{ opacity: 1, scale: 1 }}
@@ -1501,11 +1575,17 @@ const Dashboard = () => {
           </Box>
         )}
         {activeTab === 'revenue' && (
-          <Box mb={10}>
+          <Box sx={{
+            mb: 10
+          }}>
             {/* Revenue Tab: Only revenue-related charts and stats */}
             <Grid container spacing={4}>
               {/* Revenue Chart */}
-              <Grid item xs={12} md={6}>
+              <Grid
+                size={{
+                  xs: 12,
+                  md: 6
+                }}>
                 <motion.div
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
@@ -1524,7 +1604,13 @@ const Dashboard = () => {
                       />
                     </Box>
                     {loading ? (
-                      <Box display="flex" justifyContent="center" alignItems="center" height="300px">
+                      <Box
+                        sx={{
+                          display: "flex",
+                          justifyContent: "center",
+                          alignItems: "center",
+                          height: "300px"
+                        }}>
                         <CircularProgress size={40} thickness={4} />
                       </Box>
                     ) : (
@@ -1563,7 +1649,11 @@ const Dashboard = () => {
                 </motion.div>
               </Grid>
               {/* Payment Status */}
-              <Grid item xs={12} md={6}>
+              <Grid
+                size={{
+                  xs: 12,
+                  md: 6
+                }}>
                 <motion.div
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
@@ -1629,7 +1719,7 @@ const Dashboard = () => {
                 </motion.div>
               </Grid>
               {/* Revenue Growth */}
-              <Grid item xs={12}>
+              <Grid size={12}>
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -1672,11 +1762,17 @@ const Dashboard = () => {
           </Box>
         )}
         {activeTab === 'bookings' && (
-          <Box mb={10}>
+          <Box sx={{
+            mb: 10
+          }}>
             {/* Bookings Tab: Only booking-related charts and stats */}
             <Grid container spacing={4}>
               {/* Booking Statistics */}
-              <Grid item xs={12} md={6}>
+              <Grid
+                size={{
+                  xs: 12,
+                  md: 6
+                }}>
                 <motion.div
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
@@ -1695,7 +1791,13 @@ const Dashboard = () => {
                       />
                     </Box>
                     {loading ? (
-                      <Box display="flex" justifyContent="center" alignItems="center" height="300px">
+                      <Box
+                        sx={{
+                          display: "flex",
+                          justifyContent: "center",
+                          alignItems: "center",
+                          height: "300px"
+                        }}>
                         <CircularProgress size={40} thickness={4} />
                       </Box>
                     ) : (
@@ -1726,7 +1828,11 @@ const Dashboard = () => {
                 </motion.div>
               </Grid>
               {/* Booking Status */}
-              <Grid item xs={12} md={6}>
+              <Grid
+                size={{
+                  xs: 12,
+                  md: 6
+                }}>
                 <motion.div
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
@@ -1793,11 +1899,17 @@ const Dashboard = () => {
           </Box>
         )}
         {activeTab === 'rooms' && (
-          <Box mb={10}>
+          <Box sx={{
+            mb: 10
+          }}>
             {/* Rooms Tab: Only room-related charts and stats */}
             <Grid container spacing={4}>
               {/* Room Occupancy */}
-              <Grid item xs={12} md={6}>
+              <Grid
+                size={{
+                  xs: 12,
+                  md: 6
+                }}>
                 <motion.div
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
@@ -1813,7 +1925,13 @@ const Dashboard = () => {
                       </Typography>
                     </Box>
                     {loading ? (
-                      <Box display="flex" justifyContent="center" alignItems="center" height="300px">
+                      <Box
+                        sx={{
+                          display: "flex",
+                          justifyContent: "center",
+                          alignItems: "center",
+                          height: "300px"
+                        }}>
                         <CircularProgress size={40} thickness={4} />
                       </Box>
                     ) : (
@@ -1865,7 +1983,11 @@ const Dashboard = () => {
                 </motion.div>
               </Grid>
               {/* Room Types */}
-              <Grid item xs={12} md={6}>
+              <Grid
+                size={{
+                  xs: 12,
+                  md: 6
+                }}>
                 <motion.div
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
@@ -1881,7 +2003,13 @@ const Dashboard = () => {
                       </Typography>
                     </Box>
                     {loading ? (
-                      <Box display="flex" justifyContent="center" alignItems="center" height="300px">
+                      <Box
+                        sx={{
+                          display: "flex",
+                          justifyContent: "center",
+                          alignItems: "center",
+                          height: "300px"
+                        }}>
                         <CircularProgress size={40} thickness={4} />
                       </Box>
                     ) : (
@@ -1930,10 +2058,16 @@ const Dashboard = () => {
           </Box>
         )}
         {activeTab === 'guests' && hasPermission('manage_guests') && (
-          <Box mb={10}>
+          <Box sx={{
+            mb: 10
+          }}>
             {/* Guests Tab: List and gender chart */}
             <Grid container spacing={4}>
-              <Grid item xs={12} md={7}>
+              <Grid
+                size={{
+                  xs: 12,
+                  md: 7
+                }}>
                 <GlassCard sx={{ p: 3, background: 'rgba(255, 255, 255, calc(var(--app-surface-alpha, 0.05) * 2))', backdropFilter: 'var(--app-blur-strong)', WebkitBackdropFilter: 'var(--app-blur-strong)', border: '1.5px solid rgba(255,255,255,0.18)', boxShadow: '0 8px 32px rgba(0,0,0,0.10)' }}>
                   <Typography variant="h5" sx={{ fontWeight: '700', color: textColor, mb: 3, display: 'flex', alignItems: 'center', '&::before': { content: '""', display: 'inline-block', width: '12px', height: '12px', borderRadius: '50%', background: 'linear-gradient(135deg, var(--app-primary) 0%, #8B5CF6 100%)', marginRight: '12px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)' } }}>
                     Recent Guests
@@ -1951,15 +2085,23 @@ const Dashboard = () => {
                       {guestList.slice(0, 8).map(guest => (
                         <Box key={guest._id} sx={{ mb: 2, p: 2, borderRadius: 2, ...glassStyle }}>
                           <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>{guest.name}</Typography>
-                          <Typography variant="body2" color="text.secondary">Phone: {guest.phone}</Typography>
-                          <Typography variant="body2" color="text.secondary">Email: {guest.email || 'N/A'}</Typography>
+                          <Typography variant="body2" sx={{
+                            color: "text.secondary"
+                          }}>Phone: {guest.phone}</Typography>
+                          <Typography variant="body2" sx={{
+                            color: "text.secondary"
+                          }}>Email: {guest.email || 'N/A'}</Typography>
                         </Box>
                       ))}
                     </Box>
                   )}
                 </GlassCard>
               </Grid>
-              <Grid item xs={12} md={5}>
+              <Grid
+                size={{
+                  xs: 12,
+                  md: 5
+                }}>
                 <GlassCard sx={{ p: 3, height: '100%', ...glassStyle }}>
                   <Typography variant="h6" sx={{ fontWeight: 700, mb: 2, color: textColor }}>Gender Distribution</Typography>
                   <ResponsiveContainer width="100%" height={220}>
@@ -1993,11 +2135,17 @@ const Dashboard = () => {
           </Box>
         )}
         {activeTab === 'banquet' && hasPermission('manage_events') && (
-          <Box mb={10}>
+          <Box sx={{
+            mb: 10
+          }}>
             {/* Banquet Tab: Banquet bookings and revenue */}
             <Grid container spacing={4}>
               {/* Banquet Bookings Overview */}
-              <Grid item xs={12} md={6}>
+              <Grid
+                size={{
+                  xs: 12,
+                  md: 6
+                }}>
                 <motion.div
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
@@ -2013,7 +2161,13 @@ const Dashboard = () => {
                       </Typography>
                     </Box>
                     {loading ? (
-                      <Box display="flex" justifyContent="center" alignItems="center" height="300px">
+                      <Box
+                        sx={{
+                          display: "flex",
+                          justifyContent: "center",
+                          alignItems: "center",
+                          height: "300px"
+                        }}>
                         <CircularProgress size={40} thickness={4} />
                       </Box>
                     ) : (
@@ -2069,7 +2223,11 @@ const Dashboard = () => {
                 </motion.div>
               </Grid>
               {/* Banquet Revenue */}
-              <Grid item xs={12} md={6}>
+              <Grid
+                size={{
+                  xs: 12,
+                  md: 6
+                }}>
                 <motion.div
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
@@ -2085,7 +2243,13 @@ const Dashboard = () => {
                       </Typography>
                     </Box>
                     {loading ? (
-                      <Box display="flex" justifyContent="center" alignItems="center" height="300px">
+                      <Box
+                        sx={{
+                          display: "flex",
+                          justifyContent: "center",
+                          alignItems: "center",
+                          height: "300px"
+                        }}>
                         <CircularProgress size={40} thickness={4} />
                       </Box>
                     ) : (
@@ -2122,11 +2286,17 @@ const Dashboard = () => {
           </Box>
         )}
         {activeTab === 'restaurant' && hasPermission('manage_restaurant') && (
-          <Box mb={10}>
+          <Box sx={{
+            mb: 10
+          }}>
             {/* Restaurant Tab: Sales, expenses, and stats */}
             <Grid container spacing={4}>
               {/* Restaurant Sales */}
-              <Grid item xs={12} md={6}>
+              <Grid
+                size={{
+                  xs: 12,
+                  md: 6
+                }}>
                 <motion.div
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
@@ -2142,7 +2312,13 @@ const Dashboard = () => {
                       </Typography>
                     </Box>
                     {loading ? (
-                      <Box display="flex" justifyContent="center" alignItems="center" height="300px">
+                      <Box
+                        sx={{
+                          display: "flex",
+                          justifyContent: "center",
+                          alignItems: "center",
+                          height: "300px"
+                        }}>
                         <CircularProgress size={40} thickness={4} />
                       </Box>
                     ) : (
@@ -2172,7 +2348,11 @@ const Dashboard = () => {
                 </motion.div>
               </Grid>
               {/* Restaurant Expenses */}
-              <Grid item xs={12} md={6}>
+              <Grid
+                size={{
+                  xs: 12,
+                  md: 6
+                }}>
                 <motion.div
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
@@ -2188,7 +2368,13 @@ const Dashboard = () => {
                       </Typography>
                     </Box>
                     {loading ? (
-                      <Box display="flex" justifyContent="center" alignItems="center" height="300px">
+                      <Box
+                        sx={{
+                          display: "flex",
+                          justifyContent: "center",
+                          alignItems: "center",
+                          height: "300px"
+                        }}>
                         <CircularProgress size={40} thickness={4} />
                       </Box>
                     ) : (
@@ -2235,7 +2421,7 @@ const Dashboard = () => {
                 </motion.div>
               </Grid>
               {/* Restaurant Stats */}
-              <Grid item xs={12}>
+              <Grid size={12}>
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -2251,7 +2437,13 @@ const Dashboard = () => {
                       </Typography>
                     </Box>
                     {loading ? (
-                      <Box display="flex" justifyContent="center" alignItems="center" height="200px">
+                      <Box
+                        sx={{
+                          display: "flex",
+                          justifyContent: "center",
+                          alignItems: "center",
+                          height: "200px"
+                        }}>
                         <CircularProgress size={40} thickness={4} />
                       </Box>
                     ) : (
@@ -2288,7 +2480,7 @@ const Dashboard = () => {
             </Grid>
           </Box>
         )}
-      </Box>             
+      </Box>
     </>
   );
 };

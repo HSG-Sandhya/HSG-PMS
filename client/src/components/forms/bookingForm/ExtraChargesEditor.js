@@ -31,7 +31,13 @@ const ExtraChargesEditor = ({ value = {}, onChange }) => {
 
   return (
     <>
-      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.5 }}>
+      <Stack
+        direction="row"
+        sx={{
+          justifyContent: "space-between",
+          alignItems: "center",
+          mb: 1.5
+        }}>
         <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'text.secondary' }}>
           Additional charges
         </Typography>
@@ -40,14 +46,23 @@ const ExtraChargesEditor = ({ value = {}, onChange }) => {
       </Stack>
       <Grid container spacing={2}>
         {EXTRA_FIELDS.map((f) => (
-          <Grid item xs={6} sm={4} key={f.key}>
+          <Grid
+            key={f.key}
+            size={{
+              xs: 6,
+              sm: 4
+            }}>
             <TextField
-              fullWidth size="small" type="number" label={f.label}
+              fullWidth
+              size="small"
+              type="number"
+              label={f.label}
               value={value[f.key] ? value[f.key] : ''}
               onChange={(e) => set(f.key, e.target.value)}
-              inputProps={{ min: 0 }}
-              InputProps={{ startAdornment: <InputAdornment position="start">{f.icon}</InputAdornment> }}
-            />
+              slotProps={{
+                input: { startAdornment: <InputAdornment position="start">{f.icon}</InputAdornment> },
+                htmlInput: { min: 0 }
+              }} />
           </Grid>
         ))}
       </Grid>

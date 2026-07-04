@@ -1337,607 +1337,603 @@ const Bookings = ({ view = 'all', bookingType = null }) => {
 
   return (
     <PageLayout>
-        {/* Header */}
-        <Box sx={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: 2,
-          mb: 3,
-          p: { xs: 2, md: 2.5 },
-          borderRadius: 3,
-          background: 'rgba(255, 255, 255, var(--app-surface-alpha, 0.05))',
-          backdropFilter: 'var(--app-blur)',
-          WebkitBackdropFilter: 'var(--app-blur)',
-          border: '1px solid rgba(255, 255, 255, var(--app-surface-border-alpha, 0.08))',
-          boxShadow: '0 4px 24px rgba(0, 0, 0, 0.05), 0 0 24px rgba(var(--app-primary-rgb), 0.08), inset 0 1px 0 rgba(255, 255, 255, var(--app-surface-border-alpha, 0.08))',
-        }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <BookOnlineIcon sx={{ fontSize: 42, color: settings.theme.accentColor, fontWeight: 300 }} />
-            <Box>
-              <Typography variant="h4" sx={{ fontWeight: 600, letterSpacing: '-0.5px', color: 'var(--app-primary)' }}>
-                Bookings Management
-              </Typography>
-              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 500 }}>
-                Manage all guest reservations
-              </Typography>
+      {/* Header */}
+      <Box sx={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: 2,
+        mb: 3,
+        p: { xs: 2, md: 2.5 },
+        borderRadius: 3,
+        background: 'rgba(255, 255, 255, var(--app-surface-alpha, 0.05))',
+        backdropFilter: 'var(--app-blur)',
+        WebkitBackdropFilter: 'var(--app-blur)',
+        border: '1px solid rgba(255, 255, 255, var(--app-surface-border-alpha, 0.08))',
+        boxShadow: '0 4px 24px rgba(0, 0, 0, 0.05), 0 0 24px rgba(var(--app-primary-rgb), 0.08), inset 0 1px 0 rgba(255, 255, 255, var(--app-surface-border-alpha, 0.08))',
+      }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <BookOnlineIcon sx={{ fontSize: 42, color: settings.theme.accentColor, fontWeight: 300 }} />
+          <Box>
+            <Typography variant="h4" sx={{ fontWeight: 600, letterSpacing: '-0.5px', color: 'var(--app-primary)' }}>
+              Bookings Management
+            </Typography>
+            <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 500 }}>
+              Manage all guest reservations
+            </Typography>
+          </Box>
+        </Box>
+        {/* Booking-creation actions belong to the Active view only — hidden
+            on the Checked Out Guests list, which is read-only history. */}
+        {showActive && (
+        <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
+          {/* Group / Company are no longer separate buttons — the single
+              "New Booking" flow hosts all three via an in-dialog type toggle. */}
+          {/* Ghost action — Select Guest */}
+          <Box
+            component={motion.button}
+            type="button"
+            onClick={handleOpenGuestDialog}
+            whileHover={{ y: -2 }}
+            whileTap={{ scale: 0.97 }}
+            transition={{ duration: 0.2, ease: EASE_OUT }}
+            sx={{
+              all: 'unset', cursor: 'pointer',
+              display: 'inline-flex', alignItems: 'center', gap: 1.25,
+              px: 2.5, py: 1.1,
+              borderRadius: '999px',
+              fontSize: 12, fontWeight: 700,
+              letterSpacing: '0.14em', textTransform: 'uppercase',
+              color: darkMode ? '#f3f4f6' : '#1e293b',
+              background: darkMode ? 'rgba(255,255,255,0.04)' : 'rgba(15,23,42,0.03)',
+              border: `1.5px solid ${darkMode ? 'rgba(255,255,255,0.10)' : 'rgba(15,23,42,0.10)'}`,
+              transition: 'border-color 0.25s ease, background 0.25s ease, box-shadow 0.25s ease, color 0.25s ease',
+              '& .ghost-icon': {
+                display: 'inline-flex', color: 'var(--app-primary)',
+                transition: 'transform 0.3s ease',
+              },
+              '&:hover': {
+                color: 'var(--app-primary)',
+                borderColor: 'var(--app-primary)',
+                background: 'rgba(var(--app-primary-rgb, 99,102,241), 0.08)',
+                boxShadow: '0 0 0 4px rgba(var(--app-primary-rgb, 99,102,241), 0.10)',
+              },
+              '&:hover .ghost-icon': { transform: 'translateX(-2px) scale(1.08)' },
+            }}
+          >
+            <Box component="span" className="ghost-icon">
+              <PersonSearchOutlinedIcon sx={{ fontSize: 18 }} />
+            </Box>
+            Select Guest
+          </Box>
+
+          {/* Primary CTA — New Booking (Individual / Group / Company) */}
+          <Box
+            component={motion.button}
+            type="button"
+            onClick={handleNewBooking}
+            whileHover={{ y: -2 }}
+            whileTap={{ scale: 0.97 }}
+            transition={{ duration: 0.2, ease: EASE_OUT }}
+            sx={{
+              all: 'unset', cursor: 'pointer', position: 'relative',
+              display: 'inline-flex', alignItems: 'center', gap: 1.25,
+              px: 2.75, py: 1.15,
+              borderRadius: '999px',
+              fontSize: 12, fontWeight: 800,
+              letterSpacing: '0.14em', textTransform: 'uppercase',
+              color: '#fff',
+              background: 'var(--app-primary)',
+              backgroundSize: '150% 100%',
+              backgroundPosition: '0% 0%',
+              boxShadow: '0 10px 24px -10px rgba(var(--app-primary-rgb, 99,102,241), 0.55), inset 0 1px 0 rgba(255,255,255,0.18)',
+              transition: 'background-position 0.5s ease, box-shadow 0.3s ease, transform 0.2s ease',
+              overflow: 'hidden',
+              '& .cta-plus': {
+                display: 'inline-flex', transition: 'transform 0.35s ease',
+              },
+              '& .cta-arrow': {
+                display: 'inline-flex', transition: 'transform 0.35s ease, opacity 0.25s ease',
+                opacity: 0.6,
+              },
+              '&::before': {
+                content: '""', position: 'absolute', inset: -2, borderRadius: '999px',
+                background: 'var(--app-primary)',
+                filter: 'blur(14px)', opacity: 0.45, zIndex: -1,
+                transition: 'opacity 0.3s ease, filter 0.3s ease',
+              },
+              '&:hover': {
+                backgroundPosition: '100% 0%',
+                boxShadow: '0 14px 30px -10px rgba(var(--app-primary-rgb, 99,102,241), 0.70), inset 0 1px 0 rgba(255,255,255,0.22)',
+              },
+              '&:hover::before': { opacity: 0.70, filter: 'blur(18px)' },
+              '&:hover .cta-plus':  { transform: 'rotate(180deg)' },
+              '&:hover .cta-arrow': { transform: 'translateX(4px)', opacity: 1 },
+            }}
+          >
+            <Box component="span" className="cta-plus">
+              <AddIcon sx={{ fontSize: 18 }} />
+            </Box>
+            New Booking
+            <Box component="span" className="cta-arrow">
+              <ArrowForwardIcon sx={{ fontSize: 16 }} />
             </Box>
           </Box>
-          {/* Booking-creation actions belong to the Active view only — hidden
-              on the Checked Out Guests list, which is read-only history. */}
-          {showActive && (
-          <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
-            {/* Group / Company are no longer separate buttons — the single
-                "New Booking" flow hosts all three via an in-dialog type toggle. */}
-            {/* Ghost action — Select Guest */}
-            <Box
-              component={motion.button}
-              type="button"
-              onClick={handleOpenGuestDialog}
-              whileHover={{ y: -2 }}
-              whileTap={{ scale: 0.97 }}
-              transition={{ duration: 0.2, ease: EASE_OUT }}
-              sx={{
-                all: 'unset', cursor: 'pointer',
-                display: 'inline-flex', alignItems: 'center', gap: 1.25,
-                px: 2.5, py: 1.1,
-                borderRadius: '999px',
-                fontSize: 12, fontWeight: 700,
-                letterSpacing: '0.14em', textTransform: 'uppercase',
-                color: darkMode ? '#f3f4f6' : '#1e293b',
-                background: darkMode ? 'rgba(255,255,255,0.04)' : 'rgba(15,23,42,0.03)',
-                border: `1.5px solid ${darkMode ? 'rgba(255,255,255,0.10)' : 'rgba(15,23,42,0.10)'}`,
-                transition: 'border-color 0.25s ease, background 0.25s ease, box-shadow 0.25s ease, color 0.25s ease',
-                '& .ghost-icon': {
-                  display: 'inline-flex', color: 'var(--app-primary)',
-                  transition: 'transform 0.3s ease',
-                },
-                '&:hover': {
-                  color: 'var(--app-primary)',
-                  borderColor: 'var(--app-primary)',
-                  background: 'rgba(var(--app-primary-rgb, 99,102,241), 0.08)',
-                  boxShadow: '0 0 0 4px rgba(var(--app-primary-rgb, 99,102,241), 0.10)',
-                },
-                '&:hover .ghost-icon': { transform: 'translateX(-2px) scale(1.08)' },
-              }}
-            >
-              <Box component="span" className="ghost-icon">
-                <PersonSearchOutlinedIcon sx={{ fontSize: 18 }} />
+        </Box>
+        )}
+      </Box>
+      {loading ? (
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
+          <CircularProgress size={60} thickness={4} />
+        </Box>
+      ) : (
+        <>
+          {/* Active Bookings Section */}
+          {showActive && (() => {
+            const activeFiltered = (Array.isArray(bookings) ? bookings : [])
+              .filter(b => b.bookingStatus !== 'Completed' && b.bookingStatus !== 'Checked Out' && b.bookingStatus !== 'Checkout')
+              // Group/Company views: one row per cluster (the master).
+              .filter(b => !bookingType || (b.bookingType === bookingType && b.isGroupMaster));
+            return (
+              <Box sx={{ mb: 4 }}>
+                <Typography variant="h6" sx={{ mb: 2, color: 'text.secondary', fontWeight: 500 }}>
+                  {activeHeading}
+                </Typography>
+                <Grid container spacing={3}>
+                  {activeFiltered
+                    .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
+                    .map((booking, index) => (
+                      <Grid
+                        key={booking._id}
+                        size={{
+                          xs: 12,
+                          sm: 6,
+                          md: 4
+                        }}>
+                        <BookingCard
+                          index={index}
+                          booking={booking}
+                          onEdit={() => handleOpenDialog(booking)}
+                          onDelete={() => handleDeleteBooking(booking._id)}
+                          onUpdateStatus={handleUpdateBookingStatus}
+                          onPrintInvoice={() => handlePrintInvoice(booking)}
+                          onTransfer={() => { setTransferBooking(booking); setTransferDialogOpen(true); }}
+                          onRoomingList={(b) => { setRoomingGroupId(b.groupId); setRoomingOpen(true); }}
+                          onSendWelcome={openWelcomeFor}
+                          isProcessingCheckout={processingCheckoutIds.has(booking._id)}
+                        />
+                      </Grid>
+                    ))}
+                </Grid>
+                {activeFiltered.length === 0 && (
+                  <Box
+                    component={motion.div}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.4, ease: EASE_OUT }}
+                    sx={{
+                      mt: 1, py: 5, px: 3, textAlign: 'center',
+                      borderRadius: '12px',
+                      border: `1px dashed ${darkMode ? 'rgba(255,255,255,0.10)' : 'rgba(15,23,42,0.10)'}`,
+                      color: darkMode ? 'rgba(255,255,255,0.65)' : 'rgba(15,23,42,0.55)',
+                    }}
+                  >
+                    <Box sx={{ fontSize: 11, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'var(--app-primary)', fontWeight: 800, mb: 1 }}>
+                      — Nothing here
+                    </Box>
+                    <Box sx={{ fontFamily: 'serif', fontSize: 18, fontWeight: 400 }}>
+                      No active bookings match this view.
+                    </Box>
+                  </Box>
+                )}
               </Box>
-              Select Guest
-            </Box>
+            );
+          })()}
 
-            {/* Primary CTA — New Booking (Individual / Group / Company) */}
-            <Box
-              component={motion.button}
-              type="button"
-              onClick={handleNewBooking}
-              whileHover={{ y: -2 }}
-              whileTap={{ scale: 0.97 }}
-              transition={{ duration: 0.2, ease: EASE_OUT }}
+          {/* Guests Section — In Hotel (current) + Checked Out (history) */}
+          {showCheckedOut && (
+          <Box sx={{ mb: 4 }}>
+            <Typography variant="h6" sx={{ mb: 2, color: 'text.secondary', fontWeight: 500 }}>
+              Guests
+            </Typography>
+            <Paper
               sx={{
-                all: 'unset', cursor: 'pointer', position: 'relative',
-                display: 'inline-flex', alignItems: 'center', gap: 1.25,
-                px: 2.75, py: 1.15,
-                borderRadius: '999px',
-                fontSize: 12, fontWeight: 800,
-                letterSpacing: '0.14em', textTransform: 'uppercase',
-                color: '#fff',
-                background: 'var(--app-primary)',
-                backgroundSize: '150% 100%',
-                backgroundPosition: '0% 0%',
-                boxShadow: '0 10px 24px -10px rgba(var(--app-primary-rgb, 99,102,241), 0.55), inset 0 1px 0 rgba(255,255,255,0.18)',
-                transition: 'background-position 0.5s ease, box-shadow 0.3s ease, transform 0.2s ease',
+                position: 'relative',
+                p: { xs: 2, sm: 3 },
+                background: darkMode
+                  ? 'rgba(30, 35, 45, 0.55)'
+                  : 'rgba(255, 255, 255, calc(var(--app-surface-alpha, 0.05) * 2 + 0.55))',
+                backdropFilter: 'blur(16px) saturate(140%)',
+                WebkitBackdropFilter: 'blur(16px) saturate(140%)',
+                borderRadius: '18px',
+                border: `1px solid ${darkMode ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.06)'}`,
+                boxShadow: darkMode
+                  ? '0 24px 60px -28px rgba(0,0,0,0.55)'
+                  : '0 24px 60px -28px rgba(15,23,42,0.20)',
                 overflow: 'hidden',
-                '& .cta-plus': {
-                  display: 'inline-flex', transition: 'transform 0.35s ease',
-                },
-                '& .cta-arrow': {
-                  display: 'inline-flex', transition: 'transform 0.35s ease, opacity 0.25s ease',
-                  opacity: 0.6,
-                },
                 '&::before': {
-                  content: '""', position: 'absolute', inset: -2, borderRadius: '999px',
-                  background: 'var(--app-primary)',
-                  filter: 'blur(14px)', opacity: 0.45, zIndex: -1,
-                  transition: 'opacity 0.3s ease, filter 0.3s ease',
+                  content: '""',
+                  position: 'absolute',
+                  top: 0, left: 0, right: 0, height: 3,
+                  background: 'linear-gradient(90deg, var(--app-primary), var(--app-secondary, #EC4899), var(--app-accent, #F59E0B))',
+                  opacity: 0.85,
                 },
-                '&:hover': {
-                  backgroundPosition: '100% 0%',
-                  boxShadow: '0 14px 30px -10px rgba(var(--app-primary-rgb, 99,102,241), 0.70), inset 0 1px 0 rgba(255,255,255,0.22)',
-                },
-                '&:hover::before': { opacity: 0.70, filter: 'blur(18px)' },
-                '&:hover .cta-plus':  { transform: 'rotate(180deg)' },
-                '&:hover .cta-arrow': { transform: 'translateX(4px)', opacity: 1 },
               }}
             >
-              <Box component="span" className="cta-plus">
-                <AddIcon sx={{ fontSize: 18 }} />
+              {/* Flex-wrap so the controls keep a min width and wrap to the
+                  next line instead of overlapping when space is tight. */}
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 2, mb: 3, mt: 0.5 }}>
+                <Box sx={{ flex: '2 1 240px', minWidth: 220 }}>
+                  <SearchField
+                    value={searchQuery}
+                    onChange={setSearchQuery}
+                    darkMode={darkMode}
+                    label="Search"
+                    hint="By guest name or room"
+                    placeholder="Type a name, room…"
+                  />
+                </Box>
+                <Box sx={{ flex: '1 1 180px', minWidth: 170 }}>
+                  <StatusFilter
+                    value={statusFilter}
+                    onChange={setStatusFilter}
+                    darkMode={darkMode}
+                  />
+                </Box>
+                <Box sx={{ flex: '1 1 180px', minWidth: 170 }}>
+                  <StatusFilter
+                    value={paymentFilter}
+                    onChange={setPaymentFilter}
+                    darkMode={darkMode}
+                    options={PAYMENT_OPTIONS}
+                    label="Payment"
+                  />
+                </Box>
+                <Box sx={{ flex: '1 1 190px', minWidth: 180 }}>
+                  <DateRangePicker
+                    from={coDateFrom}
+                    to={coDateTo}
+                    onChange={({ from, to }) => { setCoDateFrom(from); setCoDateTo(to); }}
+                    darkMode={darkMode}
+                  />
+                </Box>
+                <Box sx={{ flex: '0 0 auto', ml: 'auto' }}>
+                  <Button
+                    onClick={() => { setSearchQuery(''); setStatusFilter('all'); setPaymentFilter('all'); setCoDateFrom(''); setCoDateTo(''); }}
+                    sx={{
+                      px: 3.5, py: 1.4, minWidth: 96,
+                      borderRadius: '10px',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.12em',
+                      fontWeight: 700,
+                      fontSize: 12,
+                      color: 'var(--app-primary)',
+                      background: 'transparent',
+                      border: `1.5px solid ${darkMode ? 'rgba(255,255,255,0.10)' : 'rgba(15,23,42,0.08)'}`,
+                      transition: 'background 0.25s ease, border-color 0.25s ease, transform 0.2s ease',
+                      '&:hover': {
+                        borderColor: 'var(--app-primary)',
+                        background: 'rgba(var(--app-primary-rgb, 99,102,241), 0.08)',
+                        transform: 'translateY(-1px)',
+                      },
+                    }}
+                  >
+                    Clear
+                  </Button>
+                </Box>
               </Box>
-              New Booking
-              <Box component="span" className="cta-arrow">
-                <ArrowForwardIcon sx={{ fontSize: 16 }} />
-              </Box>
-            </Box>
+
+              {(() => {
+                const matchesSearch = (b) => {
+                  if (searchQuery.trim() === '') return true;
+                  const guestName = (b.guestName || '').toLowerCase();
+                  const bookingRoomId = typeof b.roomId === 'object' && b.roomId !== null ? b.roomId._id : b.roomId;
+                  const room = rooms.find(r => r._id === bookingRoomId);
+                  const roomNumber = room ? (room.roomNumber || room.number || '') : (b.roomNumber || '');
+                  return guestName.includes(searchQuery.toLowerCase()) || String(roomNumber).includes(searchQuery);
+                };
+                const matchesDates = (b) => {
+                  if (!coDateFrom && !coDateTo) return true;
+                  const ci = b.checkIn ? new Date(b.checkIn) : null;
+                  const co = b.checkOut ? new Date(b.checkOut) : null;
+                  const from = coDateFrom ? new Date(`${coDateFrom}T00:00:00`) : null;
+                  const to = coDateTo ? new Date(`${coDateTo}T23:59:59`) : null;
+                  if (from && co && co < from) return false; // stay ended before the window
+                  if (to && ci && ci > to) return false;      // stay began after the window
+                  return true;
+                };
+                const matchesPayment = (b) => paymentFilter === 'all' || b.paymentStatus === paymentFilter;
+
+                const baseRows = (Array.isArray(bookings) ? bookings : [])
+                  .filter(b => matchesSearch(b) && matchesDates(b) && matchesPayment(b));
+                // 'In Hotel' = checked in and still staying (bookingStatus 'Confirmed').
+                const inHotelRows = baseRows.filter(b => b.bookingStatus === 'Confirmed');
+                const checkedOutAll = baseRows.filter(b => ['Completed', 'Checked Out', 'Checkout'].includes(b.bookingStatus));
+
+                const showIn = statusFilter === 'all' || statusFilter === 'In Hotel';
+                const showOut = statusFilter === 'all' || statusFilter === 'Completed';
+
+                const coTotal = checkedOutAll.length;
+                const coPageRows = checkedOutAll.slice(
+                  pageCheckedOut * rowsPerPageCheckedOut,
+                  pageCheckedOut * rowsPerPageCheckedOut + rowsPerPageCheckedOut,
+                );
+
+                const sectionLabelSx = {
+                  fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase',
+                  color: 'var(--app-primary)', mb: 1.5, display: 'flex', alignItems: 'center', gap: 1,
+                };
+                const countPill = (n, fg, bg) => (
+                  <Box component="span" sx={{ px: 1, py: 0.1, borderRadius: '999px', fontSize: 11, fontWeight: 800, color: fg, background: bg }}>{n}</Box>
+                );
+
+                return (
+                  <>
+                    {showIn && (
+                      <Box sx={{ mb: showOut ? 4 : 0 }}>
+                        <Box sx={sectionLabelSx}>In Hotel {countPill(inHotelRows.length, '#10B981', 'rgba(16,185,129,0.13)')}</Box>
+                        {renderGuestTable(inHotelRows, { emptyText: 'No in-hotel guests match this view.' })}
+                      </Box>
+                    )}
+
+                    {showOut && (
+                      <Box>
+                        <Box sx={sectionLabelSx}>Checked Out {countPill(coTotal, 'var(--app-primary)', 'rgba(var(--app-primary-rgb, 99,102,241),0.13)')}</Box>
+                        {renderGuestTable(coPageRows, {
+                          serialOffset: pageCheckedOut * rowsPerPageCheckedOut,
+                          emptyText: 'No checked-out guests match this view.',
+                        })}
+                        {coTotal > 0 && (
+                          <Box sx={{
+                            mt: 1.5, pt: 1.5,
+                            borderTop: `1px solid ${darkMode ? 'rgba(255,255,255,0.06)' : 'rgba(15,23,42,0.06)'}`,
+                            '& .MuiTablePagination-toolbar': { px: 0, color: darkMode ? '#f3f4f6' : '#1e293b' },
+                            '& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows': {
+                              fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 700,
+                              color: darkMode ? 'rgba(255,255,255,0.65)' : 'rgba(15,23,42,0.55)',
+                            },
+                            '& .MuiTablePagination-actions .MuiIconButton-root': {
+                              color: 'var(--app-primary)',
+                              transition: 'background 0.2s ease',
+                              '&:hover': { background: 'rgba(var(--app-primary-rgb, 99,102,241), 0.10)' },
+                              '&.Mui-disabled': { color: darkMode ? 'rgba(255,255,255,0.20)' : 'rgba(15,23,42,0.20)' },
+                            },
+                          }}>
+                            <TablePagination
+                              rowsPerPageOptions={[10, 20, 50]}
+                              component="div"
+                              count={coTotal}
+                              rowsPerPage={rowsPerPageCheckedOut}
+                              page={pageCheckedOut}
+                              onPageChange={handleChangePageCheckedOut}
+                              onRowsPerPageChange={handleChangeRowsPerPageCheckedOut}
+                            />
+                          </Box>
+                        )}
+                      </Box>
+                    )}
+                  </>
+                );
+              })()}
+            </Paper>
           </Box>
           )}
-        </Box>
-
-        {loading ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
-            <CircularProgress size={60} thickness={4} />
-          </Box>
-        ) : (
-          <>
-            {/* Active Bookings Section */}
-            {showActive && (() => {
-              const activeFiltered = (Array.isArray(bookings) ? bookings : [])
-                .filter(b => b.bookingStatus !== 'Completed' && b.bookingStatus !== 'Checked Out' && b.bookingStatus !== 'Checkout')
-                // Group/Company views: one row per cluster (the master).
-                .filter(b => !bookingType || (b.bookingType === bookingType && b.isGroupMaster));
-              return (
-                <Box sx={{ mb: 4 }}>
-                  <Typography variant="h6" sx={{ mb: 2, color: 'text.secondary', fontWeight: 500 }}>
-                    {activeHeading}
-                  </Typography>
-
-                  <Grid container spacing={3}>
-                    {activeFiltered
-                      .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-                      .map((booking, index) => (
-                        <Grid item xs={12} sm={6} md={4} key={booking._id}>
-                          <BookingCard
-                            index={index}
-                            booking={booking}
-                            onEdit={() => handleOpenDialog(booking)}
-                            onDelete={() => handleDeleteBooking(booking._id)}
-                            onUpdateStatus={handleUpdateBookingStatus}
-                            onPrintInvoice={() => handlePrintInvoice(booking)}
-                            onTransfer={() => { setTransferBooking(booking); setTransferDialogOpen(true); }}
-                            onRoomingList={(b) => { setRoomingGroupId(b.groupId); setRoomingOpen(true); }}
-                            onSendWelcome={openWelcomeFor}
-                            isProcessingCheckout={processingCheckoutIds.has(booking._id)}
-                          />
-                        </Grid>
-                      ))}
-                  </Grid>
-
-                  {activeFiltered.length === 0 && (
-                    <Box
-                      component={motion.div}
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.4, ease: EASE_OUT }}
-                      sx={{
-                        mt: 1, py: 5, px: 3, textAlign: 'center',
-                        borderRadius: '12px',
-                        border: `1px dashed ${darkMode ? 'rgba(255,255,255,0.10)' : 'rgba(15,23,42,0.10)'}`,
-                        color: darkMode ? 'rgba(255,255,255,0.65)' : 'rgba(15,23,42,0.55)',
-                      }}
-                    >
-                      <Box sx={{ fontSize: 11, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'var(--app-primary)', fontWeight: 800, mb: 1 }}>
-                        — Nothing here
-                      </Box>
-                      <Box sx={{ fontFamily: 'serif', fontSize: 18, fontWeight: 400 }}>
-                        No active bookings match this view.
-                      </Box>
-                    </Box>
-                  )}
-                </Box>
-              );
-            })()}
-
-            {/* Guests Section — In Hotel (current) + Checked Out (history) */}
-            {showCheckedOut && (
-            <Box sx={{ mb: 4 }}>
-              <Typography variant="h6" sx={{ mb: 2, color: 'text.secondary', fontWeight: 500 }}>
-                Guests
-              </Typography>
-              <Paper
-                sx={{
-                  position: 'relative',
-                  p: { xs: 2, sm: 3 },
-                  background: darkMode
-                    ? 'rgba(30, 35, 45, 0.55)'
-                    : 'rgba(255, 255, 255, calc(var(--app-surface-alpha, 0.05) * 2 + 0.55))',
-                  backdropFilter: 'blur(16px) saturate(140%)',
-                  WebkitBackdropFilter: 'blur(16px) saturate(140%)',
-                  borderRadius: '18px',
-                  border: `1px solid ${darkMode ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.06)'}`,
-                  boxShadow: darkMode
-                    ? '0 24px 60px -28px rgba(0,0,0,0.55)'
-                    : '0 24px 60px -28px rgba(15,23,42,0.20)',
-                  overflow: 'hidden',
-                  '&::before': {
-                    content: '""',
-                    position: 'absolute',
-                    top: 0, left: 0, right: 0, height: 3,
-                    background: 'linear-gradient(90deg, var(--app-primary), var(--app-secondary, #EC4899), var(--app-accent, #F59E0B))',
-                    opacity: 0.85,
-                  },
-                }}
-              >
-                {/* Flex-wrap so the controls keep a min width and wrap to the
-                    next line instead of overlapping when space is tight. */}
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 2, mb: 3, mt: 0.5 }}>
-                  <Box sx={{ flex: '2 1 240px', minWidth: 220 }}>
-                    <SearchField
-                      value={searchQuery}
-                      onChange={setSearchQuery}
-                      darkMode={darkMode}
-                      label="Search"
-                      hint="By guest name or room"
-                      placeholder="Type a name, room…"
-                    />
-                  </Box>
-                  <Box sx={{ flex: '1 1 180px', minWidth: 170 }}>
-                    <StatusFilter
-                      value={statusFilter}
-                      onChange={setStatusFilter}
-                      darkMode={darkMode}
-                    />
-                  </Box>
-                  <Box sx={{ flex: '1 1 180px', minWidth: 170 }}>
-                    <StatusFilter
-                      value={paymentFilter}
-                      onChange={setPaymentFilter}
-                      darkMode={darkMode}
-                      options={PAYMENT_OPTIONS}
-                      label="Payment"
-                    />
-                  </Box>
-                  <Box sx={{ flex: '1 1 190px', minWidth: 180 }}>
-                    <DateRangePicker
-                      from={coDateFrom}
-                      to={coDateTo}
-                      onChange={({ from, to }) => { setCoDateFrom(from); setCoDateTo(to); }}
-                      darkMode={darkMode}
-                    />
-                  </Box>
-                  <Box sx={{ flex: '0 0 auto', ml: 'auto' }}>
-                    <Button
-                      onClick={() => { setSearchQuery(''); setStatusFilter('all'); setPaymentFilter('all'); setCoDateFrom(''); setCoDateTo(''); }}
-                      sx={{
-                        px: 3.5, py: 1.4, minWidth: 96,
-                        borderRadius: '10px',
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.12em',
-                        fontWeight: 700,
-                        fontSize: 12,
-                        color: 'var(--app-primary)',
-                        background: 'transparent',
-                        border: `1.5px solid ${darkMode ? 'rgba(255,255,255,0.10)' : 'rgba(15,23,42,0.08)'}`,
-                        transition: 'background 0.25s ease, border-color 0.25s ease, transform 0.2s ease',
-                        '&:hover': {
-                          borderColor: 'var(--app-primary)',
-                          background: 'rgba(var(--app-primary-rgb, 99,102,241), 0.08)',
-                          transform: 'translateY(-1px)',
-                        },
-                      }}
-                    >
-                      Clear
-                    </Button>
-                  </Box>
-                </Box>
-
-                {(() => {
-                  const matchesSearch = (b) => {
-                    if (searchQuery.trim() === '') return true;
-                    const guestName = (b.guestName || '').toLowerCase();
-                    const bookingRoomId = typeof b.roomId === 'object' && b.roomId !== null ? b.roomId._id : b.roomId;
-                    const room = rooms.find(r => r._id === bookingRoomId);
-                    const roomNumber = room ? (room.roomNumber || room.number || '') : (b.roomNumber || '');
-                    return guestName.includes(searchQuery.toLowerCase()) || String(roomNumber).includes(searchQuery);
-                  };
-                  const matchesDates = (b) => {
-                    if (!coDateFrom && !coDateTo) return true;
-                    const ci = b.checkIn ? new Date(b.checkIn) : null;
-                    const co = b.checkOut ? new Date(b.checkOut) : null;
-                    const from = coDateFrom ? new Date(`${coDateFrom}T00:00:00`) : null;
-                    const to = coDateTo ? new Date(`${coDateTo}T23:59:59`) : null;
-                    if (from && co && co < from) return false; // stay ended before the window
-                    if (to && ci && ci > to) return false;      // stay began after the window
-                    return true;
-                  };
-                  const matchesPayment = (b) => paymentFilter === 'all' || b.paymentStatus === paymentFilter;
-
-                  const baseRows = (Array.isArray(bookings) ? bookings : [])
-                    .filter(b => matchesSearch(b) && matchesDates(b) && matchesPayment(b));
-                  // 'In Hotel' = checked in and still staying (bookingStatus 'Confirmed').
-                  const inHotelRows = baseRows.filter(b => b.bookingStatus === 'Confirmed');
-                  const checkedOutAll = baseRows.filter(b => ['Completed', 'Checked Out', 'Checkout'].includes(b.bookingStatus));
-
-                  const showIn = statusFilter === 'all' || statusFilter === 'In Hotel';
-                  const showOut = statusFilter === 'all' || statusFilter === 'Completed';
-
-                  const coTotal = checkedOutAll.length;
-                  const coPageRows = checkedOutAll.slice(
-                    pageCheckedOut * rowsPerPageCheckedOut,
-                    pageCheckedOut * rowsPerPageCheckedOut + rowsPerPageCheckedOut,
-                  );
-
-                  const sectionLabelSx = {
-                    fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase',
-                    color: 'var(--app-primary)', mb: 1.5, display: 'flex', alignItems: 'center', gap: 1,
-                  };
-                  const countPill = (n, fg, bg) => (
-                    <Box component="span" sx={{ px: 1, py: 0.1, borderRadius: '999px', fontSize: 11, fontWeight: 800, color: fg, background: bg }}>{n}</Box>
-                  );
-
-                  return (
-                    <>
-                      {showIn && (
-                        <Box sx={{ mb: showOut ? 4 : 0 }}>
-                          <Box sx={sectionLabelSx}>In Hotel {countPill(inHotelRows.length, '#10B981', 'rgba(16,185,129,0.13)')}</Box>
-                          {renderGuestTable(inHotelRows, { emptyText: 'No in-hotel guests match this view.' })}
-                        </Box>
-                      )}
-
-                      {showOut && (
-                        <Box>
-                          <Box sx={sectionLabelSx}>Checked Out {countPill(coTotal, 'var(--app-primary)', 'rgba(var(--app-primary-rgb, 99,102,241),0.13)')}</Box>
-                          {renderGuestTable(coPageRows, {
-                            serialOffset: pageCheckedOut * rowsPerPageCheckedOut,
-                            emptyText: 'No checked-out guests match this view.',
-                          })}
-                          {coTotal > 0 && (
-                            <Box sx={{
-                              mt: 1.5, pt: 1.5,
-                              borderTop: `1px solid ${darkMode ? 'rgba(255,255,255,0.06)' : 'rgba(15,23,42,0.06)'}`,
-                              '& .MuiTablePagination-toolbar': { px: 0, color: darkMode ? '#f3f4f6' : '#1e293b' },
-                              '& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows': {
-                                fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 700,
-                                color: darkMode ? 'rgba(255,255,255,0.65)' : 'rgba(15,23,42,0.55)',
-                              },
-                              '& .MuiTablePagination-actions .MuiIconButton-root': {
-                                color: 'var(--app-primary)',
-                                transition: 'background 0.2s ease',
-                                '&:hover': { background: 'rgba(var(--app-primary-rgb, 99,102,241), 0.10)' },
-                                '&.Mui-disabled': { color: darkMode ? 'rgba(255,255,255,0.20)' : 'rgba(15,23,42,0.20)' },
-                              },
-                            }}>
-                              <TablePagination
-                                rowsPerPageOptions={[10, 20, 50]}
-                                component="div"
-                                count={coTotal}
-                                rowsPerPage={rowsPerPageCheckedOut}
-                                page={pageCheckedOut}
-                                onPageChange={handleChangePageCheckedOut}
-                                onRowsPerPageChange={handleChangeRowsPerPageCheckedOut}
-                              />
-                            </Box>
-                          )}
-                        </Box>
-                      )}
-                    </>
-                  );
-                })()}
-              </Paper>
+        </>
+      )}
+      <FormDialog
+        open={openDialog}
+        onClose={handleCloseDialog}
+        maxWidth="lg"
+        icon={<HotelIcon />}
+        eyebrow="Front Desk"
+        title={selectedBooking ? 'Edit Booking' : 'New Booking'}
+        hideActions
+      >
+          {!selectedBooking && (
+            <Box sx={{ mb: 2.5 }}>
+              <BookingTypeSelector value={bookingMode} onChange={switchBookingMode} />
             </Box>
-            )}
-          </>
-        )}
-
-        <FormDialog
-          open={openDialog}
-          onClose={handleCloseDialog}
-          maxWidth="lg"
-          icon={<HotelIcon />}
-          eyebrow="Front Desk"
-          title={selectedBooking ? 'Edit Booking' : 'New Booking'}
-          hideActions
-        >
-            {!selectedBooking && (
-              <Box sx={{ mb: 2.5 }}>
-                <BookingTypeSelector value={bookingMode} onChange={switchBookingMode} />
-              </Box>
-            )}
-            <BookingForm
-              formData={formData}
-              setFormData={setFormData}
-              handleInputChange={handleInputChange}
-              handleDateChange={handleDateChange}
-              handleRoomChange={handleRoomChange}
-              handlePaidAmountChange={handlePaidAmountChange}
-              handlePincodeChange={handlePincodeChange}
-              handleSubmit={handleSubmit}
-              rooms={rooms}
-              selectedBooking={selectedBooking}
-              handleBack={handleBack}
-              handleNext={handleNext}
-              activeStep={activeStep}
-              setActiveStep={setActiveStep}
-              booking={selectedBooking}
-              onSubmit={handleSubmit}
-              onCancel={handleCloseDialog}
-              handleTimeChange={handleTimeChange}
-            />
-        </FormDialog>
-
-        <CheckoutDialog
-          open={checkoutDialogOpen}
-          onClose={() => {
-            setCheckoutDialogOpen(false);
-            // Remove from processing set if dialog is cancelled
-            if (checkoutBooking) {
-              setProcessingCheckoutIds(prev => {
-                const newSet = new Set(prev);
-                newSet.delete(checkoutBooking._id);
-                return newSet;
-              });
-            }
-            setCheckoutBooking(null);
-            setCheckoutRoom(null);
-          }}
-          booking={checkoutBooking}
-          room={checkoutRoom}
-          onPaymentComplete={handlePaymentComplete}
-        />
-        <GuestWelcomeDialog
-          open={!!welcomeBooking}
-          onClose={() => { setWelcomeBooking(null); setWelcomeRoom(null); }}
-          booking={welcomeBooking}
-          room={welcomeRoom}
-          settings={settings}
-          onNotify={showSnackbar}
-        />
-        <SettleBalanceDialog
-          open={settleDialogOpen}
-          onClose={() => { setSettleDialogOpen(false); setSettleBooking(null); }}
-          booking={settleBooking}
-          onSettled={(info) => {
-            showSnackbar(`Recorded ${currencySym()}${info.amount.toFixed(2)} payment`, 'success');
-            fetchBookings?.();
-          }}
-        />
-
-        <GroupBookingDialog
-          open={groupDialogOpen}
-          onClose={() => { setGroupDialogOpen(false); setBookingMode('individual'); }}
-          rooms={rooms}
-          typeSelector={<BookingTypeSelector value={bookingMode} onChange={switchBookingMode} />}
-          onCreated={(msg) => { setBookingMode('individual'); showSnackbar(msg, 'success'); refreshData(); }}
-        />
-        <CompanyBookingDialog
-          open={companyDialogOpen}
-          onClose={() => { setCompanyDialogOpen(false); setBookingMode('individual'); }}
-          rooms={rooms}
-          typeSelector={<BookingTypeSelector value={bookingMode} onChange={switchBookingMode} />}
-          onManageCompanies={() => setCompaniesOpen(true)}
-          onCreated={(msg) => { setBookingMode('individual'); showSnackbar(msg, 'success'); refreshData(); }}
-        />
-        <RoomTransferDialog
-          open={transferDialogOpen}
-          onClose={() => { setTransferDialogOpen(false); setTransferBooking(null); }}
-          booking={transferBooking}
-          rooms={rooms}
-          onTransferred={(msg) => { showSnackbar(msg, 'success'); refreshData(); }}
-        />
-        <RoomingListDialog
-          open={roomingOpen}
-          onClose={() => { setRoomingOpen(false); setRoomingGroupId(null); }}
-          groupId={roomingGroupId}
-          rooms={rooms}
-          onUpdated={() => { showSnackbar('Rooming list updated', 'success'); refreshData(); }}
-        />
-        <CompaniesManager
-          open={companiesOpen}
-          onClose={() => setCompaniesOpen(false)}
-          rooms={rooms}
-          onChanged={() => {}}
-        />
-        {invoiceDialogOpen && (
-          <FormDialog
-            open={invoiceDialogOpen}
-            onClose={() => setInvoiceDialogOpen(false)}
-            maxWidth="md"
-            icon={<ReceiptLongIcon />}
-            eyebrow="Billing"
-            title="Invoice Preview"
-            cancelLabel="Close"
-            submitLabel="Print"
-            onSubmit={async (e) => {
-              if (e?.preventDefault) e.preventDefault();
-              if (selectedBooking) {
-                try {
-                  const response = await api.post(`/invoices/booking/${selectedBooking._id}`, {
-                    template: 'luxury_room_booking'
-                  });
-
-                  const htmlContent = response.data;
-
-                  // Open print preview window with the new professional template
-                  const printWindow = window.open('', '_blank', 'width=900,height=1200,scrollbars=yes,resizable=yes');
-                  if (printWindow) {
-                    printWindow.document.write(htmlContent);
-                    printWindow.document.close();
-                    printWindow.focus();
-
-                    // Auto-print after content loads
-                    printWindow.onload = () => {
-                      setTimeout(() => {
-                        printWindow.print();
-                        printWindow.onafterprint = () => {
-                          printWindow.close();
-                        };
-                      }, 500);
-                    };
-                  } else {
-                    throw new Error('Please allow popups to print invoices');
-                  }
-                } catch (error) {
-                  console.error('Error printing professional invoice:', error);
-                  showSnackbar('Failed to print invoice: ' + error.message, 'error');
-                }
-              }
-            }}
-          >
-            <FormSection title="Invoice" icon={<ReceiptLongIcon fontSize="small" />} iconColor="#6366f1">
-              <Typography variant="body2" color="textSecondary">
-                Click Print to generate and print the invoice using the selected template from settings.
-              </Typography>
-            </FormSection>
-          </FormDialog>
-        )}
-
-        {/* Guest Print Form Dialog */}
-        <GuestPrintForm
-          open={guestPrintFormOpen}
-          onClose={() => {
-            setGuestPrintFormOpen(false);
-            setSelectedBookingForPrint(null);
-          }}
-          booking={selectedBookingForPrint}
-          room={
-            selectedBookingForPrint
-              ? (typeof selectedBookingForPrint.roomId === 'object'
-                ? selectedBookingForPrint.roomId
-                : rooms.find(r => r._id === selectedBookingForPrint.roomId))
-              : null
+          )}
+          <BookingForm
+            formData={formData}
+            setFormData={setFormData}
+            handleInputChange={handleInputChange}
+            handleDateChange={handleDateChange}
+            handleRoomChange={handleRoomChange}
+            handlePaidAmountChange={handlePaidAmountChange}
+            handlePincodeChange={handlePincodeChange}
+            handleSubmit={handleSubmit}
+            rooms={rooms}
+            selectedBooking={selectedBooking}
+            handleBack={handleBack}
+            handleNext={handleNext}
+            activeStep={activeStep}
+            setActiveStep={setActiveStep}
+            booking={selectedBooking}
+            onSubmit={handleSubmit}
+            onCancel={handleCloseDialog}
+            handleTimeChange={handleTimeChange}
+          />
+      </FormDialog>
+      <CheckoutDialog
+        open={checkoutDialogOpen}
+        onClose={() => {
+          setCheckoutDialogOpen(false);
+          // Remove from processing set if dialog is cancelled
+          if (checkoutBooking) {
+            setProcessingCheckoutIds(prev => {
+              const newSet = new Set(prev);
+              newSet.delete(checkoutBooking._id);
+              return newSet;
+            });
           }
-          restaurantOrders={[]}
-        />
-
-        <Snackbar 
-          open={snackbar.open} 
-          autoHideDuration={6000} 
-          onClose={handleCloseSnackbar}
-          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-        >
-          <Alert 
-            onClose={handleCloseSnackbar} 
-            severity={snackbar.severity} 
-            sx={{ 
-              width: '100%',
-              boxShadow: '0 5px 15px rgba(0,0,0,0.2)',
-              borderRadius: 2,
-            }}
-          >
-            {snackbar.message}
-          </Alert>
-        </Snackbar>
-
+          setCheckoutBooking(null);
+          setCheckoutRoom(null);
+        }}
+        booking={checkoutBooking}
+        room={checkoutRoom}
+        onPaymentComplete={handlePaymentComplete}
+      />
+      <GuestWelcomeDialog
+        open={!!welcomeBooking}
+        onClose={() => { setWelcomeBooking(null); setWelcomeRoom(null); }}
+        booking={welcomeBooking}
+        room={welcomeRoom}
+        settings={settings}
+        onNotify={showSnackbar}
+      />
+      <SettleBalanceDialog
+        open={settleDialogOpen}
+        onClose={() => { setSettleDialogOpen(false); setSettleBooking(null); }}
+        booking={settleBooking}
+        onSettled={(info) => {
+          showSnackbar(`Recorded ${currencySym()}${info.amount.toFixed(2)} payment`, 'success');
+          fetchBookings?.();
+        }}
+      />
+      <GroupBookingDialog
+        open={groupDialogOpen}
+        onClose={() => { setGroupDialogOpen(false); setBookingMode('individual'); }}
+        rooms={rooms}
+        typeSelector={<BookingTypeSelector value={bookingMode} onChange={switchBookingMode} />}
+        onCreated={(msg) => { setBookingMode('individual'); showSnackbar(msg, 'success'); refreshData(); }}
+      />
+      <CompanyBookingDialog
+        open={companyDialogOpen}
+        onClose={() => { setCompanyDialogOpen(false); setBookingMode('individual'); }}
+        rooms={rooms}
+        typeSelector={<BookingTypeSelector value={bookingMode} onChange={switchBookingMode} />}
+        onManageCompanies={() => setCompaniesOpen(true)}
+        onCreated={(msg) => { setBookingMode('individual'); showSnackbar(msg, 'success'); refreshData(); }}
+      />
+      <RoomTransferDialog
+        open={transferDialogOpen}
+        onClose={() => { setTransferDialogOpen(false); setTransferBooking(null); }}
+        booking={transferBooking}
+        rooms={rooms}
+        onTransferred={(msg) => { showSnackbar(msg, 'success'); refreshData(); }}
+      />
+      <RoomingListDialog
+        open={roomingOpen}
+        onClose={() => { setRoomingOpen(false); setRoomingGroupId(null); }}
+        groupId={roomingGroupId}
+        rooms={rooms}
+        onUpdated={() => { showSnackbar('Rooming list updated', 'success'); refreshData(); }}
+      />
+      <CompaniesManager
+        open={companiesOpen}
+        onClose={() => setCompaniesOpen(false)}
+        rooms={rooms}
+        onChanged={() => {}}
+      />
+      {invoiceDialogOpen && (
         <FormDialog
-          open={guestDialogOpen}
-          onClose={handleCloseGuestDialog}
+          open={invoiceDialogOpen}
+          onClose={() => setInvoiceDialogOpen(false)}
           maxWidth="md"
-          icon={<PersonSearchIcon />}
-          eyebrow="Front Desk"
-          title="Select Guest"
-          hideCancel
-          submitLabel="Close"
+          icon={<ReceiptLongIcon />}
+          eyebrow="Billing"
+          title="Invoice Preview"
+          cancelLabel="Close"
+          submitLabel="Print"
+          onSubmit={async (e) => {
+            if (e?.preventDefault) e.preventDefault();
+            if (selectedBooking) {
+              try {
+                const response = await api.post(`/invoices/booking/${selectedBooking._id}`, {
+                  template: 'luxury_room_booking'
+                });
+
+                const htmlContent = response.data;
+
+                // Open print preview window with the new professional template
+                const printWindow = window.open('', '_blank', 'width=900,height=1200,scrollbars=yes,resizable=yes');
+                if (printWindow) {
+                  printWindow.document.write(htmlContent);
+                  printWindow.document.close();
+                  printWindow.focus();
+
+                  // Auto-print after content loads
+                  printWindow.onload = () => {
+                    setTimeout(() => {
+                      printWindow.print();
+                      printWindow.onafterprint = () => {
+                        printWindow.close();
+                      };
+                    }, 500);
+                  };
+                } else {
+                  throw new Error('Please allow popups to print invoices');
+                }
+              } catch (error) {
+                console.error('Error printing professional invoice:', error);
+                showSnackbar('Failed to print invoice: ' + error.message, 'error');
+              }
+            }
+          }}
         >
-          <FormSection>
-            <Guests onSelectGuest={handleSelectGuestForBooking} />
+          <FormSection title="Invoice" icon={<ReceiptLongIcon fontSize="small" />} iconColor="#6366f1">
+            <Typography variant="body2" color="textSecondary">
+              Click Print to generate and print the invoice using the selected template from settings.
+            </Typography>
           </FormSection>
         </FormDialog>
-
-        <BookingDetailsDialog
-          open={detailsDialogOpen}
-          onClose={() => setDetailsDialogOpen(false)}
-          booking={detailsBooking}
-        />
+      )}
+      {/* Guest Print Form Dialog */}
+      <GuestPrintForm
+        open={guestPrintFormOpen}
+        onClose={() => {
+          setGuestPrintFormOpen(false);
+          setSelectedBookingForPrint(null);
+        }}
+        booking={selectedBookingForPrint}
+        room={
+          selectedBookingForPrint
+            ? (typeof selectedBookingForPrint.roomId === 'object'
+              ? selectedBookingForPrint.roomId
+              : rooms.find(r => r._id === selectedBookingForPrint.roomId))
+            : null
+        }
+        restaurantOrders={[]}
+      />
+      <Snackbar 
+        open={snackbar.open} 
+        autoHideDuration={6000} 
+        onClose={handleCloseSnackbar}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert 
+          onClose={handleCloseSnackbar} 
+          severity={snackbar.severity} 
+          sx={{ 
+            width: '100%',
+            boxShadow: '0 5px 15px rgba(0,0,0,0.2)',
+            borderRadius: 2,
+          }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
+      <FormDialog
+        open={guestDialogOpen}
+        onClose={handleCloseGuestDialog}
+        maxWidth="md"
+        icon={<PersonSearchIcon />}
+        eyebrow="Front Desk"
+        title="Select Guest"
+        hideCancel
+        submitLabel="Close"
+      >
+        <FormSection>
+          <Guests onSelectGuest={handleSelectGuestForBooking} />
+        </FormSection>
+      </FormDialog>
+      <BookingDetailsDialog
+        open={detailsDialogOpen}
+        onClose={() => setDetailsDialogOpen(false)}
+        booking={detailsBooking}
+      />
     </PageLayout>
   );
 };

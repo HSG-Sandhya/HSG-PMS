@@ -142,10 +142,19 @@ const Settings = () => {
           border: '1px solid rgba(255, 255, 255, var(--app-surface-border-alpha, 0.08))',
           boxShadow: '0 4px 24px rgba(0, 0, 0, 0.05), 0 0 24px rgba(var(--app-primary-rgb), 0.08), inset 0 1px 0 rgba(255, 255, 255, var(--app-surface-border-alpha, 0.08))',
         }}>
-          <Typography variant="h4" fontWeight={800} sx={{ letterSpacing: '-0.02em', color: 'var(--app-primary)' }} gutterBottom>
+          <Typography
+            variant="h4"
+            gutterBottom
+            sx={{
+              fontWeight: 800,
+              letterSpacing: '-0.02em',
+              color: 'var(--app-primary)'
+            }}>
             System settings
           </Typography>
-          <Typography variant="body1" color="text.secondary">
+          <Typography variant="body1" sx={{
+            color: "text.secondary"
+          }}>
             Configure how your hotel runs. Changes apply immediately across the app.
           </Typography>
         </Box>
@@ -216,7 +225,13 @@ const Settings = () => {
         </Box>
 
         {/* Active section header */}
-        <Box mb={2.5} display="flex" alignItems="center" gap={1.5}>
+        <Box
+          sx={{
+            mb: 2.5,
+            display: "flex",
+            alignItems: "center",
+            gap: 1.5
+          }}>
           <Box
             sx={{
               width: 44,
@@ -232,10 +247,17 @@ const Settings = () => {
             <ActiveIcon />
           </Box>
           <Box>
-            <Typography variant="h6" fontWeight={700} lineHeight={1.2}>
+            <Typography
+              variant="h6"
+              sx={{
+                fontWeight: 700,
+                lineHeight: 1.2
+              }}>
               {active.title}
             </Typography>
-            <Typography variant="caption" color="text.secondary">
+            <Typography variant="caption" sx={{
+              color: "text.secondary"
+            }}>
               {active.description}
             </Typography>
           </Box>
@@ -256,7 +278,6 @@ const Settings = () => {
           <ActiveComponent onNotify={notify} />
         </Box>
       </Container>
-
       <Snackbar
         open={snackbar.open}
         autoHideDuration={4000}

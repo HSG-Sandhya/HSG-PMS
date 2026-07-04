@@ -513,7 +513,11 @@ const BookingForm = ({
 
         <Grid container spacing={2.5} sx={{ mt: 0.25 }}>
           {/* Main column — the reservation worksheet */}
-          <Grid item xs={12} md={8}>
+          <Grid
+            size={{
+              xs: 12,
+              md: 8
+            }}>
             <Stack spacing={2.5}>
               <PremiumSection index={1} icon={<PersonOutlineIcon />} title="Guest Information"
                 subtitle="Primary guest, contact & classification">
@@ -585,7 +589,11 @@ const BookingForm = ({
               <PremiumSection index={6} icon={<PaymentIcon />} title="Pricing, Payment & ID"
                 subtitle="Charges, advance, payment mode & identity proof">
                 <Grid container spacing={2} sx={{ mb: 2 }}>
-                  <Grid item xs={12} sm={6}>
+                  <Grid
+                    size={{
+                      xs: 12,
+                      sm: 6
+                    }}>
                     <TextField
                       select fullWidth size="small" label="Rate Plan" name="tariffType"
                       value={formData.tariffType || 'normal'} onChange={handleInputChange}
@@ -631,7 +639,11 @@ const BookingForm = ({
           </Grid>
 
           {/* Side column — sticky live summary + actions */}
-          <Grid item xs={12} md={4}>
+          <Grid
+            size={{
+              xs: 12,
+              md: 4
+            }}>
             <ReservationSummary
               formData={formData}
               room={selectedRoom}

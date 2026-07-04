@@ -675,7 +675,6 @@ const Sidebar = ({ open: propOpen, toggleSidebar: propToggleSidebar, mobile }) =
       >
         {isOpen ? <ChevronLeftIcon /> : <ChevronRightIcon />}
       </IconButton>
-
       <Drawer
         variant="permanent"
         sx={{
@@ -719,14 +718,16 @@ const Sidebar = ({ open: propOpen, toggleSidebar: propToggleSidebar, mobile }) =
             msOverflowStyle: 'none',
           },
         }}
-        PaperProps={{
-          sx: {
-            fontFamily: settings?.theme?.fontFamily || '"Inter", system-ui, sans-serif',
-            fontSize: settings?.theme?.fontSize,
-            color: isDarkMode ? '#f8fafc' : '#1e293b',
-            // No transition here — it would override the paper's 0.6s
-            // transform transition above and double-animate the slide.
-          },
+        slotProps={{
+          paper: {
+            sx: {
+              fontFamily: settings?.theme?.fontFamily || '"Inter", system-ui, sans-serif',
+              fontSize: settings?.theme?.fontSize,
+              color: isDarkMode ? '#f8fafc' : '#1e293b',
+              // No transition here — it would override the paper's 0.6s
+              // transform transition above and double-animate the slide.
+            },
+          }
         }}
       >
         {/* Hotel Profile Section */}

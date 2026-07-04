@@ -135,9 +135,15 @@ const CategoryCard = ({ category, onEdit, onDelete, isDarkMode }) => {
           </IconButton>
         </Tooltip>
       </Stack>
-
       {/* Title */}
-      <Stack direction="row" spacing={1.5} alignItems="center" sx={{ pr: 7, mb: 1 }}>
+      <Stack
+        direction="row"
+        spacing={1.5}
+        sx={{
+          alignItems: "center",
+          pr: 7,
+          mb: 1
+        }}>
         <Box
           sx={{
             width: 40,
@@ -153,26 +159,50 @@ const CategoryCard = ({ category, onEdit, onDelete, isDarkMode }) => {
         >
           <BedIcon fontSize="small" />
         </Box>
-        <Typography variant="subtitle1" fontWeight={700} sx={{ lineHeight: 1.2 }}>
+        <Typography
+          variant="subtitle1"
+          sx={{
+            fontWeight: 700,
+            lineHeight: 1.2
+          }}>
           {category.name}
         </Typography>
       </Stack>
-
       <Typography
         variant="body2"
-        color="text.secondary"
-        sx={{ minHeight: 40, mb: 1.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
-      >
+        sx={{
+          color: "text.secondary",
+          minHeight: 40,
+          mb: 1.5,
+          display: '-webkit-box',
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: 'vertical',
+          overflow: 'hidden'
+        }}>
         {category.description || 'No description'}
       </Typography>
-
       {/* Price + occupancy */}
-      <Stack direction="row" alignItems="flex-end" justifyContent="space-between" sx={{ mb: 1.5 }}>
+      <Stack
+        direction="row"
+        sx={{
+          alignItems: "flex-end",
+          justifyContent: "space-between",
+          mb: 1.5
+        }}>
         <Box>
-          <Typography variant="h5" fontWeight={800} sx={{ color: ACCENT, letterSpacing: '-0.02em', lineHeight: 1 }}>
+          <Typography
+            variant="h5"
+            sx={{
+              fontWeight: 800,
+              color: ACCENT,
+              letterSpacing: '-0.02em',
+              lineHeight: 1
+            }}>
             {currencySym()}{Number(category.basePrice || 0).toLocaleString('en-IN')}
           </Typography>
-          <Typography variant="caption" color="text.secondary">
+          <Typography variant="caption" sx={{
+            color: "text.secondary"
+          }}>
             base · {currencySym()}{(Number(category.basePrice || 0) * (1 + liveRoomGstFraction())).toLocaleString('en-IN', { maximumFractionDigits: 0 })} incl. GST
           </Typography>
         </Box>
@@ -279,7 +309,6 @@ const RoomCategoriesSection = ({ onNotify }) => {
         <Tab icon={<RoomIcon fontSize="small" />} iconPosition="start" label="Categories" />
         <Tab icon={<BedIcon fontSize="small" />} iconPosition="start" label="Rooms" />
       </Tabs>
-
       {tab === 1 ? (
         <RoomsManager categories={categories} onNotify={onNotify} isDarkMode={isDarkMode} />
       ) : (
@@ -287,14 +316,19 @@ const RoomCategoriesSection = ({ onNotify }) => {
       {/* Toolbar */}
       <Stack
         direction={{ xs: 'column', sm: 'row' }}
-        justifyContent="space-between"
-        alignItems={{ xs: 'flex-start', sm: 'center' }}
         spacing={2}
-        sx={{ mb: 3 }}
-      >
-        <Stack direction="row" spacing={1} alignItems="center">
+        sx={{
+          justifyContent: "space-between",
+          alignItems: { xs: 'flex-start', sm: 'center' },
+          mb: 3
+        }}>
+        <Stack direction="row" spacing={1} sx={{
+          alignItems: "center"
+        }}>
           <RoomIcon sx={{ color: ACCENT }} />
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>
             {loading
               ? 'Loading…'
               : `${categories.length} ${categories.length === 1 ? 'category' : 'categories'} · templates for room creation`}
@@ -313,7 +347,12 @@ const RoomCategoriesSection = ({ onNotify }) => {
       </Stack>
 
       {loading ? (
-        <Box display="flex" justifyContent="center" py={8}>
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "center",
+            py: 8
+          }}>
           <CircularProgress />
         </Box>
       ) : categories.length === 0 ? (
@@ -328,7 +367,11 @@ const RoomCategoriesSection = ({ onNotify }) => {
           }}
         >
           <BedIcon sx={{ fontSize: 48, color: 'text.disabled', mb: 1 }} />
-          <Typography color="text.secondary" sx={{ mb: 2 }}>
+          <Typography
+            sx={{
+              color: "text.secondary",
+              mb: 2
+            }}>
             No room categories yet.
           </Typography>
           <Button startIcon={<AddIcon />} variant="contained" onClick={openCreate} sx={primaryButtonSx}>
@@ -338,7 +381,13 @@ const RoomCategoriesSection = ({ onNotify }) => {
       ) : (
         <Grid container spacing={2}>
           {categories.map((cat) => (
-            <Grid item xs={12} sm={6} lg={4} key={cat._id || cat.id}>
+            <Grid
+              key={cat._id || cat.id}
+              size={{
+                xs: 12,
+                sm: 6,
+                lg: 4
+              }}>
               <CategoryCard
                 category={cat}
                 onEdit={openEdit}
@@ -351,19 +400,23 @@ const RoomCategoriesSection = ({ onNotify }) => {
       )}
       </>
       )}
-
       <Dialog
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}
         fullWidth
         maxWidth="sm"
-        TransitionComponent={Grow}
         transitionDuration={{ enter: 420, exit: 200 }}
-        PaperProps={{ sx: dialogPaperSx(isDarkMode) }}
-        BackdropProps={{ sx: dialogBackdropSx }}
-      >
+        slotProps={{
+          backdrop: { sx: dialogBackdropSx },
+          paper: { sx: dialogPaperSx(isDarkMode) }
+        }}
+        slots={{
+          transition: Grow
+        }}>
         <Box sx={headerWrapSx(isDarkMode)}>
-          <Stack direction="row" spacing={1.5} alignItems="center">
+          <Stack direction="row" spacing={1.5} sx={{
+            alignItems: "center"
+          }}>
             <Box
               component={motion.div}
               initial={{ scale: 0, rotate: -40 }}
@@ -422,9 +475,13 @@ const RoomCategoriesSection = ({ onNotify }) => {
                   value={form.basePrice}
                   onChange={(e) => setForm({ ...form, basePrice: e.target.value })}
                   fullWidth
-                  InputProps={{ startAdornment: <InputAdornment position="start">{currencySym()}</InputAdornment> }}
+                  slotProps={{
+                    input: { startAdornment: <InputAdornment position="start">{currencySym()}</InputAdornment> }
+                  }}
                 />
-                <TextField label="Max occupancy" type="number" inputProps={{ min: 1 }} value={form.maxOccupancy} onChange={(e) => setForm({ ...form, maxOccupancy: e.target.value })} fullWidth />
+                <TextField label="Max occupancy" type="number" value={form.maxOccupancy} onChange={(e) => setForm({ ...form, maxOccupancy: e.target.value })} fullWidth slotProps={{
+                  htmlInput: { min: 1 }
+                }} />
               </Stack>
             </motion.div>
 
@@ -436,19 +493,23 @@ const RoomCategoriesSection = ({ onNotify }) => {
                   value={gstAmount.toFixed(2)}
                   fullWidth
                   disabled
-                  InputProps={{ startAdornment: <InputAdornment position="start">{currencySym()}</InputAdornment> }}
+                  slotProps={{
+                    input: { startAdornment: <InputAdornment position="start">{currencySym()}</InputAdornment> }
+                  }}
                 />
                 <TextField
                   label="Total price (base + GST)"
                   value={totalPrice.toFixed(2)}
                   fullWidth
                   disabled
-                  InputProps={{ startAdornment: <InputAdornment position="start">{currencySym()}</InputAdornment> }}
                   sx={{
                     '& .MuiInputBase-input.Mui-disabled': {
                       WebkitTextFillColor: ACCENT,
                       fontWeight: 700,
                     },
+                  }}
+                  slotProps={{
+                    input: { startAdornment: <InputAdornment position="start">{currencySym()}</InputAdornment> }
                   }}
                 />
               </Stack>

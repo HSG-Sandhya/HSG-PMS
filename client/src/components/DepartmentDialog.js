@@ -250,13 +250,17 @@ const DepartmentDialog = ({ open, onClose, onSuccess, editingDepartment = null }
         
         <Grid container spacing={3} sx={{ mt: 1 }}>
           {/* Basic Information */}
-          <Grid item xs={12}>
+          <Grid size={12}>
             <Typography variant="h6" gutterBottom>
               Basic Information
             </Typography>
           </Grid>
           
-          <Grid item xs={12} sm={6}>
+          <Grid
+            size={{
+              xs: 12,
+              sm: 6
+            }}>
             <TextField
               fullWidth
               label="Department Name"
@@ -266,7 +270,11 @@ const DepartmentDialog = ({ open, onClose, onSuccess, editingDepartment = null }
             />
           </Grid>
           
-          <Grid item xs={12} sm={6}>
+          <Grid
+            size={{
+              xs: 12,
+              sm: 6
+            }}>
             <FormControl fullWidth>
               <InputLabel>Head of Department</InputLabel>
               <Select
@@ -284,7 +292,7 @@ const DepartmentDialog = ({ open, onClose, onSuccess, editingDepartment = null }
             </FormControl>
           </Grid>
           
-          <Grid item xs={12}>
+          <Grid size={12}>
             <TextField
               fullWidth
               label="Description"
@@ -296,24 +304,34 @@ const DepartmentDialog = ({ open, onClose, onSuccess, editingDepartment = null }
           </Grid>
 
           {/* Financial & Staffing */}
-          <Grid item xs={12}>
+          <Grid size={12}>
             <Typography variant="h6" gutterBottom>
               Financial & Staffing
             </Typography>
           </Grid>
           
-          <Grid item xs={12} sm={4}>
+          <Grid
+            size={{
+              xs: 12,
+              sm: 4
+            }}>
             <TextField
               fullWidth
               label="Budget"
               type="number"
               value={formData.budget}
               onChange={(e) => handleInputChange('budget', e.target.value)}
-              InputProps={{ startAdornment: currencySym() }}
+              slotProps={{
+                input: { startAdornment: currencySym() }
+              }}
             />
           </Grid>
           
-          <Grid item xs={12} sm={4}>
+          <Grid
+            size={{
+              xs: 12,
+              sm: 4
+            }}>
             <TextField
               fullWidth
               label="Current Staff Count"
@@ -323,7 +341,11 @@ const DepartmentDialog = ({ open, onClose, onSuccess, editingDepartment = null }
             />
           </Grid>
           
-          <Grid item xs={12} sm={4}>
+          <Grid
+            size={{
+              xs: 12,
+              sm: 4
+            }}>
             <TextField
               fullWidth
               label="Max Staff"
@@ -335,13 +357,17 @@ const DepartmentDialog = ({ open, onClose, onSuccess, editingDepartment = null }
           </Grid>
 
           {/* Working Hours */}
-          <Grid item xs={12}>
+          <Grid size={12}>
             <Typography variant="h6" gutterBottom>
               Working Hours
             </Typography>
           </Grid>
           
-          <Grid item xs={12} sm={4}>
+          <Grid
+            size={{
+              xs: 12,
+              sm: 4
+            }}>
             <AppTimePicker
               label="Start Time"
               value={formData.settings.workingHours.start}
@@ -349,7 +375,11 @@ const DepartmentDialog = ({ open, onClose, onSuccess, editingDepartment = null }
             />
           </Grid>
           
-          <Grid item xs={12} sm={4}>
+          <Grid
+            size={{
+              xs: 12,
+              sm: 4
+            }}>
             <AppTimePicker
               label="End Time"
               value={formData.settings.workingHours.end}
@@ -357,7 +387,11 @@ const DepartmentDialog = ({ open, onClose, onSuccess, editingDepartment = null }
             />
           </Grid>
           
-          <Grid item xs={12} sm={4}>
+          <Grid
+            size={{
+              xs: 12,
+              sm: 4
+            }}>
             <TextField
               fullWidth
               label="Break Duration (minutes)"
@@ -368,17 +402,26 @@ const DepartmentDialog = ({ open, onClose, onSuccess, editingDepartment = null }
           </Grid>
 
           {/* Appearance & Status */}
-          <Grid item xs={12}>
+          <Grid size={12}>
             <Typography variant="h6" gutterBottom>
               Appearance & Status
             </Typography>
           </Grid>
           
-          <Grid item xs={12} sm={6}>
+          <Grid
+            size={{
+              xs: 12,
+              sm: 6
+            }}>
             <Typography variant="body2" gutterBottom>
               Department Color
             </Typography>
-            <Box display="flex" gap={1} flexWrap="wrap">
+            <Box
+              sx={{
+                display: "flex",
+                gap: 1,
+                flexWrap: "wrap"
+              }}>
               {defaultColors.map((color) => (
                 <Box
                   key={color}
@@ -396,7 +439,11 @@ const DepartmentDialog = ({ open, onClose, onSuccess, editingDepartment = null }
             </Box>
           </Grid>
           
-          <Grid item xs={12} sm={6}>
+          <Grid
+            size={{
+              xs: 12,
+              sm: 6
+            }}>
             <FormControlLabel
               control={
                 <Switch
@@ -409,11 +456,16 @@ const DepartmentDialog = ({ open, onClose, onSuccess, editingDepartment = null }
           </Grid>
 
           {/* Permissions */}
-          <Grid item xs={12}>
+          <Grid size={12}>
             <Typography variant="h6" gutterBottom>
               Permissions
             </Typography>
-            <Box display="flex" flexWrap="wrap" gap={1}>
+            <Box
+              sx={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: 1
+              }}>
               {availablePermissions.map((permission) => (
                 <FormControlLabel
                   key={permission}

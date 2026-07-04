@@ -119,12 +119,18 @@ const BookingsTable = ({
               size="small" placeholder="Search event, customer, hall…"
               value={query} onChange={(e) => setQuery(e.target.value)}
               sx={{ ...controlSx, width: { xs: '100%', sm: 240 } }}
-              InputProps={{ startAdornment: <InputAdornment position="start"><Search sx={{ fontSize: 18 }} /></InputAdornment> }}
+              slotProps={{
+                input: { startAdornment: <InputAdornment position="start"><Search sx={{ fontSize: 18 }} /></InputAdornment> }
+              }}
             />
-            <Select size="small" value={status} onChange={(e) => setStatus(e.target.value)} sx={{ ...controlSx, minWidth: 130 }} MenuProps={{ PaperProps: { sx: { backgroundColor: isDark ? '#1e293b' : '#fff' } } }}>
+            <Select size="small" value={status} onChange={(e) => setStatus(e.target.value)} sx={{ ...controlSx, minWidth: 130 }} MenuProps={{ slotProps: {
+              paper: { sx: { backgroundColor: isDark ? '#1e293b' : '#fff' } }
+            } }}>
               {STATUS_OPTIONS.map((s) => <MenuItem key={s} value={s}>{s === 'All' ? 'All statuses' : s}</MenuItem>)}
             </Select>
-            <Select size="small" value={sortBy} onChange={(e) => setSortBy(e.target.value)} sx={{ ...controlSx, minWidth: 150 }} MenuProps={{ PaperProps: { sx: { backgroundColor: isDark ? '#1e293b' : '#fff' } } }}>
+            <Select size="small" value={sortBy} onChange={(e) => setSortBy(e.target.value)} sx={{ ...controlSx, minWidth: 150 }} MenuProps={{ slotProps: {
+              paper: { sx: { backgroundColor: isDark ? '#1e293b' : '#fff' } }
+            } }}>
               <MenuItem value="date_desc">Date (newest)</MenuItem>
               <MenuItem value="date_asc">Date (oldest)</MenuItem>
               <MenuItem value="amount_desc">Amount (high→low)</MenuItem>
@@ -137,7 +143,6 @@ const BookingsTable = ({
           </Box>
         )}
       </Box>
-
       {loading ? (
         <Box>{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} variant="rounded" height={46} sx={{ mb: 1, borderRadius: 2 }} />)}</Box>
       ) : isEmpty ? (

@@ -34,7 +34,12 @@ const CSVUploadDialog = ({ open, onClose, onUpload, csvFile, onFileChange, loadi
   >
     <FormSection title="Bulk Import" icon={<UploadFileIcon fontSize="small" />} iconColor="#6366f1">
       <Box sx={{ mb: 3 }}>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+        <Typography
+          variant="body2"
+          sx={{
+            color: "text.secondary",
+            mb: 2
+          }}>
           Upload a CSV file to bulk import menu items. Your CSV file should include the following columns:
         </Typography>
 
@@ -105,12 +110,22 @@ const CSVUploadDialog = ({ open, onClose, onUpload, csvFile, onFileChange, loadi
             </Button>
           </label>
           {csvFile && (
-            <Typography variant="body2" color="success.main" sx={{ mt: 1 }}>
+            <Typography
+              variant="body2"
+              sx={{
+                color: "success.main",
+                mt: 1
+              }}>
               Selected: {csvFile.name} ({(csvFile.size / 1024).toFixed(1)} KB)
             </Typography>
           )}
           {!csvFile && (
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+            <Typography
+              variant="body2"
+              sx={{
+                color: "text.secondary",
+                mt: 1
+              }}>
               Select a CSV file to upload menu items
             </Typography>
           )}

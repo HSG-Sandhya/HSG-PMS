@@ -1208,240 +1208,244 @@ const Restaurant = () => {
 
   return (
     <PageLayout>
-        {/* Header Section */}
-        <Box
+      {/* Header Section */}
+      <Box
+        component={motion.div}
+        initial={{ opacity: 0, y: -18 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: 'easeOut' }}
+        sx={{
+        flexWrap: 'wrap',
+        p: { xs: 2, md: 3 },
+        borderRadius: 4,
+        background: 'rgba(255, 255, 255, var(--app-surface-alpha, 0.05))',
+        backdropFilter: 'var(--app-blur)',
+        WebkitBackdropFilter: 'var(--app-blur)',
+        border: '1px solid rgba(255, 255, 255, var(--app-surface-border-alpha, 0.08))',
+        boxShadow: '0 4px 24px rgba(0, 0, 0, 0.05), 0 0 24px rgba(var(--app-primary-rgb), 0.08), inset 0 1px 0 rgba(255, 255, 255, var(--app-surface-border-alpha, 0.08))',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 2,
+        mb: 3,
+      }}>
+        <Avatar
           component={motion.div}
-          initial={{ opacity: 0, y: -18 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, ease: 'easeOut' }}
-          sx={{
-          flexWrap: 'wrap',
-          p: { xs: 2, md: 3 },
-          borderRadius: 4,
+          whileHover={{ rotate: [0, -12, 12, 0] }}
+          transition={{ duration: 0.5 }}
+          sx={{ width: 56, height: 56, bgcolor: 'rgba(var(--app-primary-rgb),0.12)' }}
+        >
+          <RestaurantIcon sx={{ fontSize: 30, color: 'var(--app-primary)' }} />
+        </Avatar>
+        <Box sx={{ minWidth: 200 }}>
+          <Typography variant="h4" sx={{ color: 'var(--app-primary)', fontWeight: 700, lineHeight: 1.1 }}>
+            Restaurant Management
+          </Typography>
+          <Typography variant="body1" sx={{ color: 'rgba(var(--app-primary-rgb),0.75)' }}>
+            Manage your menu, tables, and orders with ease
+          </Typography>
+        </Box>
+      </Box>
+      {/* Redesigned Stat Cards */}
+      <Grid
+        container
+        spacing={2.5}
+        sx={{ mb: 3 }}
+        component={motion.div}
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
+      >
+        {[
+          { icon: <MenuIcon />, value: menuItems.length, label: 'Menu Items', color: 'var(--app-primary)', bg: 'rgba(var(--app-primary-rgb),0.12)' },
+          { icon: <TableIcon />, value: tables.length, label: 'Tables', color: '#0EA5E9', bg: 'rgba(14,165,233,0.12)' },
+          { icon: <OrderIcon />, value: orders.length, label: 'Active Orders', color: '#F59E0B', bg: 'rgba(245,158,11,0.12)' },
+          { icon: <CategoryIcon />, value: categories.length, label: 'Categories', color: '#8B5CF6', bg: 'rgba(139,92,246,0.12)' },
+        ].map((s) => (
+          <Grid
+            key={s.label}
+            size={{
+              xs: 6,
+              md: 3
+            }}>
+            <Box
+              component={motion.div}
+              variants={itemVariants}
+              whileHover={{ y: -5, scale: 1.03 }}
+              whileTap={{ scale: 0.98 }}
+              sx={{
+              p: 2.5,
+              height: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 2,
+              cursor: 'default',
+              background: 'rgba(255, 255, 255, var(--app-surface-alpha, 0.05))',
+              backdropFilter: 'var(--app-blur)',
+              border: '1px solid rgba(255, 255, 255, var(--app-surface-border-alpha, 0.08))',
+              boxShadow: '0 4px 24px rgba(0, 0, 0, 0.05), 0 0 24px rgba(var(--app-primary-rgb), 0.08), inset 0 1px 0 rgba(255, 255, 255, var(--app-surface-border-alpha, 0.08))',
+              borderRadius: 3,
+              transition: 'box-shadow 0.25s ease',
+              '&:hover': {
+                boxShadow: '0 16px 34px -10px rgba(var(--app-primary-rgb),0.28)',
+              },
+            }}>
+              <Avatar sx={{ bgcolor: s.bg, color: s.color, width: 48, height: 48 }}>
+                {s.icon}
+              </Avatar>
+              <Box sx={{ minWidth: 0 }}>
+                <Typography variant="h5" sx={{ fontWeight: 700, color: s.color, lineHeight: 1.1 }}>
+                  {s.value}
+                </Typography>
+                <Typography variant="body2" sx={{ color: 'text.secondary' }} noWrap>
+                  {s.label}
+                </Typography>
+              </Box>
+            </Box>
+          </Grid>
+        ))}
+      </Grid>
+      <motion.div
+        initial="hidden"
+        animate="visible"
+        variants={containerVariants}
+      >
+        {/* Modern Tabs - Redesigned Glassy Tab Bar */}
+        <Box sx={{
           background: 'rgba(255, 255, 255, var(--app-surface-alpha, 0.05))',
           backdropFilter: 'var(--app-blur)',
-          WebkitBackdropFilter: 'var(--app-blur)',
           border: '1px solid rgba(255, 255, 255, var(--app-surface-border-alpha, 0.08))',
           boxShadow: '0 4px 24px rgba(0, 0, 0, 0.05), 0 0 24px rgba(var(--app-primary-rgb), 0.08), inset 0 1px 0 rgba(255, 255, 255, var(--app-surface-border-alpha, 0.08))',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 2,
-          mb: 3,
+          borderRadius: '24px',
+          mb: 4,
+          p: 1.5,
         }}>
-          <Avatar
-            component={motion.div}
-            whileHover={{ rotate: [0, -12, 12, 0] }}
-            transition={{ duration: 0.5 }}
-            sx={{ width: 56, height: 56, bgcolor: 'rgba(var(--app-primary-rgb),0.12)' }}
-          >
-            <RestaurantIcon sx={{ fontSize: 30, color: 'var(--app-primary)' }} />
-          </Avatar>
-          <Box sx={{ minWidth: 200 }}>
-            <Typography variant="h4" sx={{ color: 'var(--app-primary)', fontWeight: 700, lineHeight: 1.1 }}>
-              Restaurant Management
-            </Typography>
-            <Typography variant="body1" sx={{ color: 'rgba(var(--app-primary-rgb),0.75)' }}>
-              Manage your menu, tables, and orders with ease
-            </Typography>
-          </Box>
-        </Box>
-        {/* Redesigned Stat Cards */}
-        <Grid
-          container
-          spacing={2.5}
-          sx={{ mb: 3 }}
-          component={motion.div}
-          variants={containerVariants}
-          initial="hidden"
-          animate="visible"
-        >
-          {[
-            { icon: <MenuIcon />, value: menuItems.length, label: 'Menu Items', color: 'var(--app-primary)', bg: 'rgba(var(--app-primary-rgb),0.12)' },
-            { icon: <TableIcon />, value: tables.length, label: 'Tables', color: '#0EA5E9', bg: 'rgba(14,165,233,0.12)' },
-            { icon: <OrderIcon />, value: orders.length, label: 'Active Orders', color: '#F59E0B', bg: 'rgba(245,158,11,0.12)' },
-            { icon: <CategoryIcon />, value: categories.length, label: 'Categories', color: '#8B5CF6', bg: 'rgba(139,92,246,0.12)' },
-          ].map((s) => (
-            <Grid item xs={6} md={3} key={s.label}>
-              <Box
-                component={motion.div}
-                variants={itemVariants}
-                whileHover={{ y: -5, scale: 1.03 }}
-                whileTap={{ scale: 0.98 }}
-                sx={{
-                p: 2.5,
-                height: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 2,
-                cursor: 'default',
-                background: 'rgba(255, 255, 255, var(--app-surface-alpha, 0.05))',
-                backdropFilter: 'var(--app-blur)',
-                border: '1px solid rgba(255, 255, 255, var(--app-surface-border-alpha, 0.08))',
-                boxShadow: '0 4px 24px rgba(0, 0, 0, 0.05), 0 0 24px rgba(var(--app-primary-rgb), 0.08), inset 0 1px 0 rgba(255, 255, 255, var(--app-surface-border-alpha, 0.08))',
-                borderRadius: 3,
-                transition: 'box-shadow 0.25s ease',
+          <Tabs
+            value={tabValue}
+            onChange={handleTabChange}
+            variant="fullWidth"
+            sx={{
+              minHeight: 0,
+              '& .MuiTab-root': {
+                borderRadius: '18px',
+                mx: 0.5,
+                minHeight: 44,
+                textTransform: 'none',
+                fontWeight: 600,
+                fontSize: '1rem',
+                color: '#23272f',
+                background: 'var(--app-glass-sheen), rgba(255, 255, 255, calc(var(--app-surface-alpha, 0.05) * 2))',
+                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                boxShadow: 'none',
                 '&:hover': {
-                  boxShadow: '0 16px 34px -10px rgba(var(--app-primary-rgb),0.28)',
+                  background: 'rgba(var(--app-primary-rgb),0.10)',
+                  color: 'var(--app-primary)',
+                  boxShadow: '0 2px 12px rgba(var(--app-primary-rgb),0.10)',
+                  transform: 'scale(1.04)',
                 },
-              }}>
-                <Avatar sx={{ bgcolor: s.bg, color: s.color, width: 48, height: 48 }}>
-                  {s.icon}
-                </Avatar>
-                <Box sx={{ minWidth: 0 }}>
-                  <Typography variant="h5" sx={{ fontWeight: 700, color: s.color, lineHeight: 1.1 }}>
-                    {s.value}
-                  </Typography>
-                  <Typography variant="body2" sx={{ color: 'text.secondary' }} noWrap>
-                    {s.label}
-                  </Typography>
-                </Box>
-              </Box>
-            </Grid>
-          ))}
-        </Grid>
-
-        <motion.div
-          initial="hidden"
-          animate="visible"
-          variants={containerVariants}
-        >
-          {/* Modern Tabs - Redesigned Glassy Tab Bar */}
-          <Box sx={{
-            background: 'rgba(255, 255, 255, var(--app-surface-alpha, 0.05))',
-            backdropFilter: 'var(--app-blur)',
-            border: '1px solid rgba(255, 255, 255, var(--app-surface-border-alpha, 0.08))',
-            boxShadow: '0 4px 24px rgba(0, 0, 0, 0.05), 0 0 24px rgba(var(--app-primary-rgb), 0.08), inset 0 1px 0 rgba(255, 255, 255, var(--app-surface-border-alpha, 0.08))',
-            borderRadius: '24px',
-            mb: 4,
-            p: 1.5,
-          }}>
-            <Tabs
-              value={tabValue}
-              onChange={handleTabChange}
-              variant="fullWidth"
-              sx={{
-                minHeight: 0,
-                '& .MuiTab-root': {
-                  borderRadius: '18px',
-                  mx: 0.5,
-                  minHeight: 44,
-                  textTransform: 'none',
-                  fontWeight: 600,
-                  fontSize: '1rem',
-                  color: '#23272f',
-                  background: 'var(--app-glass-sheen), rgba(255, 255, 255, calc(var(--app-surface-alpha, 0.05) * 2))',
-                  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                  boxShadow: 'none',
-                  '&:hover': {
-                    background: 'rgba(var(--app-primary-rgb),0.10)',
-                    color: 'var(--app-primary)',
-                    boxShadow: '0 2px 12px rgba(var(--app-primary-rgb),0.10)',
-                    transform: 'scale(1.04)',
-                  },
-                  '&.Mui-selected': {
-                    background: 'rgba(var(--app-primary-rgb),0.13)',
-                    color: 'var(--app-primary)',
-                    boxShadow: '0 2px 8px rgba(var(--app-primary-rgb),0.10)',
-                    transform: 'scale(1.02)',
-                  },
+                '&.Mui-selected': {
+                  background: 'rgba(var(--app-primary-rgb),0.13)',
+                  color: 'var(--app-primary)',
+                  boxShadow: '0 2px 8px rgba(var(--app-primary-rgb),0.10)',
+                  transform: 'scale(1.02)',
                 },
-                '& .MuiTabs-indicator': {
-                  display: 'none',
-                },
-              }}
-            >
-              <Tab icon={<MenuIcon />} label="Menu Items" iconPosition="start" />
-              <Tab icon={<TableIcon />} label="Tables" iconPosition="start" />
-              <Tab icon={<OrderIcon />} label="Orders" iconPosition="start" />
-            </Tabs>
-          </Box>
-
-          {/* Tab Content */}
-          <Box sx={{ mt: 4 }}>
-            {tabValue === 0 && renderMenuItemsTab()}
-            {tabValue === 1 && renderTablesTab()}
-            {tabValue === 2 && renderOrdersTab()}
-          </Box>
-
-          {/* Menu Item Dialog */}
-          <MenuItemDialog
-            open={openMenuItemDialog}
-            onClose={handleCloseMenuItemDialog}
-            onSubmit={handleMenuItemSubmit}
-            selectedMenuItem={selectedMenuItem}
-            menuItemForm={menuItemForm}
-            setMenuItemForm={setMenuItemForm}
-            categories={categories}
-          />
-
-          {/* Table Dialog */}
-          <TableDialog
-            open={openTableDialog}
-            onClose={handleCloseTableDialog}
-            onSubmit={handleTableSubmit}
-            selectedTable={selectedTable}
-            tableForm={tableForm}
-            setTableForm={setTableForm}
-          />
-
-          {/* Category Dialog */}
-          <CategoryDialog
-            open={openCategoryDialog}
-            onClose={handleCloseCategoryDialog}
-            onSubmit={handleCategorySubmit}
-            selectedCategory={editingCategory}
-            categoryForm={categoryForm}
-            setCategoryForm={setCategoryForm}
-          />
-
-          {/* CSV Upload Dialog */}
-          <CSVUploadDialog
-            open={openCSVDialog}
-            onClose={handleCloseCSVDialog}
-            onUpload={handleCSVUpload}
-            csvFile={csvFile}
-            onFileChange={handleCSVFileChange}
-            loading={loading}
-          />
-
-          {/* Order Creation Dialog */}
-          <OrderDialog
-            open={openOrderDialog}
-            onClose={handleCloseOrderDialog}
-            onSubmit={(e) => { if (e?.preventDefault) e.preventDefault(); handleCreateOrder(); }}
-            selectedOrder={selectedOrder}
-            orderForm={orderForm}
-            setOrderForm={setOrderForm}
-            rooms={rooms}
-            tables={tables}
-            menuFilters={renderMenuItemFilters()}
-            filteredMenuItems={filteredMenuItems}
-            selectedItems={selectedItems}
-            onItemClick={handleItemClick}
-            onQuantityChange={handleQuantityChange}
-            menuItems={menuItems}
-            totalItemsCount={getTotalItemsCount()}
-            subtotal={getSubtotal()}
-            gstAmount={getGSTAmount()}
-            totalPrice={getTotalPrice()}
-          />
-
-          {/* Snackbar for notifications */}
-          <Snackbar 
-            open={snackbar.open} 
-            autoHideDuration={6000} 
-            onClose={handleCloseSnackbar}
-            anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+              },
+              '& .MuiTabs-indicator': {
+                display: 'none',
+              },
+            }}
           >
-            <Alert 
-              onClose={handleCloseSnackbar} 
-              severity={snackbar.severity} 
-              sx={{ width: '100%' }}
-            >
-              {snackbar.message}
-            </Alert>
-          </Snackbar>
-        </motion.div>
+            <Tab icon={<MenuIcon />} label="Menu Items" iconPosition="start" />
+            <Tab icon={<TableIcon />} label="Tables" iconPosition="start" />
+            <Tab icon={<OrderIcon />} label="Orders" iconPosition="start" />
+          </Tabs>
+        </Box>
+
+        {/* Tab Content */}
+        <Box sx={{ mt: 4 }}>
+          {tabValue === 0 && renderMenuItemsTab()}
+          {tabValue === 1 && renderTablesTab()}
+          {tabValue === 2 && renderOrdersTab()}
+        </Box>
+
+        {/* Menu Item Dialog */}
+        <MenuItemDialog
+          open={openMenuItemDialog}
+          onClose={handleCloseMenuItemDialog}
+          onSubmit={handleMenuItemSubmit}
+          selectedMenuItem={selectedMenuItem}
+          menuItemForm={menuItemForm}
+          setMenuItemForm={setMenuItemForm}
+          categories={categories}
+        />
+
+        {/* Table Dialog */}
+        <TableDialog
+          open={openTableDialog}
+          onClose={handleCloseTableDialog}
+          onSubmit={handleTableSubmit}
+          selectedTable={selectedTable}
+          tableForm={tableForm}
+          setTableForm={setTableForm}
+        />
+
+        {/* Category Dialog */}
+        <CategoryDialog
+          open={openCategoryDialog}
+          onClose={handleCloseCategoryDialog}
+          onSubmit={handleCategorySubmit}
+          selectedCategory={editingCategory}
+          categoryForm={categoryForm}
+          setCategoryForm={setCategoryForm}
+        />
+
+        {/* CSV Upload Dialog */}
+        <CSVUploadDialog
+          open={openCSVDialog}
+          onClose={handleCloseCSVDialog}
+          onUpload={handleCSVUpload}
+          csvFile={csvFile}
+          onFileChange={handleCSVFileChange}
+          loading={loading}
+        />
+
+        {/* Order Creation Dialog */}
+        <OrderDialog
+          open={openOrderDialog}
+          onClose={handleCloseOrderDialog}
+          onSubmit={(e) => { if (e?.preventDefault) e.preventDefault(); handleCreateOrder(); }}
+          selectedOrder={selectedOrder}
+          orderForm={orderForm}
+          setOrderForm={setOrderForm}
+          rooms={rooms}
+          tables={tables}
+          menuFilters={renderMenuItemFilters()}
+          filteredMenuItems={filteredMenuItems}
+          selectedItems={selectedItems}
+          onItemClick={handleItemClick}
+          onQuantityChange={handleQuantityChange}
+          menuItems={menuItems}
+          totalItemsCount={getTotalItemsCount()}
+          subtotal={getSubtotal()}
+          gstAmount={getGSTAmount()}
+          totalPrice={getTotalPrice()}
+        />
+
+        {/* Snackbar for notifications */}
+        <Snackbar 
+          open={snackbar.open} 
+          autoHideDuration={6000} 
+          onClose={handleCloseSnackbar}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        >
+          <Alert 
+            onClose={handleCloseSnackbar} 
+            severity={snackbar.severity} 
+            sx={{ width: '100%' }}
+          >
+            {snackbar.message}
+          </Alert>
+        </Snackbar>
+      </motion.div>
     </PageLayout>
   );
 };

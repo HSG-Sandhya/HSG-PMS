@@ -228,12 +228,19 @@ const BookingCard = React.memo(({ booking, onUpdateStatus, onEdit, onDelete, onT
               {/* Header */}
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
                 <Box>
-                  <Typography variant="h5" fontWeight="bold" sx={{ color: accentColor }}>
+                  <Typography
+                    variant="h5"
+                    sx={{
+                      fontWeight: "bold",
+                      color: accentColor
+                    }}>
                     {booking.roomId?.roomNumber
                       ? `Room ${booking.roomId.roomNumber}`
                       : (booking.roomType || booking.roomId?.type || 'Room')}
                   </Typography>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" sx={{
+                    color: "text.secondary"
+                  }}>
                     {booking.roomId?.roomNumber
                       ? (booking.roomId?.type || booking.roomType)
                       : 'Room assigned at check-in'}
@@ -273,7 +280,9 @@ const BookingCard = React.memo(({ booking, onUpdateStatus, onEdit, onDelete, onT
                     />
                   )}
                 </Box>
-                <Stack direction="column" spacing={0.75} alignItems="flex-end">
+                <Stack direction="column" spacing={0.75} sx={{
+                  alignItems: "flex-end"
+                }}>
                   <Chip
                     label={booking.bookingStatus}
                     size="small"
@@ -314,7 +323,9 @@ const BookingCard = React.memo(({ booking, onUpdateStatus, onEdit, onDelete, onT
               {/* Guest Info */}
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
                 <PersonIcon fontSize="small" color="action" />
-                <Typography variant="subtitle1" fontWeight={600}>
+                <Typography variant="subtitle1" sx={{
+                  fontWeight: 600
+                }}>
                   {booking.guestName}
                 </Typography>
               </Box>
@@ -328,7 +339,9 @@ const BookingCard = React.memo(({ booking, onUpdateStatus, onEdit, onDelete, onT
               {/* Dates */}
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
                 <EventIcon fontSize="small" color="action" />
-                <Typography variant="body2" color="text.secondary">
+                <Typography variant="body2" sx={{
+                  color: "text.secondary"
+                }}>
                   {format(new Date(booking.checkIn), 'dd MMM yyyy')} - {format(new Date(booking.checkOut), 'dd MMM yyyy')}
                 </Typography>
               </Box>
@@ -361,7 +374,6 @@ const BookingCard = React.memo(({ booking, onUpdateStatus, onEdit, onDelete, onT
           </CardContent>
         </Card>
       </motion.div>
-
       {/* Guest Print Form Dialog */}
       <GuestPrintForm
         open={guestPrintFormOpen}
@@ -376,13 +388,16 @@ const BookingCard = React.memo(({ booking, onUpdateStatus, onEdit, onDelete, onT
 const DetailItem = ({ icon, label, value, isTotal = false }) => (
   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
     {React.cloneElement(icon, { sx: { fontSize: '14px', color: 'text.secondary' } })}
-    <Typography variant="caption" color="text.secondary">{label}</Typography>
-    <Typography 
-      variant="caption" 
-      fontWeight={isTotal ? 'bold' : 'medium'}
+    <Typography variant="caption" sx={{
+      color: "text.secondary"
+    }}>{label}</Typography>
+    <Typography
+      variant="caption"
       color={isTotal ? 'primary.main' : 'text.primary'}
-      sx={{ ml: 'auto' }}
-    >
+      sx={{
+        fontWeight: isTotal ? 'bold' : 'medium',
+        ml: 'auto'
+      }}>
       {value}
     </Typography>
   </Box>

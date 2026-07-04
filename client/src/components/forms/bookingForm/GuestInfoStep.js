@@ -28,7 +28,11 @@ const GuestInfoStep = ({
       )}
 
       <Grid container spacing={3}>
-        <Grid item xs={12} sm={6}>
+        <Grid
+          size={{
+            xs: 12,
+            sm: 6
+          }}>
           <TextField
             required
             name="guestName"
@@ -38,16 +42,22 @@ const GuestInfoStep = ({
             onChange={handleInputChange}
             variant={inputStyle}
             sx={{ borderColor: accentColor, fontFamily, fontSize }}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <PersonIcon color="action" />
-                </InputAdornment>
-              ),
+            slotProps={{
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <PersonIcon color="action" />
+                  </InputAdornment>
+                ),
+              }
             }}
           />
         </Grid>
-        <Grid item xs={12} sm={6}>
+        <Grid
+          size={{
+            xs: 12,
+            sm: 6
+          }}>
           <TextField
             required
             name="phone"
@@ -57,17 +67,23 @@ const GuestInfoStep = ({
             onChange={handleInputChange}
             variant={inputStyle}
             sx={{ borderColor: accentColor, fontFamily, fontSize }}
-            inputProps={{ maxLength: 10, inputMode: 'numeric', pattern: '[0-9]*' }}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <Typography variant="body2" color="action">+91</Typography>
-                </InputAdornment>
-              ),
-            }}
-          />
+            slotProps={{
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <Typography variant="body2" color="action">+91</Typography>
+                  </InputAdornment>
+                ),
+              },
+
+              htmlInput: { maxLength: 10, inputMode: 'numeric', pattern: '[0-9]*' }
+            }} />
         </Grid>
-        <Grid item xs={12} sm={6}>
+        <Grid
+          size={{
+            xs: 12,
+            sm: 6
+          }}>
           <TextField
             name="email"
             label="Email"
@@ -89,17 +105,23 @@ const GuestInfoStep = ({
             type="email"
             error={!!emailError}
             helperText={emailError}
-            inputProps={{ inputMode: 'email' }}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <Typography variant="body2" color="action">📧</Typography>
-                </InputAdornment>
-              ),
-            }}
-          />
+            slotProps={{
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <Typography variant="body2" color="action">📧</Typography>
+                  </InputAdornment>
+                ),
+              },
+
+              htmlInput: { inputMode: 'email' }
+            }} />
         </Grid>
-        <Grid item xs={12} sm={6}>
+        <Grid
+          size={{
+            xs: 12,
+            sm: 6
+          }}>
           <TextField
             name="age"
             label="Age"
@@ -109,16 +131,22 @@ const GuestInfoStep = ({
             onChange={handleInputChange}
             variant={inputStyle}
             sx={{ borderColor: accentColor, fontFamily, fontSize }}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <Typography variant="body2" color="action">🎂</Typography>
-                </InputAdornment>
-              ),
+            slotProps={{
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <Typography variant="body2" color="action">🎂</Typography>
+                  </InputAdornment>
+                ),
+              }
             }}
           />
         </Grid>
-        <Grid item xs={12} sm={6}>
+        <Grid
+          size={{
+            xs: 12,
+            sm: 6
+          }}>
           <FormControl fullWidth>
             <InputLabel>Gender</InputLabel>
             <Select
@@ -128,7 +156,9 @@ const GuestInfoStep = ({
               label="Gender"
               variant={inputStyle}
               sx={{ borderColor: accentColor, fontFamily, fontSize }}
-              MenuProps={{ PaperProps: { sx: { backgroundColor: '#fff' } } }}
+              MenuProps={{ slotProps: {
+                paper: { sx: { backgroundColor: '#fff' } }
+              } }}
             >
               <MenuItem value="">Select Gender</MenuItem>
               <MenuItem value="Male">Male</MenuItem>
@@ -137,7 +167,11 @@ const GuestInfoStep = ({
             </Select>
           </FormControl>
         </Grid>
-        <Grid item xs={12} sm={6}>
+        <Grid
+          size={{
+            xs: 12,
+            sm: 6
+          }}>
           <TextField
             name="nationality"
             label="Nationality"
@@ -146,16 +180,22 @@ const GuestInfoStep = ({
             onChange={handleInputChange}
             variant={inputStyle}
             sx={{ borderColor: accentColor, fontFamily, fontSize }}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <PublicIcon fontSize="small" color="action" />
-                </InputAdornment>
-              ),
+            slotProps={{
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <PublicIcon fontSize="small" color="action" />
+                  </InputAdornment>
+                ),
+              }
             }}
           />
         </Grid>
-        <Grid item xs={12} sm={6}>
+        <Grid
+          size={{
+            xs: 12,
+            sm: 6
+          }}>
           <FormControl fullWidth>
             <InputLabel>Guest Type</InputLabel>
             <Select
@@ -165,7 +205,9 @@ const GuestInfoStep = ({
               label="Guest Type"
               variant={inputStyle}
               sx={{ borderColor: accentColor, fontFamily, fontSize }}
-              MenuProps={{ PaperProps: { sx: { backgroundColor: '#fff' } } }}
+              MenuProps={{ slotProps: {
+                paper: { sx: { backgroundColor: '#fff' } }
+              } }}
             >
               <MenuItem value="Individual">Individual</MenuItem>
               <MenuItem value="Corporate">Corporate</MenuItem>

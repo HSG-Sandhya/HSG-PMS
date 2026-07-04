@@ -80,13 +80,16 @@ const FormDialog = ({
       onClose={onClose}
       maxWidth={maxWidth}
       fullWidth
-      PaperProps={{ sx: dialogPaperSx(isDark) }}
-      BackdropProps={{ sx: dialogBackdropSx }}
       {...dialogProps}
-    >
+      slotProps={{
+        backdrop: { sx: dialogBackdropSx },
+        paper: { sx: dialogPaperSx(isDark) }
+      }}>
       {(title || icon || eyebrow) && (
         <Box sx={headerWrapSx(isDark)}>
-          <Stack direction="row" alignItems="center" spacing={2}>
+          <Stack direction="row" spacing={2} sx={{
+            alignItems: "center"
+          }}>
             {icon && (
               <Box sx={{
                 width: 48,
@@ -114,7 +117,6 @@ const FormDialog = ({
           </Stack>
         </Box>
       )}
-
       <DialogContent sx={{ px: { xs: 3, sm: 4 }, py: 3 }}>
         <motion.div
           initial={{ opacity: 0, y: 24 }}
@@ -130,7 +132,6 @@ const FormDialog = ({
           )}
         </motion.div>
       </DialogContent>
-
       {!hideActions && (
         <DialogActions sx={actionsBarSx(isDark)}>
           {extraActions}

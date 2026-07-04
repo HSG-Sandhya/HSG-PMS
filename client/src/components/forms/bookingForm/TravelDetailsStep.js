@@ -30,7 +30,11 @@ const TravelDetailsStep = ({
         </Typography>
         <Divider sx={{ mb: 3 }} />
         <Grid container spacing={3}>
-          <Grid item xs={12} sm={6}>
+          <Grid
+            size={{
+              xs: 12,
+              sm: 6
+            }}>
             <TextField
               name="customerOrigin"
               label="Where customer comes from"
@@ -40,16 +44,22 @@ const TravelDetailsStep = ({
               variant={inputStyle}
               sx={fieldSx}
               placeholder="e.g., Mumbai, Maharashtra"
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <FlightTakeoffIcon color="action" />
-                  </InputAdornment>
-                ),
+              slotProps={{
+                input: {
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <FlightTakeoffIcon color="action" />
+                    </InputAdornment>
+                  ),
+                }
               }}
             />
           </Grid>
-          <Grid item xs={12} sm={6}>
+          <Grid
+            size={{
+              xs: 12,
+              sm: 6
+            }}>
             <TextField
               name="customerDestination"
               label="Where customer is going"
@@ -59,16 +69,22 @@ const TravelDetailsStep = ({
               variant={inputStyle}
               sx={fieldSx}
               placeholder="e.g., Delhi, NCR"
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <FlightLandIcon color="action" />
-                  </InputAdornment>
-                ),
+              slotProps={{
+                input: {
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <FlightLandIcon color="action" />
+                    </InputAdornment>
+                  ),
+                }
               }}
             />
           </Grid>
-          <Grid item xs={12} sm={6}>
+          <Grid
+            size={{
+              xs: 12,
+              sm: 6
+            }}>
             <FormControl fullWidth>
               <InputLabel>Travel Mode</InputLabel>
               <Select
@@ -78,7 +94,9 @@ const TravelDetailsStep = ({
                 label="Travel Mode"
                 variant={inputStyle}
                 sx={fieldSx}
-                MenuProps={{ PaperProps: { sx: { backgroundColor: '#fff' } } }}
+                MenuProps={{ slotProps: {
+                  paper: { sx: { backgroundColor: '#fff' } }
+                } }}
               >
                 <MenuItem value="">Select Travel Mode</MenuItem>
                 {travelModes.map((mode) => (
@@ -91,7 +109,11 @@ const TravelDetailsStep = ({
               </Select>
             </FormControl>
           </Grid>
-          <Grid item xs={12} sm={6}>
+          <Grid
+            size={{
+              xs: 12,
+              sm: 6
+            }}>
             <FormControl fullWidth>
               <InputLabel>Purpose of Visit</InputLabel>
               <Select
@@ -101,7 +123,9 @@ const TravelDetailsStep = ({
                 label="Purpose of Visit"
                 variant={inputStyle}
                 sx={fieldSx}
-                MenuProps={{ PaperProps: { sx: { backgroundColor: '#fff' } } }}
+                MenuProps={{ slotProps: {
+                  paper: { sx: { backgroundColor: '#fff' } }
+                } }}
               >
                 <MenuItem value="">Select Purpose</MenuItem>
                 {purposeOfVisitOptions.map((purpose) => (
@@ -121,19 +145,39 @@ const TravelDetailsStep = ({
           </Typography>
           <Divider sx={{ mb: 3 }} />
           <Grid container spacing={3}>
-            <Grid item xs={12} sm={6}>
+            <Grid
+              size={{
+                xs: 12,
+                sm: 6
+              }}>
               <TextField name="streetName" label="Street Name" fullWidth value={formData.streetName || ''} onChange={handleInputChange} variant={inputStyle} sx={fieldSx} />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid
+              size={{
+                xs: 12,
+                sm: 6
+              }}>
               <TextField name="area" label="Area" fullWidth value={formData.area || ''} onChange={handleInputChange} variant={inputStyle} sx={fieldSx} />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid
+              size={{
+                xs: 12,
+                sm: 6
+              }}>
               <TextField name="district" label="District" fullWidth value={formData.district || ''} onChange={handleInputChange} variant={inputStyle} sx={fieldSx} />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid
+              size={{
+                xs: 12,
+                sm: 6
+              }}>
               <TextField name="state" label="State" fullWidth value={formData.state || ''} onChange={handleInputChange} variant={inputStyle} sx={fieldSx} />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid
+              size={{
+                xs: 12,
+                sm: 6
+              }}>
               <TextField
                 name="pincode"
                 label="Pincode"
@@ -166,15 +210,17 @@ const TravelDetailsStep = ({
                 }}
                 variant={inputStyle}
                 sx={fieldSx}
-                inputProps={{ maxLength: 6, inputMode: 'numeric', pattern: '[0-9]*' }}
-                InputProps={{
-                  endAdornment: pincodeLoading ? (
-                    <InputAdornment position="end">
-                      <Typography variant="body2" color="action">🔄</Typography>
-                    </InputAdornment>
-                  ) : null,
-                }}
-              />
+                slotProps={{
+                  input: {
+                    endAdornment: pincodeLoading ? (
+                      <InputAdornment position="end">
+                        <Typography variant="body2" color="action">🔄</Typography>
+                      </InputAdornment>
+                    ) : null,
+                  },
+
+                  htmlInput: { maxLength: 6, inputMode: 'numeric', pattern: '[0-9]*' }
+                }} />
             </Grid>
           </Grid>
         </Box>

@@ -100,8 +100,19 @@ const EventPackagesManager = ({ halls = [], onNotify }) => {
 
   return (
     <Box>
-      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
-        <Typography variant="h6" fontWeight={800} sx={{ color: 'var(--app-primary)' }}>
+      <Stack
+        direction="row"
+        sx={{
+          justifyContent: "space-between",
+          alignItems: "center",
+          mb: 3
+        }}>
+        <Typography
+          variant="h6"
+          sx={{
+            fontWeight: 800,
+            color: 'var(--app-primary)'
+          }}>
           Event Packages
         </Typography>
         <Button variant="contained" startIcon={<AddIcon />} onClick={openNew}
@@ -110,25 +121,44 @@ const EventPackagesManager = ({ halls = [], onNotify }) => {
           New Package
         </Button>
       </Stack>
-
       {packages.length === 0 ? (
         <Box sx={{ textAlign: 'center', py: 8, border: '1px dashed', borderColor: 'divider', borderRadius: 3 }}>
           <Inventory2OutlinedIcon sx={{ fontSize: 56, color: 'text.disabled', mb: 1 }} />
-          <Typography color="text.secondary">No packages yet. Create one to speed up event bookings.</Typography>
+          <Typography sx={{
+            color: "text.secondary"
+          }}>No packages yet. Create one to speed up event bookings.</Typography>
         </Box>
       ) : (
         <Grid container spacing={2}>
           {packages.map((p) => (
-            <Grid item xs={12} sm={6} md={4} key={p._id}>
+            <Grid
+              key={p._id}
+              size={{
+                xs: 12,
+                sm: 6,
+                md: 4
+              }}>
               <Card sx={{ borderRadius: 3, height: '100%', position: 'relative', overflow: 'hidden' }}>
                 <Box sx={{ height: 4, background: 'linear-gradient(90deg, var(--app-primary), var(--app-secondary, #EC4899))' }} />
                 <CardContent>
-                  <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
-                    <Typography variant="h6" fontWeight={800}>{p.name}</Typography>
+                  <Stack
+                    direction="row"
+                    sx={{
+                      justifyContent: "space-between",
+                      alignItems: "flex-start"
+                    }}>
+                    <Typography variant="h6" sx={{
+                      fontWeight: 800
+                    }}>{p.name}</Typography>
                     {!p.isActive && <Chip size="small" label="Inactive" sx={{ height: 20 }} />}
                   </Stack>
                   {p.description && (
-                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>{p.description}</Typography>
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        color: "text.secondary",
+                        mt: 0.5
+                      }}>{p.description}</Typography>
                   )}
                   <Stack direction="row" spacing={1} sx={{ mt: 1.5, flexWrap: 'wrap', gap: 0.5 }}>
                     {(p.eventTypes || []).map((t) => (
@@ -145,11 +175,23 @@ const EventPackagesManager = ({ halls = [], onNotify }) => {
                   {(p.inclusions || []).length > 0 && (
                     <Box sx={{ mt: 1.5 }}>
                       {p.inclusions.slice(0, 4).map((inc, i) => (
-                        <Typography key={i} variant="caption" display="block" color="text.secondary">• {inc}</Typography>
+                        <Typography
+                          key={i}
+                          variant="caption"
+                          sx={{
+                            display: "block",
+                            color: "text.secondary"
+                          }}>• {inc}</Typography>
                       ))}
                     </Box>
                   )}
-                  <Stack direction="row" justifyContent="flex-end" spacing={0.5} sx={{ mt: 1 }}>
+                  <Stack
+                    direction="row"
+                    spacing={0.5}
+                    sx={{
+                      justifyContent: "flex-end",
+                      mt: 1
+                    }}>
                     <Tooltip title="Edit"><IconButton size="small" onClick={() => openEdit(p)} sx={{ color: 'var(--app-primary)' }}><EditIcon fontSize="small" /></IconButton></Tooltip>
                     <Tooltip title="Delete"><IconButton size="small" onClick={() => handleDelete(p)} sx={{ color: '#ef4444' }}><DeleteIcon fontSize="small" /></IconButton></Tooltip>
                   </Stack>
@@ -159,7 +201,6 @@ const EventPackagesManager = ({ halls = [], onNotify }) => {
           ))}
         </Grid>
       )}
-
       <FormDialog
         open={dialogOpen}
         onClose={saving ? undefined : () => setDialogOpen(false)}
@@ -173,35 +214,65 @@ const EventPackagesManager = ({ halls = [], onNotify }) => {
       >
         <FormSection title="Package Details" icon={<Inventory2OutlinedIcon fontSize="small" />} iconColor="#8b5cf6">
           <Grid container spacing={2} sx={{ mt: 0 }}>
-            <Grid item xs={12}><TextField fullWidth label="Package name" value={form.name} onChange={(e) => set('name', e.target.value)} required /></Grid>
-            <Grid item xs={12}><TextField fullWidth label="Description" value={form.description} onChange={(e) => set('description', e.target.value)} multiline rows={2} /></Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField select fullWidth label="Applicable event types" SelectProps={{ multiple: true, renderValue: (v) => v.join(', ') }}
-                value={form.eventTypes} onChange={(e) => set('eventTypes', e.target.value)}>
+            <Grid size={12}><TextField fullWidth label="Package name" value={form.name} onChange={(e) => set('name', e.target.value)} required /></Grid>
+            <Grid size={12}><TextField fullWidth label="Description" value={form.description} onChange={(e) => set('description', e.target.value)} multiline rows={2} /></Grid>
+            <Grid
+              size={{
+                xs: 12,
+                sm: 6
+              }}>
+              <TextField select fullWidth label="Applicable event types" value={form.eventTypes}
+                onChange={(e) => set('eventTypes', e.target.value)} slotProps={{
+                select: { multiple: true, renderValue: (v) => v.join(', ') }
+              }}>
                 {EVENT_TYPES.map((t) => <MenuItem key={t} value={t}>{t}</MenuItem>)}
               </TextField>
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid
+              size={{
+                xs: 12,
+                sm: 6
+              }}>
               <TextField select fullWidth label="Default hall (optional)" value={form.hallId} onChange={(e) => set('hallId', e.target.value)}>
                 <MenuItem value="">— None —</MenuItem>
                 {halls.map((h) => <MenuItem key={h._id} value={h._id}>{h.name}</MenuItem>)}
               </TextField>
             </Grid>
-            <Grid item xs={6} sm={4}><TextField fullWidth type="number" label={`Per plate ${currencySym()}`} value={form.pricePerPlate} onChange={(e) => set('pricePerPlate', e.target.value)} /></Grid>
-            <Grid item xs={6} sm={4}><TextField fullWidth type="number" label={`Base / venue ${currencySym()}`} value={form.basePrice} onChange={(e) => set('basePrice', e.target.value)} /></Grid>
-            <Grid item xs={6} sm={4}><TextField fullWidth type="number" label={`Decor cost ${currencySym()}`} value={form.decorationCost} onChange={(e) => set('decorationCost', e.target.value)} /></Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid
+              size={{
+                xs: 6,
+                sm: 4
+              }}><TextField fullWidth type="number" label={`Per plate ${currencySym()}`} value={form.pricePerPlate} onChange={(e) => set('pricePerPlate', e.target.value)} /></Grid>
+            <Grid
+              size={{
+                xs: 6,
+                sm: 4
+              }}><TextField fullWidth type="number" label={`Base / venue ${currencySym()}`} value={form.basePrice} onChange={(e) => set('basePrice', e.target.value)} /></Grid>
+            <Grid
+              size={{
+                xs: 6,
+                sm: 4
+              }}><TextField fullWidth type="number" label={`Decor cost ${currencySym()}`} value={form.decorationCost} onChange={(e) => set('decorationCost', e.target.value)} /></Grid>
+            <Grid
+              size={{
+                xs: 12,
+                sm: 6
+              }}>
               <TextField select fullWidth label="Decoration type" value={form.decorationType} onChange={(e) => set('decorationType', e.target.value)}>
                 {DECOR.map((d) => <MenuItem key={d} value={d}>{d}</MenuItem>)}
               </TextField>
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid
+              size={{
+                xs: 12,
+                sm: 6
+              }}>
               <TextField select fullWidth label="Status" value={form.isActive ? 'active' : 'inactive'} onChange={(e) => set('isActive', e.target.value === 'active')}>
                 <MenuItem value="active">Active</MenuItem>
                 <MenuItem value="inactive">Inactive</MenuItem>
               </TextField>
             </Grid>
-            <Grid item xs={12}>
+            <Grid size={12}>
               <TextField fullWidth label="Inclusions (one per line)" multiline rows={3}
                 value={Array.isArray(form.inclusions) ? form.inclusions.join('\n') : form.inclusions}
                 onChange={(e) => set('inclusions', e.target.value.split('\n'))}
@@ -215,9 +286,15 @@ const EventPackagesManager = ({ halls = [], onNotify }) => {
 };
 
 const Row = ({ label, value }) => (
-  <Stack direction="row" justifyContent="space-between">
-    <Typography variant="caption" color="text.secondary">{label}</Typography>
-    <Typography variant="caption" fontWeight={700}>{value}</Typography>
+  <Stack direction="row" sx={{
+    justifyContent: "space-between"
+  }}>
+    <Typography variant="caption" sx={{
+      color: "text.secondary"
+    }}>{label}</Typography>
+    <Typography variant="caption" sx={{
+      fontWeight: 700
+    }}>{value}</Typography>
   </Stack>
 );
 

@@ -22,7 +22,13 @@ export const PremiumSection = ({ index, icon, title, subtitle, action, children,
   const isDark = theme.palette.mode === 'dark';
   return (
     <Box sx={{ ...premiumCardSx(isDark), ...(sx || {}) }}>
-      <Stack direction="row" alignItems="center" spacing={1.5} sx={{ mb: 2.5 }}>
+      <Stack
+        direction="row"
+        spacing={1.5}
+        sx={{
+          alignItems: "center",
+          mb: 2.5
+        }}>
         <Box
           sx={{
             position: 'relative',

@@ -238,493 +238,501 @@ const Reservations = () => {
 
   return (
     <PageLayout>
-        {/* Header Section */}
-        <Box sx={{
-          flexWrap: 'wrap',
-          gap: 2,
-          p: { xs: 2, md: 2.5 },
-          borderRadius: 3,
-          background: 'rgba(255, 255, 255, var(--app-surface-alpha, 0.05))',
-          backdropFilter: 'var(--app-blur)',
-          WebkitBackdropFilter: 'var(--app-blur)',
-          border: '1px solid rgba(255, 255, 255, var(--app-surface-border-alpha, 0.08))',
-          boxShadow: '0 4px 24px rgba(0, 0, 0, 0.05), 0 0 24px rgba(var(--app-primary-rgb), 0.08), inset 0 1px 0 rgba(255, 255, 255, var(--app-surface-border-alpha, 0.08))',
-          display: 'flex',
-          justifyContent: 'space-between',
+      {/* Header Section */}
+      <Box sx={{
+        flexWrap: 'wrap',
+        gap: 2,
+        p: { xs: 2, md: 2.5 },
+        borderRadius: 3,
+        background: 'rgba(255, 255, 255, var(--app-surface-alpha, 0.05))',
+        backdropFilter: 'var(--app-blur)',
+        WebkitBackdropFilter: 'var(--app-blur)',
+        border: '1px solid rgba(255, 255, 255, var(--app-surface-border-alpha, 0.08))',
+        boxShadow: '0 4px 24px rgba(0, 0, 0, 0.05), 0 0 24px rgba(var(--app-primary-rgb), 0.08), inset 0 1px 0 rgba(255, 255, 255, var(--app-surface-border-alpha, 0.08))',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        mb: 4,
+      }}>
+        <Box sx={{ 
+          display: 'flex', 
           alignItems: 'center',
-          mb: 4,
+          gap: 2,
         }}>
-          <Box sx={{ 
-            display: 'flex', 
-            alignItems: 'center',
-            gap: 2,
+          <CalendarMonthIcon sx={{ 
+            fontSize: 42,
+            color: '#23272f',
+            fontWeight: 300,
+          }} />
+          <Box sx={{
+            display: 'flex',
+            flexDirection: 'column',
           }}>
-            <CalendarMonthIcon sx={{ 
-              fontSize: 42,
-              color: '#23272f',
-              fontWeight: 300,
-            }} />
-            <Box sx={{
-              display: 'flex',
-              flexDirection: 'column',
+            <Typography variant="h4" sx={{
+              fontFamily: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+              fontWeight: 600,
+              letterSpacing: '-0.5px',
+              color: 'var(--app-primary)',
+              lineHeight: 1.2,
             }}>
-              <Typography variant="h4" sx={{
-                fontFamily: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-                fontWeight: 600,
-                letterSpacing: '-0.5px',
-                color: 'var(--app-primary)',
-                lineHeight: 1.2,
-              }}>
-                Room Reservations
-              </Typography>
-              <Typography variant="caption" sx={{
-                fontFamily: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-                color: 'rgba(255,255,255,0.6)',
-                letterSpacing: '0.2px',
-                fontWeight: 500,
-              }}>
-                Calendar View
-              </Typography>
-            </Box>
+              Room Reservations
+            </Typography>
+            <Typography variant="caption" sx={{
+              fontFamily: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+              color: 'rgba(255,255,255,0.6)',
+              letterSpacing: '0.2px',
+              fontWeight: 500,
+            }}>
+              Calendar View
+            </Typography>
           </Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-            {/* Date range pill */}
+        </Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          {/* Date range pill */}
+          <Box
+            sx={{
+              px: 1.75,
+              py: 0.9,
+              borderRadius: 999,
+              background: 'rgba(var(--app-primary-rgb), 0.12)',
+              color: 'var(--app-primary)',
+              border: '1px solid rgba(var(--app-primary-rgb), 0.25)',
+              fontSize: 13,
+              fontWeight: 700,
+              letterSpacing: '-0.01em',
+              display: { xs: 'none', md: 'inline-flex' },
+              alignItems: 'center',
+              gap: 1,
+            }}
+          >
+            <CalendarMonthIcon sx={{ fontSize: 16 }} />
+            {format(startDate, 'd MMM')} — {format(addDays(startDate, daysToShow - 1), 'd MMM yyyy')}
+          </Box>
+
+          {/* Range toggle — segmented pill */}
+          <Box
+            sx={{
+              display: 'inline-flex',
+              p: 0.5,
+              borderRadius: 999,
+              background: 'rgba(255, 255, 255, var(--app-surface-border-alpha, 0.08))',
+              border: '1px solid rgba(255, 255, 255, var(--app-surface-border-alpha, 0.08))',
+            }}
+          >
+            {[
+              { label: 'Week',    value: 7 },
+              { label: '2 Weeks', value: 14 },
+              { label: 'Month',   value: 30 },
+            ].map((opt) => {
+              const selected = daysToShow === opt.value;
+              return (
+                <Box
+                  key={opt.value}
+                  component="button"
+                  type="button"
+                  onClick={() => setDaysToShow(opt.value)}
+                  sx={{
+                    px: 1.75,
+                    py: 0.6,
+                    border: 'none',
+                    borderRadius: 999,
+                    cursor: 'pointer',
+                    fontFamily: 'inherit',
+                    fontSize: 12.5,
+                    fontWeight: 700,
+                    letterSpacing: '0.02em',
+                    color: selected ? '#fff' : 'text.secondary',
+                    background: selected ? 'var(--app-primary)' : 'transparent',
+                    boxShadow: selected ? '0 6px 14px -6px rgba(var(--app-primary-rgb), 0.55)' : 'none',
+                    transition: 'all .15s ease',
+                    '&:hover': {
+                      background: selected ? 'var(--app-primary)' : 'rgba(var(--app-primary-rgb), 0.08)',
+                    },
+                  }}
+                >
+                  {opt.label}
+                </Box>
+              );
+            })}
+          </Box>
+
+          {/* Nav arrows + refresh as icon pill */}
+          <Box
+            sx={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              p: 0.4,
+              borderRadius: 999,
+              background: 'rgba(255, 255, 255, var(--app-surface-border-alpha, 0.08))',
+              border: '1px solid rgba(255, 255, 255, var(--app-surface-border-alpha, 0.08))',
+            }}
+          >
+            <Tooltip title="Previous">
+              <IconButton size="small" onClick={handlePreviousPeriod} sx={{ color: 'text.secondary' }}>
+                <NavigateBeforeIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
             <Box
+              component="button"
+              type="button"
+              onClick={() => setStartDate(startOfDay(new Date()))}
               sx={{
-                px: 1.75,
-                py: 0.9,
-                borderRadius: 999,
-                background: 'rgba(var(--app-primary-rgb), 0.12)',
-                color: 'var(--app-primary)',
-                border: '1px solid rgba(var(--app-primary-rgb), 0.25)',
-                fontSize: 13,
+                px: 1.5,
+                py: 0.4,
+                border: 'none',
+                background: 'transparent',
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+                fontSize: 11.5,
                 fontWeight: 700,
-                letterSpacing: '-0.01em',
-                display: { xs: 'none', md: 'inline-flex' },
-                alignItems: 'center',
-                gap: 1,
-              }}
-            >
-              <CalendarMonthIcon sx={{ fontSize: 16 }} />
-              {format(startDate, 'd MMM')} — {format(addDays(startDate, daysToShow - 1), 'd MMM yyyy')}
-            </Box>
-
-            {/* Range toggle — segmented pill */}
-            <Box
-              sx={{
-                display: 'inline-flex',
-                p: 0.5,
+                letterSpacing: '0.04em',
+                textTransform: 'uppercase',
+                color: 'var(--app-primary)',
                 borderRadius: 999,
-                background: 'rgba(255, 255, 255, var(--app-surface-border-alpha, 0.08))',
-                border: '1px solid rgba(255, 255, 255, var(--app-surface-border-alpha, 0.08))',
+                '&:hover': { background: 'rgba(var(--app-primary-rgb), 0.1)' },
               }}
             >
-              {[
-                { label: 'Week',    value: 7 },
-                { label: '2 Weeks', value: 14 },
-                { label: 'Month',   value: 30 },
-              ].map((opt) => {
-                const selected = daysToShow === opt.value;
-                return (
-                  <Box
-                    key={opt.value}
-                    component="button"
-                    type="button"
-                    onClick={() => setDaysToShow(opt.value)}
-                    sx={{
-                      px: 1.75,
-                      py: 0.6,
-                      border: 'none',
-                      borderRadius: 999,
-                      cursor: 'pointer',
-                      fontFamily: 'inherit',
-                      fontSize: 12.5,
-                      fontWeight: 700,
-                      letterSpacing: '0.02em',
-                      color: selected ? '#fff' : 'text.secondary',
-                      background: selected ? 'var(--app-primary)' : 'transparent',
-                      boxShadow: selected ? '0 6px 14px -6px rgba(var(--app-primary-rgb), 0.55)' : 'none',
-                      transition: 'all .15s ease',
-                      '&:hover': {
-                        background: selected ? 'var(--app-primary)' : 'rgba(var(--app-primary-rgb), 0.08)',
-                      },
-                    }}
-                  >
-                    {opt.label}
-                  </Box>
-                );
-              })}
+              Today
             </Box>
-
-            {/* Nav arrows + refresh as icon pill */}
-            <Box
-              sx={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                p: 0.4,
-                borderRadius: 999,
-                background: 'rgba(255, 255, 255, var(--app-surface-border-alpha, 0.08))',
-                border: '1px solid rgba(255, 255, 255, var(--app-surface-border-alpha, 0.08))',
-              }}
-            >
-              <Tooltip title="Previous">
-                <IconButton size="small" onClick={handlePreviousPeriod} sx={{ color: 'text.secondary' }}>
-                  <NavigateBeforeIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
-              <Box
-                component="button"
-                type="button"
-                onClick={() => setStartDate(startOfDay(new Date()))}
-                sx={{
-                  px: 1.5,
-                  py: 0.4,
-                  border: 'none',
-                  background: 'transparent',
-                  cursor: 'pointer',
-                  fontFamily: 'inherit',
-                  fontSize: 11.5,
-                  fontWeight: 700,
-                  letterSpacing: '0.04em',
-                  textTransform: 'uppercase',
-                  color: 'var(--app-primary)',
-                  borderRadius: 999,
-                  '&:hover': { background: 'rgba(var(--app-primary-rgb), 0.1)' },
-                }}
-              >
-                Today
-              </Box>
-              <Tooltip title="Next">
-                <IconButton size="small" onClick={handleNextPeriod} sx={{ color: 'text.secondary' }}>
-                  <NavigateNextIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
-            </Box>
-
-            <Tooltip title="Refresh">
-              <IconButton
-                onClick={() => { fetchBookings(); fetchRooms(); }}
-                sx={{
-                  background: 'var(--app-primary)',
-                  color: '#fff',
-                  boxShadow: '0 6px 14px -6px rgba(var(--app-primary-rgb), 0.55)',
-                  '&:hover': { background: 'var(--app-primary)', filter: 'brightness(1.08)' },
-                }}
-              >
-                <RefreshIcon fontSize="small" />
+            <Tooltip title="Next">
+              <IconButton size="small" onClick={handleNextPeriod} sx={{ color: 'text.secondary' }}>
+                <NavigateNextIcon fontSize="small" />
               </IconButton>
             </Tooltip>
           </Box>
-        </Box>
 
-        {loading ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', p: 5 }}>
-            <CircularProgress />
-          </Box>
-        ) : (
-          <Box sx={{
-            background: 'rgba(255, 255, 255, calc(var(--app-surface-alpha, 0.05) * 2))',
-            backdropFilter: 'var(--app-blur-strong)',
-            WebkitBackdropFilter: 'var(--app-blur-strong)',
-            border: '1.5px solid rgba(255,255,255,0.18)',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.10)',
-            minHeight: '80vh',
-            p: { xs: 2, md: 6 },
-            borderRadius: 4,
-            width: '100%',
-            color: '#23272f',
-          }}>
-            <Box sx={{ width: '100%' }}>
-              {/* Header with dates */}
+          <Tooltip title="Refresh">
+            <IconButton
+              onClick={() => { fetchBookings(); fetchRooms(); }}
+              sx={{
+                background: 'var(--app-primary)',
+                color: '#fff',
+                boxShadow: '0 6px 14px -6px rgba(var(--app-primary-rgb), 0.55)',
+                '&:hover': { background: 'var(--app-primary)', filter: 'brightness(1.08)' },
+              }}
+            >
+              <RefreshIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        </Box>
+      </Box>
+      {loading ? (
+        <Box sx={{ display: 'flex', justifyContent: 'center', p: 5 }}>
+          <CircularProgress />
+        </Box>
+      ) : (
+        <Box sx={{
+          background: 'rgba(255, 255, 255, calc(var(--app-surface-alpha, 0.05) * 2))',
+          backdropFilter: 'var(--app-blur-strong)',
+          WebkitBackdropFilter: 'var(--app-blur-strong)',
+          border: '1.5px solid rgba(255,255,255,0.18)',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.10)',
+          minHeight: '80vh',
+          p: { xs: 2, md: 6 },
+          borderRadius: 4,
+          width: '100%',
+          color: '#23272f',
+        }}>
+          <Box sx={{ width: '100%' }}>
+            {/* Header with dates */}
+            <Grid
+              container
+              sx={{
+                position: 'sticky',
+                top: 0,
+                zIndex: 2,
+                background: 'rgba(255, 255, 255, calc(var(--app-surface-alpha, 0.05) * 3))',
+                backdropFilter: 'var(--app-blur)',
+                WebkitBackdropFilter: 'var(--app-blur)',
+                borderRadius: 2,
+                border: '1px solid rgba(255, 255, 255, var(--app-surface-border-alpha, 0.08))',
+                overflow: 'hidden',
+                mb: 1.5,
+              }}
+            >
+              {/* Room column header */}
               <Grid
-                container
                 sx={{
-                  position: 'sticky',
-                  top: 0,
-                  zIndex: 2,
-                  background: 'rgba(255, 255, 255, calc(var(--app-surface-alpha, 0.05) * 3))',
-                  backdropFilter: 'var(--app-blur)',
-                  WebkitBackdropFilter: 'var(--app-blur)',
-                  borderRadius: 2,
-                  border: '1px solid rgba(255, 255, 255, var(--app-surface-border-alpha, 0.08))',
-                  overflow: 'hidden',
-                  mb: 1.5,
-                }}
-              >
-                {/* Room column header */}
-                <Grid item xs={2} sx={{
                   borderRight: `1px solid ${theme.palette.divider}`,
                   p: 1.5,
                   display: 'flex',
                   alignItems: 'center',
                   gap: 1,
+                }}
+                size={2}>
+                <HotelIcon sx={{ fontSize: 18, color: 'var(--app-primary)' }} />
+                <Typography sx={{
+                  fontSize: 11,
+                  fontWeight: 700,
+                  letterSpacing: '0.12em',
+                  textTransform: 'uppercase',
+                  color: 'text.secondary',
                 }}>
-                  <HotelIcon sx={{ fontSize: 18, color: 'var(--app-primary)' }} />
-                  <Typography sx={{
-                    fontSize: 11,
-                    fontWeight: 700,
-                    letterSpacing: '0.12em',
-                    textTransform: 'uppercase',
-                    color: 'text.secondary',
-                  }}>
-                    Rooms
-                  </Typography>
-                </Grid>
+                  Rooms
+                </Typography>
+              </Grid>
 
-                {/* Date headers */}
-                <Grid item xs={10}>
-                  <Grid container>
-                    {dates.map((date, index) => {
-                      const today = isToday(date);
-                      const weekend = isWeekend(date);
-                      return (
-                        <Grid
-                          item
-                          key={index}
-                          sx={{
-                            width: `${100 / daysToShow}%`,
-                            p: 1,
-                            textAlign: 'center',
-                            borderRight: index < dates.length - 1 ? `1px solid ${theme.palette.divider}` : 'none',
-                            bgcolor: today
-                              ? 'rgba(var(--app-primary-rgb), 0.15)'
-                              : (weekend ? 'rgba(0,0,0,0.025)' : 'transparent'),
-                          }}
-                        >
-                          <Typography sx={{
-                            fontSize: 10,
-                            fontWeight: 700,
-                            letterSpacing: '0.08em',
-                            textTransform: 'uppercase',
-                            color: today ? 'var(--app-primary)' : 'text.secondary',
-                          }}>
-                            {format(date, 'EEE')}
-                          </Typography>
-                          <Typography sx={{
-                            fontSize: today ? 20 : 18,
-                            fontWeight: 800,
-                            color: today ? 'var(--app-primary)' : 'text.primary',
-                            lineHeight: 1.1,
-                            mt: 0.25,
-                          }}>
-                            {format(date, 'dd')}
-                          </Typography>
-                          <Typography sx={{
-                            fontSize: 9.5,
-                            color: 'text.secondary',
-                            letterSpacing: '0.04em',
-                            textTransform: 'uppercase',
-                            mt: 0.25,
-                          }}>
-                            {format(date, 'MMM')}
-                          </Typography>
-                          {today && (
-                            <Box sx={{
-                              width: 6,
-                              height: 6,
-                              mx: 'auto',
-                              mt: 0.5,
-                              borderRadius: '50%',
-                              bgcolor: 'var(--app-primary)',
-                              boxShadow: '0 0 6px var(--app-primary)',
-                            }} />
-                          )}
-                        </Grid>
-                      );
-                    })}
-                  </Grid>
+              {/* Date headers */}
+              <Grid size={10}>
+                <Grid container>
+                  {dates.map((date, index) => {
+                    const today = isToday(date);
+                    const weekend = isWeekend(date);
+                    return (
+                      <Grid
+                        key={index}
+                        sx={{
+                          width: `${100 / daysToShow}%`,
+                          p: 1,
+                          textAlign: 'center',
+                          borderRight: index < dates.length - 1 ? `1px solid ${theme.palette.divider}` : 'none',
+                          bgcolor: today
+                            ? 'rgba(var(--app-primary-rgb), 0.15)'
+                            : (weekend ? 'rgba(0,0,0,0.025)' : 'transparent'),
+                        }}>
+                        <Typography sx={{
+                          fontSize: 10,
+                          fontWeight: 700,
+                          letterSpacing: '0.08em',
+                          textTransform: 'uppercase',
+                          color: today ? 'var(--app-primary)' : 'text.secondary',
+                        }}>
+                          {format(date, 'EEE')}
+                        </Typography>
+                        <Typography sx={{
+                          fontSize: today ? 20 : 18,
+                          fontWeight: 800,
+                          color: today ? 'var(--app-primary)' : 'text.primary',
+                          lineHeight: 1.1,
+                          mt: 0.25,
+                        }}>
+                          {format(date, 'dd')}
+                        </Typography>
+                        <Typography sx={{
+                          fontSize: 9.5,
+                          color: 'text.secondary',
+                          letterSpacing: '0.04em',
+                          textTransform: 'uppercase',
+                          mt: 0.25,
+                        }}>
+                          {format(date, 'MMM')}
+                        </Typography>
+                        {today && (
+                          <Box sx={{
+                            width: 6,
+                            height: 6,
+                            mx: 'auto',
+                            mt: 0.5,
+                            borderRadius: '50%',
+                            bgcolor: 'var(--app-primary)',
+                            boxShadow: '0 0 6px var(--app-primary)',
+                          }} />
+                        )}
+                      </Grid>
+                    );
+                  })}
                 </Grid>
               </Grid>
+            </Grid>
+            
+            {/* Room rows */}
+            {rooms.map((room) => {
+              // Check if room has any active bookings and use actual room status
+              const activeBookings = getActiveBookingsForRoom(room._id);
+              const allRoomBookings = getAllBookingsForRoom(room._id);
               
-              {/* Room rows */}
-              {rooms.map((room) => {
-                // Check if room has any active bookings and use actual room status
-                const activeBookings = getActiveBookingsForRoom(room._id);
-                const allRoomBookings = getAllBookingsForRoom(room._id);
-                
-                // Determine room status with improved logic
-                let roomStatus = room.status || 'available';
-                
-                // Trust the database status first, but validate against bookings for consistency
-                // Only override if there's a clear mismatch and the room status is 'available' or 'occupied'
-                if (activeBookings.length > 0 && roomStatus === 'available') {
-                  // If there are active bookings but room shows available, it should be occupied
-                  roomStatus = 'occupied';
+              // Determine room status with improved logic
+              let roomStatus = room.status || 'available';
+              
+              // Trust the database status first, but validate against bookings for consistency
+              // Only override if there's a clear mismatch and the room status is 'available' or 'occupied'
+              if (activeBookings.length > 0 && roomStatus === 'available') {
+                // If there are active bookings but room shows available, it should be occupied
+                roomStatus = 'occupied';
+              }
+              
+              // Don't automatically change status if room is in 'cleaning' or 'maintenance'
+              // These statuses should only be changed manually or by housekeeping system
+              if (activeBookings.length === 0 && roomStatus === 'occupied') {
+                // If no active bookings and room is occupied, it should be available
+                // But we'll keep this as a visual indicator rather than forcing a change
+                // The backend/housekeeping system should handle the actual status updates
+              }
+              
+              // Helper function to get room status color
+              const getStatusColor = (status) => {
+                switch (status) {
+                case 'available':
+                  return 'success';
+                case 'occupied':
+                  return 'error';
+                case 'cleaning':
+                  return 'info';
+                case 'maintenance':
+                  return 'warning';
+                default:
+                  return 'default';
                 }
-                
-                // Don't automatically change status if room is in 'cleaning' or 'maintenance'
-                // These statuses should only be changed manually or by housekeeping system
-                if (activeBookings.length === 0 && roomStatus === 'occupied') {
-                  // If no active bookings and room is occupied, it should be available
-                  // But we'll keep this as a visual indicator rather than forcing a change
-                  // The backend/housekeeping system should handle the actual status updates
-                }
-                
-                // Helper function to get room status color
-                const getStatusColor = (status) => {
-                  switch (status) {
-                  case 'available':
-                    return 'success';
-                  case 'occupied':
-                    return 'error';
-                  case 'cleaning':
-                    return 'info';
-                  case 'maintenance':
-                    return 'warning';
-                  default:
-                    return 'default';
-                  }
-                };
-                
-                return (
+              };
+              
+              return (
+                <Grid
+                  container
+                  key={room._id}
+                  sx={{
+                    borderBottom: `1px solid ${theme.palette.divider}`,
+                    transition: 'background-color .15s ease',
+                    '&:hover': { background: 'rgba(var(--app-primary-rgb), 0.04)' },
+                  }}
+                >
+                  {/* Room info */}
                   <Grid
-                    container
-                    key={room._id}
                     sx={{
-                      borderBottom: `1px solid ${theme.palette.divider}`,
-                      transition: 'background-color .15s ease',
-                      '&:hover': { background: 'rgba(var(--app-primary-rgb), 0.04)' },
-                    }}
-                  >
-                    {/* Room info */}
-                    <Grid item xs={2} sx={{
                       p: 1.5,
                       borderRight: `1px solid ${theme.palette.divider}`,
                       display: 'flex',
                       alignItems: 'center',
                       gap: 1.5,
-                    }}>
-                      <Box
-                        sx={{
-                          width: 44,
-                          height: 44,
-                          borderRadius: 1.5,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          background: 'rgba(var(--app-primary-rgb), 0.1)',
-                          color: 'var(--app-primary)',
-                          fontWeight: 800,
-                          fontSize: 13,
-                          letterSpacing: '-0.01em',
-                          flexShrink: 0,
-                          border: '1px solid rgba(var(--app-primary-rgb), 0.18)',
-                        }}
-                      >
-                        {room.roomNumber}
-                      </Box>
-                      <Box sx={{ flex: 1, minWidth: 0 }}>
-                        <Typography sx={{ fontSize: 13.5, fontWeight: 700, color: 'text.primary', lineHeight: 1.2 }} noWrap>
-                          {room.roomType || room.type}
-                        </Typography>
-                        <Typography sx={{ fontSize: 11, color: 'text.secondary', mt: 0.25 }} noWrap>
-                          {currencySym()}{(room.pricePerNight || 0).toLocaleString('en-IN')}/night
-                        </Typography>
-                        <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mt: 0.5 }} useFlexGap flexWrap="wrap">
-                          <Chip
-                            label={roomStatus}
-                            size="small"
-                            color={getStatusColor(roomStatus)}
-                            sx={{
-                              height: 18,
-                              fontSize: 9.5,
-                              fontWeight: 700,
-                              letterSpacing: '0.04em',
-                              textTransform: 'uppercase',
-                              '& .MuiChip-label': { px: 0.85 },
-                            }}
-                          />
-                          {activeBookings.length === 0 && room.status === 'occupied' && (
-                            <Tooltip title="No active bookings but marked occupied">
-                              <Chip label="Check" size="small" color="warning" variant="outlined" sx={{ height: 18, fontSize: 9, '& .MuiChip-label': { px: 0.85 } }} />
-                            </Tooltip>
-                          )}
-                          {activeBookings.length > 0 && (
-                            <Typography sx={{ fontSize: 10, color: 'text.secondary', fontWeight: 600 }}>
-                              · {activeBookings.length} active
-                            </Typography>
-                          )}
-                        </Stack>
-                      </Box>
-                    </Grid>
-                  
-                    {/* Calendar cells */}
-                    <Grid item xs={10}>
-                      <Box sx={{
+                    }}
+                    size={2}>
+                    <Box
+                      sx={{
+                        width: 44,
+                        height: 44,
+                        borderRadius: 1.5,
                         display: 'flex',
-                        height: '72px',
-                        position: 'relative',
-                      }}>
-                        {/* Date cells */}
-                        {dates.map((date, index) => (
-                          <Box
-                            key={index}
-                            sx={{
-                              width: `${100 / daysToShow}%`,
-                              height: '100%',
-                              borderRight: index < dates.length - 1 ? `1px solid ${theme.palette.divider}` : 'none',
-                              bgcolor: isToday(date)
-                                ? 'rgba(var(--app-primary-rgb), 0.08)'
-                                : (isWeekend(date) ? 'rgba(0,0,0,0.025)' : 'transparent'),
-                            }}
-                          />
-                        ))}
-                      
-                        {/* Bookings for this room */}
-                        {allRoomBookings.map(booking => {
-                          const checkIn = new Date(booking.checkIn);
-                          const checkOut = new Date(booking.checkOut);
-                          
-                          // Skip if booking is completely outside our date range
-                          if (checkOut < startDate || checkIn > addDays(startDate, daysToShow - 1)) {
-                            return null;
-                          }
-                          
-                          return (
-                            // Update the booking tooltip to show payment status more prominently
-                            <Tooltip 
-                              key={booking._id}
-                              title={
-                                <Box>
-                                  <Typography variant="subtitle2">{booking.guestName}</Typography>
-                                  <Typography variant="body2">
-                                    {format(parseISO(booking.checkIn), 'dd MMM')} - {format(parseISO(booking.checkOut), 'dd MMM')}
-                                  </Typography>
-                                  <Typography variant="body2">
-                                    Status: {booking.bookingStatus}
-                                    {booking.paymentStatus === 'Paid' && ' (Paid)'}
-                                  </Typography>
-                                  <Typography variant="body2">Payment: {booking.paymentStatus}</Typography>
-                                  <Typography variant="body2">{currencySym()}{booking.totalAmount}</Typography>
-                                </Box>
-                              }
-                            >
-                              <Box 
-                                sx={{
-                                  ...getBookingStyle(booking),
-                                  // Add a special border for paid bookings
-                                  ...(booking.paymentStatus === 'Paid' && {
-                                    border: '2px solid #4caf50',
-                                    boxShadow: '0 0 5px #4caf50',
-                                  }),
-                                }}
-                                onClick={() => window.location.href = `/bookings?id=${booking._id}`}
-                              >
-                                {booking.guestName}
-                                {booking.paymentStatus === 'Paid' && ' ✓'}
-                                {(booking.bookingStatus === 'Checked Out' || booking.bookingStatus === 'Checkout') && ' 🔚'}
-                              </Box>
-                            </Tooltip>
-                          );
-                        })}
-                      </Box>
-                    </Grid>
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        background: 'rgba(var(--app-primary-rgb), 0.1)',
+                        color: 'var(--app-primary)',
+                        fontWeight: 800,
+                        fontSize: 13,
+                        letterSpacing: '-0.01em',
+                        flexShrink: 0,
+                        border: '1px solid rgba(var(--app-primary-rgb), 0.18)',
+                      }}
+                    >
+                      {room.roomNumber}
+                    </Box>
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                      <Typography sx={{ fontSize: 13.5, fontWeight: 700, color: 'text.primary', lineHeight: 1.2 }} noWrap>
+                        {room.roomType || room.type}
+                      </Typography>
+                      <Typography sx={{ fontSize: 11, color: 'text.secondary', mt: 0.25 }} noWrap>
+                        {currencySym()}{(room.pricePerNight || 0).toLocaleString('en-IN')}/night
+                      </Typography>
+                      <Stack
+                        direction="row"
+                        spacing={0.5}
+                        useFlexGap
+                        sx={{
+                          alignItems: "center",
+                          flexWrap: "wrap",
+                          mt: 0.5
+                        }}>
+                        <Chip
+                          label={roomStatus}
+                          size="small"
+                          color={getStatusColor(roomStatus)}
+                          sx={{
+                            height: 18,
+                            fontSize: 9.5,
+                            fontWeight: 700,
+                            letterSpacing: '0.04em',
+                            textTransform: 'uppercase',
+                            '& .MuiChip-label': { px: 0.85 },
+                          }}
+                        />
+                        {activeBookings.length === 0 && room.status === 'occupied' && (
+                          <Tooltip title="No active bookings but marked occupied">
+                            <Chip label="Check" size="small" color="warning" variant="outlined" sx={{ height: 18, fontSize: 9, '& .MuiChip-label': { px: 0.85 } }} />
+                          </Tooltip>
+                        )}
+                        {activeBookings.length > 0 && (
+                          <Typography sx={{ fontSize: 10, color: 'text.secondary', fontWeight: 600 }}>
+                            · {activeBookings.length} active
+                          </Typography>
+                        )}
+                      </Stack>
+                    </Box>
                   </Grid>
-                );
-              })}
-            </Box>
+                  {/* Calendar cells */}
+                  <Grid size={10}>
+                    <Box sx={{
+                      display: 'flex',
+                      height: '72px',
+                      position: 'relative',
+                    }}>
+                      {/* Date cells */}
+                      {dates.map((date, index) => (
+                        <Box
+                          key={index}
+                          sx={{
+                            width: `${100 / daysToShow}%`,
+                            height: '100%',
+                            borderRight: index < dates.length - 1 ? `1px solid ${theme.palette.divider}` : 'none',
+                            bgcolor: isToday(date)
+                              ? 'rgba(var(--app-primary-rgb), 0.08)'
+                              : (isWeekend(date) ? 'rgba(0,0,0,0.025)' : 'transparent'),
+                          }}
+                        />
+                      ))}
+                    
+                      {/* Bookings for this room */}
+                      {allRoomBookings.map(booking => {
+                        const checkIn = new Date(booking.checkIn);
+                        const checkOut = new Date(booking.checkOut);
+                        
+                        // Skip if booking is completely outside our date range
+                        if (checkOut < startDate || checkIn > addDays(startDate, daysToShow - 1)) {
+                          return null;
+                        }
+                        
+                        return (
+                          // Update the booking tooltip to show payment status more prominently
+                          <Tooltip 
+                            key={booking._id}
+                            title={
+                              <Box>
+                                <Typography variant="subtitle2">{booking.guestName}</Typography>
+                                <Typography variant="body2">
+                                  {format(parseISO(booking.checkIn), 'dd MMM')} - {format(parseISO(booking.checkOut), 'dd MMM')}
+                                </Typography>
+                                <Typography variant="body2">
+                                  Status: {booking.bookingStatus}
+                                  {booking.paymentStatus === 'Paid' && ' (Paid)'}
+                                </Typography>
+                                <Typography variant="body2">Payment: {booking.paymentStatus}</Typography>
+                                <Typography variant="body2">{currencySym()}{booking.totalAmount}</Typography>
+                              </Box>
+                            }
+                          >
+                            <Box 
+                              sx={{
+                                ...getBookingStyle(booking),
+                                // Add a special border for paid bookings
+                                ...(booking.paymentStatus === 'Paid' && {
+                                  border: '2px solid #4caf50',
+                                  boxShadow: '0 0 5px #4caf50',
+                                }),
+                              }}
+                              onClick={() => window.location.href = `/bookings?id=${booking._id}`}
+                            >
+                              {booking.guestName}
+                              {booking.paymentStatus === 'Paid' && ' ✓'}
+                              {(booking.bookingStatus === 'Checked Out' || booking.bookingStatus === 'Checkout') && ' 🔚'}
+                            </Box>
+                          </Tooltip>
+                        );
+                      })}
+                    </Box>
+                  </Grid>
+                </Grid>
+              );
+            })}
           </Box>
-        )}
+        </Box>
+      )}
     </PageLayout>
   );
 };

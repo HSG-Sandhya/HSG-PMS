@@ -1022,663 +1022,838 @@ const BanquetHallBooking = () => {
 
   return (
     <PageLayout>
-        {/* Premium dashboard header */}
-        <BanquetHeader
-          isDark={isDarkMode}
-          todayEvents={metrics.todayEvents}
-          upcomingEvents={metrics.upcoming}
-          monthlyRevenue={metrics.monthRevenue}
-          onCreate={(preset) => handleOpenDialog(null, preset)}
-        />
-
-        {/* KPI dashboard cards */}
-        <Box sx={{ mt: 2.5, display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)', xl: 'repeat(6, 1fr)' }, gap: 2 }}>
-          {kpis.map((k, i) => (
-            <HkKpiCard key={k.label} {...k} isDark={isDarkMode} loading={loading} delay={i * 0.05} />
-          ))}
+      {/* Premium dashboard header */}
+      <BanquetHeader
+        isDark={isDarkMode}
+        todayEvents={metrics.todayEvents}
+        upcomingEvents={metrics.upcoming}
+        monthlyRevenue={metrics.monthRevenue}
+        onCreate={(preset) => handleOpenDialog(null, preset)}
+      />
+      {/* KPI dashboard cards */}
+      <Box sx={{ mt: 2.5, display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)', xl: 'repeat(6, 1fr)' }, gap: 2 }}>
+        {kpis.map((k, i) => (
+          <HkKpiCard key={k.label} {...k} isDark={isDarkMode} loading={loading} delay={i * 0.05} />
+        ))}
+      </Box>
+      {/* Module tabs */}
+      <Box sx={{ mt: 2.5, mb: 3 }}>
+        <BanquetTabs tabs={tabDefs} value={view} onChange={setView} isDark={isDarkMode} />
+      </Box>
+      {loading ? (
+        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 6 }}>
+          <CircularProgress />
         </Box>
-
-        {/* Module tabs */}
-        <Box sx={{ mt: 2.5, mb: 3 }}>
-          <BanquetTabs tabs={tabDefs} value={view} onChange={setView} isDark={isDarkMode} />
-        </Box>
-
-        {loading ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', mt: 6 }}>
-            <CircularProgress />
-          </Box>
-        ) : view === 'overview' ? (
-          bookings.length === 0 ? (
-            <BanquetEmptyState isDark={isDarkMode} onCreate={() => handleOpenDialog()} />
-          ) : (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-              <Grid container spacing={3}>
-                <Grid item xs={12} lg={7}>
-                  <UpcomingEvents bookings={bookings} halls={halls} isDark={isDarkMode} onSelect={(b) => handleOpenDialog(b)} />
-                </Grid>
-                <Grid item xs={12} lg={5}>
-                  <HallAvailability halls={halls} bookings={bookings} isDark={isDarkMode} onSelect={() => handleOpenDialog()} />
-                </Grid>
-              </Grid>
-              <BanquetCharts bookings={bookings} halls={halls} isDark={isDarkMode} />
-            </Box>
-          )
-        ) : view === 'payments' ? (
-          <BookingsTable
-            bookings={outstandingBookings}
-            halls={halls}
-            isDark={isDarkMode}
-            title="Outstanding Payments"
-            subtitle={String(outstandingBookings.length) + ' with balance due'}
-            emptyState={<BanquetEmptyState isDark={isDarkMode} onCreate={() => handleOpenDialog()} />}
-            onEdit={(b) => handleOpenDialog(b)}
-            onDelete={(b) => handleDelete(b._id)}
-            onPayments={(b) => { setPaymentsBooking(b); setPaymentsOpen(true); }}
-            onFinalize={(b) => { setFinalizeBooking(b); setFinalizeOpen(true); }}
-            onPrintQuotation={printQuotation}
-            onPrintInvoice={printInvoice}
-          />
-        ) : view === 'reports' ? (
-          <BanquetCharts bookings={bookings} halls={halls} isDark={isDarkMode} />
-        ) : view === 'calendar' ? (
-          <Box sx={{ ...sectionCardSx(isDarkMode), p: { xs: 2, md: 3 } }}>
-            <EventCalendar
-              bookings={bookings}
-              month={calMonth}
-              year={calYear}
-              onPrev={goPrevMonth}
-              onNext={goNextMonth}
-              onSelectDate={() => handleOpenDialog()}
-              onSelectBooking={(b) => handleOpenDialog(b)}
-            />
-          </Box>
-        ) : view === 'packages' ? (
-          <EventPackagesManager halls={halls} onNotify={showSnackbar} />
-        ) : view === 'catering' ? (
-          <CateringPackagesManager onNotify={showSnackbar} />
-        ) : view === 'decoration' ? (
-          <DecorationPackagesManager onNotify={showSnackbar} />
-        ) : view === 'utensils' ? (
-          <UtensilsManager onNotify={showSnackbar} />
+      ) : view === 'overview' ? (
+        bookings.length === 0 ? (
+          <BanquetEmptyState isDark={isDarkMode} onCreate={() => handleOpenDialog()} />
         ) : (
-          <BookingsTable
-            bookings={bookings}
-            halls={halls}
-            isDark={isDarkMode}
-            title="All Bookings"
-            subtitle={String(Array.isArray(bookings) ? bookings.length : 0) + ' events'}
-            emptyState={<BanquetEmptyState isDark={isDarkMode} onCreate={() => handleOpenDialog()} />}
-            onEdit={(b) => handleOpenDialog(b)}
-            onDelete={(b) => handleDelete(b._id)}
-            onPayments={(b) => { setPaymentsBooking(b); setPaymentsOpen(true); }}
-            onFinalize={(b) => { setFinalizeBooking(b); setFinalizeOpen(true); }}
-            onPrintQuotation={printQuotation}
-            onPrintInvoice={printInvoice}
-          />
-        )}
-
-        <Dialog
-          open={openDialog}
-          onClose={handleCloseDialog}
-          maxWidth="md"
-          fullWidth
-          PaperProps={{ sx: dialogPaperSx(isDarkMode) }}
-          BackdropProps={{ sx: dialogBackdropSx }}
-        >
-          <Box sx={headerWrapSx(isDarkMode)}>
-            <Stack direction="row" alignItems="center" spacing={2}>
-              <Box sx={{
-                width: 48,
-                height: 48,
-                borderRadius: 2,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                background: 'linear-gradient(135deg, rgba(var(--app-primary-rgb),0.18), rgba(236,72,153,0.18))',
-                color: 'var(--app-primary)',
-              }}>
-                <CelebrationIcon />
-              </Box>
-              <Box>
-                <Typography sx={{ fontSize: 11, letterSpacing: '0.28em', textTransform: 'uppercase', color: 'text.secondary', fontWeight: 700 }}>
-                  Banquet Hall
-                </Typography>
-                <Typography sx={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.01em', mt: 0.25 }}>
-                  {selectedBooking ? 'Edit booking' : 'New booking'}
-                </Typography>
-              </Box>
-            </Stack>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            <Grid container spacing={3}>
+              <Grid
+                size={{
+                  xs: 12,
+                  lg: 7
+                }}>
+                <UpcomingEvents bookings={bookings} halls={halls} isDark={isDarkMode} onSelect={(b) => handleOpenDialog(b)} />
+              </Grid>
+              <Grid
+                size={{
+                  xs: 12,
+                  lg: 5
+                }}>
+                <HallAvailability halls={halls} bookings={bookings} isDark={isDarkMode} onSelect={() => handleOpenDialog()} />
+              </Grid>
+            </Grid>
+            <BanquetCharts bookings={bookings} halls={halls} isDark={isDarkMode} />
           </Box>
-          <DialogContent sx={{ px: { xs: 3, sm: 4 }, py: 3 }}>
-            <motion.div
-              initial={{ opacity: 0, y: 24 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 24 }}
-              transition={{ duration: 0.35, ease: 'easeInOut' }}
-            >
-              <Box component="form" id="marriage-form" onSubmit={handleSubmit}>
-                <Stepper
-                  nonLinear
-                  activeStep={activeStep}
-                  alternativeLabel
-                  sx={{
-                    mb: 3,
-                    '& .MuiStepLabel-label': { fontSize: 12, fontWeight: 600, mt: 0.5 },
-                    '& .MuiStepLabel-label.Mui-active': { color: 'var(--app-primary)' },
-                    '& .MuiStepIcon-root.Mui-active': { color: 'var(--app-primary)' },
-                    '& .MuiStepIcon-root.Mui-completed': { color: 'var(--app-primary)' },
-                  }}
-                >
-                  {BOOKING_STEPS.map((label, i) => (
-                    <Step key={label} completed={activeStep > i}>
-                      <StepButton color="inherit" onClick={() => goToStep(i)}>{label}</StepButton>
-                    </Step>
-                  ))}
-                </Stepper>
-                <WizardStepBoundary stepKey={activeStep}>
-                <Stack spacing={2.5}>
-                  {/* Customer Info Section */}
-                  {activeStep === 0 && (
-                  <Box sx={sectionCardSx(isDarkMode)}>
-                    <Typography sx={sectionTitleSx(isDarkMode)}>
-                      <PeopleIcon sx={{ color: '#06b6d4' }} /> Customer Info
-                    </Typography>
-                    <Grid container spacing={2}>
-                      <Grid item xs={12} sm={6}>
-                        <TextField
-                          fullWidth
-                          required
-                          label="Customer Name"
-                          value={formData.customerName}
-                          onChange={(e) => setFormData({ ...formData, customerName: e.target.value })}
-                        />
-                      </Grid>
-                      <Grid item xs={12} sm={6}>
-                        <TextField
-                          fullWidth
-                          required
-                          label="Phone Number"
-                          placeholder="98765 43210"
-                          value={formatPhone10(formData.customerPhone)}
-                          onChange={(e) => {
-                            // Store only the 10-digit local part; +91 is a fixed prefix.
-                            setFormData({ ...formData, customerPhone: phoneLocal10(e.target.value) });
-                            if (phoneError) {setPhoneError('');}
-                          }}
-                          error={!!phoneError}
-                          helperText={phoneError || ''}
-                          inputProps={{ maxLength: 11, inputMode: 'numeric', pattern: '[0-9 ]*' }}
-                          InputProps={{
-                            startAdornment: (
-                              <InputAdornment position="start">
-                                <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600 }}>+91</Typography>
-                              </InputAdornment>
-                            ),
-                          }}
-                        />
-                      </Grid>
-                      <Grid item xs={12} sm={6}>
-                        <TextField
-                          fullWidth
-                          label="Alternate Phone Number"
-                          placeholder="98765 43210"
-                          value={formatPhone10(formData.alternatePhone)}
-                          onChange={(e) => {
-                            setFormData({ ...formData, alternatePhone: phoneLocal10(e.target.value) });
-                          }}
-                          inputProps={{ maxLength: 11, inputMode: 'numeric', pattern: '[0-9 ]*' }}
-                          InputProps={{
-                            startAdornment: (
-                              <InputAdornment position="start">
-                                <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600 }}>+91</Typography>
-                              </InputAdornment>
-                            ),
-                          }}
-                        />
-                      </Grid>
-                      <Grid item xs={12} sm={6}>
-                        <TextField
-                          fullWidth
-                          label="Email"
-                          type="email"
-                          value={formData.customerEmail}
-                          onChange={(e) => {
-                            setFormData({ ...formData, customerEmail: e.target.value });
-                            if (emailError) {setEmailError('');}
-                          }}
-                          error={!!emailError}
-                          helperText={emailError || ''}
-                        />
-                      </Grid>
-                      <Grid item xs={12}>
-                        <TextField
-                          fullWidth
-                          label="Residential Address"
-                          value={formData.address}
-                          onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                        />
-                      </Grid>
-                      <Grid item xs={12} sm={4}>
-                        <TextField
-                          fullWidth
-                          label="City"
-                          value={formData.city}
-                          onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                        />
-                      </Grid>
-                      <Grid item xs={12} sm={4}>
-                        <TextField
-                          fullWidth
-                          label="State"
-                          value={formData.state}
-                          onChange={(e) => setFormData({ ...formData, state: e.target.value })}
-                        />
-                      </Grid>
-                      <Grid item xs={12} sm={4}>
-                        <TextField
-                          fullWidth
-                          label="PIN Code"
-                          value={formData.pincode}
-                          onChange={(e) => {
-                            const value = e.target.value.replace(/\D/g, '').slice(0, 6);
-                            setFormData({ ...formData, pincode: value });
-                          }}
-                          inputProps={{ maxLength: 6, inputMode: 'numeric' }}
-                        />
-                      </Grid>
-                      <Grid item xs={12} sm={4}>
-                        <FormControl fullWidth>
-                          <InputLabel>ID Proof Type</InputLabel>
-                          <Select
-                            label="ID Proof Type"
-                            value={formData.idProofType}
-                            onChange={(e) => setFormData({ ...formData, idProofType: e.target.value })}
-                            MenuProps={{ PaperProps: { sx: { backgroundColor: '#fff' } } }}
-                          >
-                            <MenuItem value=""><em>— None —</em></MenuItem>
-                            {ID_PROOF_TYPES.map((t) => (
-                              <MenuItem key={t} value={t}>{t}</MenuItem>
-                            ))}
-                          </Select>
-                        </FormControl>
-                      </Grid>
-                      <Grid item xs={12} sm={4}>
-                        <TextField
-                          fullWidth
-                          label="ID Proof Number"
-                          value={formData.idProofNumber}
-                          onChange={(e) => setFormData({ ...formData, idProofNumber: e.target.value })}
-                        />
-                      </Grid>
-                      <Grid item xs={12} sm={4}>
-                        <TextField
-                          fullWidth
-                          label="GST Number (if applicable)"
-                          value={formData.gstNumber}
-                          onChange={(e) => setFormData({ ...formData, gstNumber: e.target.value.toUpperCase() })}
-                          inputProps={{ style: { textTransform: 'uppercase' } }}
-                        />
-                      </Grid>
+        )
+      ) : view === 'payments' ? (
+        <BookingsTable
+          bookings={outstandingBookings}
+          halls={halls}
+          isDark={isDarkMode}
+          title="Outstanding Payments"
+          subtitle={String(outstandingBookings.length) + ' with balance due'}
+          emptyState={<BanquetEmptyState isDark={isDarkMode} onCreate={() => handleOpenDialog()} />}
+          onEdit={(b) => handleOpenDialog(b)}
+          onDelete={(b) => handleDelete(b._id)}
+          onPayments={(b) => { setPaymentsBooking(b); setPaymentsOpen(true); }}
+          onFinalize={(b) => { setFinalizeBooking(b); setFinalizeOpen(true); }}
+          onPrintQuotation={printQuotation}
+          onPrintInvoice={printInvoice}
+        />
+      ) : view === 'reports' ? (
+        <BanquetCharts bookings={bookings} halls={halls} isDark={isDarkMode} />
+      ) : view === 'calendar' ? (
+        <Box sx={{ ...sectionCardSx(isDarkMode), p: { xs: 2, md: 3 } }}>
+          <EventCalendar
+            bookings={bookings}
+            month={calMonth}
+            year={calYear}
+            onPrev={goPrevMonth}
+            onNext={goNextMonth}
+            onSelectDate={() => handleOpenDialog()}
+            onSelectBooking={(b) => handleOpenDialog(b)}
+          />
+        </Box>
+      ) : view === 'packages' ? (
+        <EventPackagesManager halls={halls} onNotify={showSnackbar} />
+      ) : view === 'catering' ? (
+        <CateringPackagesManager onNotify={showSnackbar} />
+      ) : view === 'decoration' ? (
+        <DecorationPackagesManager onNotify={showSnackbar} />
+      ) : view === 'utensils' ? (
+        <UtensilsManager onNotify={showSnackbar} />
+      ) : (
+        <BookingsTable
+          bookings={bookings}
+          halls={halls}
+          isDark={isDarkMode}
+          title="All Bookings"
+          subtitle={String(Array.isArray(bookings) ? bookings.length : 0) + ' events'}
+          emptyState={<BanquetEmptyState isDark={isDarkMode} onCreate={() => handleOpenDialog()} />}
+          onEdit={(b) => handleOpenDialog(b)}
+          onDelete={(b) => handleDelete(b._id)}
+          onPayments={(b) => { setPaymentsBooking(b); setPaymentsOpen(true); }}
+          onFinalize={(b) => { setFinalizeBooking(b); setFinalizeOpen(true); }}
+          onPrintQuotation={printQuotation}
+          onPrintInvoice={printInvoice}
+        />
+      )}
+      <Dialog
+        open={openDialog}
+        onClose={handleCloseDialog}
+        maxWidth="md"
+        fullWidth
+        slotProps={{
+          backdrop: { sx: dialogBackdropSx },
+          paper: { sx: dialogPaperSx(isDarkMode) }
+        }}>
+        <Box sx={headerWrapSx(isDarkMode)}>
+          <Stack direction="row" spacing={2} sx={{
+            alignItems: "center"
+          }}>
+            <Box sx={{
+              width: 48,
+              height: 48,
+              borderRadius: 2,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: 'linear-gradient(135deg, rgba(var(--app-primary-rgb),0.18), rgba(236,72,153,0.18))',
+              color: 'var(--app-primary)',
+            }}>
+              <CelebrationIcon />
+            </Box>
+            <Box>
+              <Typography sx={{ fontSize: 11, letterSpacing: '0.28em', textTransform: 'uppercase', color: 'text.secondary', fontWeight: 700 }}>
+                Banquet Hall
+              </Typography>
+              <Typography sx={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.01em', mt: 0.25 }}>
+                {selectedBooking ? 'Edit booking' : 'New booking'}
+              </Typography>
+            </Box>
+          </Stack>
+        </Box>
+        <DialogContent sx={{ px: { xs: 3, sm: 4 }, py: 3 }}>
+          <motion.div
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 24 }}
+            transition={{ duration: 0.35, ease: 'easeInOut' }}
+          >
+            <Box component="form" id="marriage-form" onSubmit={handleSubmit}>
+              <Stepper
+                nonLinear
+                activeStep={activeStep}
+                alternativeLabel
+                sx={{
+                  mb: 3,
+                  '& .MuiStepLabel-label': { fontSize: 12, fontWeight: 600, mt: 0.5 },
+                  '& .MuiStepLabel-label.Mui-active': { color: 'var(--app-primary)' },
+                  '& .MuiStepIcon-root.Mui-active': { color: 'var(--app-primary)' },
+                  '& .MuiStepIcon-root.Mui-completed': { color: 'var(--app-primary)' },
+                }}
+              >
+                {BOOKING_STEPS.map((label, i) => (
+                  <Step key={label} completed={activeStep > i}>
+                    <StepButton color="inherit" onClick={() => goToStep(i)}>{label}</StepButton>
+                  </Step>
+                ))}
+              </Stepper>
+              <WizardStepBoundary stepKey={activeStep}>
+              <Stack spacing={2.5}>
+                {/* Customer Info Section */}
+                {activeStep === 0 && (
+                <Box sx={sectionCardSx(isDarkMode)}>
+                  <Typography sx={sectionTitleSx(isDarkMode)}>
+                    <PeopleIcon sx={{ color: '#06b6d4' }} /> Customer Info
+                  </Typography>
+                  <Grid container spacing={2}>
+                    <Grid
+                      size={{
+                        xs: 12,
+                        sm: 6
+                      }}>
+                      <TextField
+                        fullWidth
+                        required
+                        label="Customer Name"
+                        value={formData.customerName}
+                        onChange={(e) => setFormData({ ...formData, customerName: e.target.value })}
+                      />
                     </Grid>
-                  </Box>
-                  )}
-                  {/* Event Details Section */}
-                  {activeStep === 1 && (
-                  <Box sx={sectionCardSx(isDarkMode)}>
-                    <Typography sx={sectionTitleSx(isDarkMode)}>
-                      <CalendarIcon sx={{ color: '#f59e42' }} /> Event Details
-                    </Typography>
-                    <Grid container spacing={2}>
-                      <Grid item xs={12}>
-                        <TextField
-                          fullWidth
-                          label="Event Title"
-                          value={formData.eventTitle}
-                          onChange={(e) => setFormData({ ...formData, eventTitle: e.target.value })}
-                          placeholder='e.g. "Rahul & Priya Wedding"'
-                        />
-                      </Grid>
-                      {/* ── Type-specific fields (driven by the event category) ── */}
-                      {/* Wedding / Reception — couple names */}
-                      {eventCategory(formData.eventType) === 'wedding' && (
-                        <>
-                          <Grid item xs={12} sm={6}>
-                            <TextField fullWidth label="Groom Name" value={formData.groomName}
-                              onChange={(e) => setFormData({ ...formData, groomName: e.target.value })} />
-                          </Grid>
-                          <Grid item xs={12} sm={6}>
-                            <TextField fullWidth label="Bride Name" value={formData.brideName}
-                              onChange={(e) => setFormData({ ...formData, brideName: e.target.value })} />
-                          </Grid>
-                        </>
-                      )}
+                    <Grid
+                      size={{
+                        xs: 12,
+                        sm: 6
+                      }}>
+                      <TextField
+                        fullWidth
+                        required
+                        label="Phone Number"
+                        placeholder="98765 43210"
+                        value={formatPhone10(formData.customerPhone)}
+                        onChange={(e) => {
+                          // Store only the 10-digit local part; +91 is a fixed prefix.
+                          setFormData({ ...formData, customerPhone: phoneLocal10(e.target.value) });
+                          if (phoneError) {setPhoneError('');}
+                        }}
+                        error={!!phoneError}
+                        helperText={phoneError || ''}
+                        slotProps={{
+                          input: {
+                            startAdornment: (
+                              <InputAdornment position="start">
+                                <Typography
+                                  variant="body2"
+                                  sx={{
+                                    color: "text.secondary",
+                                    fontWeight: 600
+                                  }}>+91</Typography>
+                              </InputAdornment>
+                            ),
+                          },
 
-                      {/* Corporate / Meeting / Conference — organisation details */}
-                      {['corporate', 'conference'].includes(eventCategory(formData.eventType)) && (
-                        <>
-                          <Grid item xs={12} sm={6}>
-                            <TextField fullWidth label="Company / Organization"
-                              value={formData.eventDetails?.organizationName || ''}
-                              onChange={(e) => setEventDetail('organizationName', e.target.value)} />
-                          </Grid>
-                          <Grid item xs={12} sm={6}>
-                            <TextField fullWidth label="Contact Person (name & designation)"
-                              value={formData.eventDetails?.contactPerson || ''}
-                              onChange={(e) => setEventDetail('contactPerson', e.target.value)} />
-                          </Grid>
-                          <Grid item xs={12} sm={6}>
-                            <TextField fullWidth type="number"
-                              label={eventCategory(formData.eventType) === 'conference' ? 'No. of Delegates' : 'No. of Attendees'}
-                              value={formData.eventDetails?.delegates || ''}
-                              onChange={(e) => { if (/^\d*$/.test(e.target.value)) { setEventDetail('delegates', e.target.value); } }}
-                              inputProps={{ min: 0 }} />
-                          </Grid>
-                          {eventCategory(formData.eventType) === 'conference' && (
-                            <Grid item xs={12} sm={6}>
-                              <TextField fullWidth type="number" label="Sessions / Days"
-                                value={formData.eventDetails?.sessionsDays || ''}
-                                onChange={(e) => { if (/^\d*$/.test(e.target.value)) { setEventDetail('sessionsDays', e.target.value); } }}
-                                inputProps={{ min: 0 }} />
-                            </Grid>
-                          )}
-                          <Grid item xs={12} sm={6}>
-                            <FormControl fullWidth>
-                              <InputLabel>Seating Style</InputLabel>
-                              <Select label="Seating Style" value={formData.seatingStyle || ''}
-                                onChange={(e) => setFormData({ ...formData, seatingStyle: e.target.value })}
-                                MenuProps={{ PaperProps: { sx: { backgroundColor: '#fff' } } }}>
-                                <MenuItem value=""><em>—</em></MenuItem>
-                                {SEATING_STYLES.map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
-                              </Select>
-                            </FormControl>
-                          </Grid>
-                          <Grid item xs={12} sm={6}>
-                            <FormControlLabel
-                              control={<Checkbox checked={!!formData.eventDetails?.avRequired}
-                                onChange={(e) => setEventDetail('avRequired', e.target.checked)} />}
-                              label="AV / Projector / PA required" />
-                          </Grid>
-                          <Grid item xs={12}>
-                            <TextField fullWidth label="Agenda / Purpose" multiline rows={2}
-                              value={formData.eventDetails?.agenda || ''}
-                              onChange={(e) => setEventDetail('agenda', e.target.value)} />
-                          </Grid>
-                        </>
-                      )}
+                          htmlInput: { maxLength: 11, inputMode: 'numeric', pattern: '[0-9 ]*' }
+                        }} />
+                    </Grid>
+                    <Grid
+                      size={{
+                        xs: 12,
+                        sm: 6
+                      }}>
+                      <TextField
+                        fullWidth
+                        label="Alternate Phone Number"
+                        placeholder="98765 43210"
+                        value={formatPhone10(formData.alternatePhone)}
+                        onChange={(e) => {
+                          setFormData({ ...formData, alternatePhone: phoneLocal10(e.target.value) });
+                        }}
+                        slotProps={{
+                          input: {
+                            startAdornment: (
+                              <InputAdornment position="start">
+                                <Typography
+                                  variant="body2"
+                                  sx={{
+                                    color: "text.secondary",
+                                    fontWeight: 600
+                                  }}>+91</Typography>
+                              </InputAdornment>
+                            ),
+                          },
 
-                      {/* Birthday — celebrant, age, theme, cake */}
-                      {eventCategory(formData.eventType) === 'birthday' && (
-                        <>
-                          <Grid item xs={12} sm={6}>
-                            <TextField fullWidth label="Birthday Person"
-                              value={formData.eventDetails?.birthdayPersonName || ''}
-                              onChange={(e) => setEventDetail('birthdayPersonName', e.target.value)} />
-                          </Grid>
-                          <Grid item xs={6} sm={3}>
-                            <TextField fullWidth type="number" label="Age Turning"
-                              value={formData.eventDetails?.birthdayAge || ''}
-                              onChange={(e) => { if (/^\d*$/.test(e.target.value)) { setEventDetail('birthdayAge', e.target.value); } }}
-                              inputProps={{ min: 0 }} />
-                          </Grid>
-                          <Grid item xs={6} sm={3}>
-                            <TextField fullWidth label="Theme"
-                              value={formData.eventDetails?.theme || ''}
-                              onChange={(e) => setEventDetail('theme', e.target.value)} />
-                          </Grid>
-                          <Grid item xs={12} sm={6}>
-                            <FormControlLabel
-                              control={<Checkbox checked={!!formData.eventDetails?.cakeRequired}
-                                onChange={(e) => setEventDetail('cakeRequired', e.target.checked)} />}
-                              label="Cake required" />
-                          </Grid>
-                          {formData.eventDetails?.cakeRequired && (
-                            <Grid item xs={12} sm={6}>
-                              <TextField fullWidth label="Cake Message"
-                                value={formData.eventDetails?.cakeMessage || ''}
-                                onChange={(e) => setEventDetail('cakeMessage', e.target.value)} />
-                            </Grid>
-                          )}
-                        </>
-                      )}
-
-                      {/* Social — engagement / anniversary / party */}
-                      {eventCategory(formData.eventType) === 'social' && (
-                        <>
-                          <Grid item xs={12} sm={6}>
-                            <TextField fullWidth label="Celebrant / Couple Names"
-                              value={formData.eventDetails?.celebrantNames || ''}
-                              onChange={(e) => setEventDetail('celebrantNames', e.target.value)}
-                              placeholder="e.g. Rahul & Priya / Sharma Family" />
-                          </Grid>
-                          <Grid item xs={12} sm={6}>
-                            <TextField fullWidth label="Occasion Note"
-                              value={formData.eventDetails?.occasionNote || ''}
-                              onChange={(e) => setEventDetail('occasionNote', e.target.value)}
-                              placeholder="e.g. 25th Anniversary" />
-                          </Grid>
-                        </>
-                      )}
-                      <Grid item xs={12} sm={6}>
-                        <FormControl fullWidth required>
-                          <InputLabel>Event Type</InputLabel>
-                          <Select
-                            label="Event Type"
-                            value={formData.eventType}
-                            onChange={(e) => {
-                              const eventType = e.target.value;
-                              // Swap in this type's default Contract & Terms text,
-                              // but only for fields still holding an auto-default
-                              // (never overwrite text staff have hand-edited).
-                              const defaults = policyDefaultsForType(eventType);
-                              const policyPatch = {};
-                              POLICY_FIELDS.forEach((f) => {
-                                if (isAutoPolicyValue(f, formData[f])) { policyPatch[f] = defaults[f]; }
-                              });
-                              setFormData({ ...formData, eventType, ...getEventTimingDefaults(eventType, formData.eventDate), ...policyPatch });
-                            }}
-                            MenuProps={{ PaperProps: { sx: { backgroundColor: '#fff' } } }}
-                          >
-                            {EVENT_TYPES.map((type) => (
-                              <MenuItem key={type} value={type}>{type}</MenuItem>
-                            ))}
-                          </Select>
-                        </FormControl>
-                      </Grid>
-                      <Grid item xs={12} sm={6}>
-                        <DatePicker
-                          format="dd/MM/yyyy"
-                          label="Event Date"
-                          value={formData.eventDate ? (typeof formData.eventDate === 'string' ? (formData.eventDate ? parseISO(formData.eventDate) : null) : formData.eventDate) : null}
-                          onChange={(date) => {
-                            const eventDate = date ? format(date, 'yyyy-MM-dd') : '';
-                            setFormData({ ...formData, eventDate, ...getEventTimingDefaults(formData.eventType, eventDate) });
-                          }}
-                          slotProps={{ 
-                            textField: { fullWidth: true, required: true },
-                            popper: {
-                              sx: {
-                                '& .MuiPaper-root': {
-                                  backgroundColor: 'white',
-                                  opacity: 1,
-                                  boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
-                                }
-                              }
-                            }
-                          }}
-                        />
-                      </Grid>
-                      <Grid item xs={12} sm={6}>
-                        <DatePicker
-                          format="dd/MM/yyyy"
-                          label="End Date"
-                          value={formData.endDate ? (typeof formData.endDate === 'string' ? (formData.endDate ? parseISO(formData.endDate) : null) : formData.endDate) : null}
-                          onChange={(date) => setFormData({ ...formData, endDate: date ? format(date, 'yyyy-MM-dd') : '' })}
-                          slotProps={{ 
-                            textField: { fullWidth: true },
-                            popper: {
-                              sx: {
-                                '& .MuiPaper-root': {
-                                  backgroundColor: 'white',
-                                  opacity: 1,
-                                  boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
-                                }
-                              }
-                            }
-                          }}
-                          minDate={formData.eventDate ? parseISO(formData.eventDate) : undefined}
-                        />
-                      </Grid>
-                      <Grid item xs={12}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                          <AccessTimeIcon sx={{ mr: 1, color: '#10b981' }} />
-                          <Typography variant="subtitle1" sx={{ color: '#10b981', fontWeight: 600 }}>
-                            Event Timing
-                          </Typography>
-                        </Box>
-                        <Grid container spacing={2}>
-                          <Grid item xs={12} sm={6}>
-                            <TimePicker
-                              label="Start Time"
-                              value={formData.startTime ? new Date(`1970-01-01T${formData.startTime}`) : null}
-                              onChange={value => {
-                                const timeStr = value ? value.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : '';
-                                setFormData({ ...formData, startTime: timeStr });
-                              }}
-                              ampm={false}
-                              minutesStep={5}
-                              slotProps={{
-                                textField: {
-                                  fullWidth: true,
-                                  InputProps: { startAdornment: <AccessTimeIcon sx={{ mr: 1, color: '#10b981' }} /> },
-                                  helperText: 'Select when the event starts',
-                                },
-                                clearButton: { title: 'Clear Start Time' },
-                                popper: {
-                                  sx: {
-                                    '& .MuiPaper-root': {
-                                      backgroundColor: 'white',
-                                      opacity: 1,
-                                      boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
-                                    }
-                                  }
-                                }
-                              }}
-                              clearable
-                              disableCloseOnSelect={false}
-                              format="HH:mm"
-                            />
-                          </Grid>
-                          <Grid item xs={12} sm={6}>
-                            <TimePicker
-                              label="End Time"
-                              value={formData.endTime ? new Date(`1970-01-01T${formData.endTime}`) : null}
-                              onChange={value => {
-                                const timeStr = value ? value.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : '';
-                                setFormData({ ...formData, endTime: timeStr });
-                              }}
-                              ampm={false}
-                              minutesStep={5}
-                              slotProps={{
-                                textField: {
-                                  fullWidth: true,
-                                  InputProps: { startAdornment: <AccessTimeIcon sx={{ mr: 1, color: '#10b981' }} /> },
-                                  helperText: 'Select when the event ends',
-                                },
-                                clearButton: { title: 'Clear End Time' },
-                                popper: {
-                                  sx: {
-                                    '& .MuiPaper-root': {
-                                      backgroundColor: 'white',
-                                      opacity: 1,
-                                      boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
-                                    }
-                                  }
-                                }
-                              }}
-                              clearable
-                              disableCloseOnSelect={false}
-                              format="HH:mm"
-                              minTime={formData.startTime ? new Date(`1970-01-01T${formData.startTime}`) : undefined}
-                            />
-                          </Grid>
+                          htmlInput: { maxLength: 11, inputMode: 'numeric', pattern: '[0-9 ]*' }
+                        }} />
+                    </Grid>
+                    <Grid
+                      size={{
+                        xs: 12,
+                        sm: 6
+                      }}>
+                      <TextField
+                        fullWidth
+                        label="Email"
+                        type="email"
+                        value={formData.customerEmail}
+                        onChange={(e) => {
+                          setFormData({ ...formData, customerEmail: e.target.value });
+                          if (emailError) {setEmailError('');}
+                        }}
+                        error={!!emailError}
+                        helperText={emailError || ''}
+                      />
+                    </Grid>
+                    <Grid size={12}>
+                      <TextField
+                        fullWidth
+                        label="Residential Address"
+                        value={formData.address}
+                        onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                      />
+                    </Grid>
+                    <Grid
+                      size={{
+                        xs: 12,
+                        sm: 4
+                      }}>
+                      <TextField
+                        fullWidth
+                        label="City"
+                        value={formData.city}
+                        onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                      />
+                    </Grid>
+                    <Grid
+                      size={{
+                        xs: 12,
+                        sm: 4
+                      }}>
+                      <TextField
+                        fullWidth
+                        label="State"
+                        value={formData.state}
+                        onChange={(e) => setFormData({ ...formData, state: e.target.value })}
+                      />
+                    </Grid>
+                    <Grid
+                      size={{
+                        xs: 12,
+                        sm: 4
+                      }}>
+                      <TextField
+                        fullWidth
+                        label="PIN Code"
+                        value={formData.pincode}
+                        onChange={(e) => {
+                          const value = e.target.value.replace(/\D/g, '').slice(0, 6);
+                          setFormData({ ...formData, pincode: value });
+                        }}
+                        slotProps={{
+                          htmlInput: { maxLength: 6, inputMode: 'numeric' }
+                        }}
+                      />
+                    </Grid>
+                    <Grid
+                      size={{
+                        xs: 12,
+                        sm: 4
+                      }}>
+                      <FormControl fullWidth>
+                        <InputLabel>ID Proof Type</InputLabel>
+                        <Select
+                          label="ID Proof Type"
+                          value={formData.idProofType}
+                          onChange={(e) => setFormData({ ...formData, idProofType: e.target.value })}
+                          MenuProps={{ slotProps: {
+                            paper: { sx: { backgroundColor: '#fff' } }
+                          } }}
+                        >
+                          <MenuItem value=""><em>— None —</em></MenuItem>
+                          {ID_PROOF_TYPES.map((t) => (
+                            <MenuItem key={t} value={t}>{t}</MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                    </Grid>
+                    <Grid
+                      size={{
+                        xs: 12,
+                        sm: 4
+                      }}>
+                      <TextField
+                        fullWidth
+                        label="ID Proof Number"
+                        value={formData.idProofNumber}
+                        onChange={(e) => setFormData({ ...formData, idProofNumber: e.target.value })}
+                      />
+                    </Grid>
+                    <Grid
+                      size={{
+                        xs: 12,
+                        sm: 4
+                      }}>
+                      <TextField
+                        fullWidth
+                        label="GST Number (if applicable)"
+                        value={formData.gstNumber}
+                        onChange={(e) => setFormData({ ...formData, gstNumber: e.target.value.toUpperCase() })}
+                        slotProps={{
+                          htmlInput: { style: { textTransform: 'uppercase' } }
+                        }}
+                      />
+                    </Grid>
+                  </Grid>
+                </Box>
+                )}
+                {/* Event Details Section */}
+                {activeStep === 1 && (
+                <Box sx={sectionCardSx(isDarkMode)}>
+                  <Typography sx={sectionTitleSx(isDarkMode)}>
+                    <CalendarIcon sx={{ color: '#f59e42' }} /> Event Details
+                  </Typography>
+                  <Grid container spacing={2}>
+                    <Grid size={12}>
+                      <TextField
+                        fullWidth
+                        label="Event Title"
+                        value={formData.eventTitle}
+                        onChange={(e) => setFormData({ ...formData, eventTitle: e.target.value })}
+                        placeholder='e.g. "Rahul & Priya Wedding"'
+                      />
+                    </Grid>
+                    {/* ── Type-specific fields (driven by the event category) ── */}
+                    {/* Wedding / Reception — couple names */}
+                    {eventCategory(formData.eventType) === 'wedding' && (
+                      <>
+                        <Grid
+                          size={{
+                            xs: 12,
+                            sm: 6
+                          }}>
+                          <TextField fullWidth label="Groom Name" value={formData.groomName}
+                            onChange={(e) => setFormData({ ...formData, groomName: e.target.value })} />
                         </Grid>
-                      </Grid>
-                      <Grid item xs={12} sm={6}>
-                        <TextField
-                          fullWidth
-                          label="Guest Count"
-                          type="number"
-                          value={formData.guestCount}
-                          onChange={(e) => setFormData({ ...formData, guestCount: e.target.value })}
-                        />
-                      </Grid>
-                      <Grid item xs={12} sm={6}>
-                        <FormControl fullWidth>
-                          <InputLabel>Status</InputLabel>
-                          <Select
-                            label="Status"
-                            value={formData.status}
-                            onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                            MenuProps={{ PaperProps: { sx: { backgroundColor: '#fff' } } }}
-                          >
-                            {BOOKING_STATUS.map((status) => (
-                              <MenuItem key={status} value={status}>{status}</MenuItem>
-                            ))}
-                          </Select>
-                        </FormControl>
-                      </Grid>
-                    </Grid>
-                  </Box>
-                  )}
-                  {/* Floor & Decoration Section / Event Pricing Section */}
-                  {activeStep === 2 && (
-                  <Box sx={sectionCardSx(isDarkMode)}>
-                    <Typography sx={sectionTitleSx(isDarkMode)}>
-                      <EventIcon sx={{ color: '#a21caf' }} /> 
-                      {isDurationPricedType(formData.eventType) ? 'Event Pricing' : 'Floor & Decoration'}
-                    </Typography>
-                    <Grid container spacing={2}>
-                      {/* Event package selector (non duration-priced events) */}
-                      {!isDurationPricedType(formData.eventType) && (
-                        <Grid item xs={12}>
+                        <Grid
+                          size={{
+                            xs: 12,
+                            sm: 6
+                          }}>
+                          <TextField fullWidth label="Bride Name" value={formData.brideName}
+                            onChange={(e) => setFormData({ ...formData, brideName: e.target.value })} />
+                        </Grid>
+                      </>
+                    )}
+
+                    {/* Corporate / Meeting / Conference — organisation details */}
+                    {['corporate', 'conference'].includes(eventCategory(formData.eventType)) && (
+                      <>
+                        <Grid
+                          size={{
+                            xs: 12,
+                            sm: 6
+                          }}>
+                          <TextField fullWidth label="Company / Organization"
+                            value={formData.eventDetails?.organizationName || ''}
+                            onChange={(e) => setEventDetail('organizationName', e.target.value)} />
+                        </Grid>
+                        <Grid
+                          size={{
+                            xs: 12,
+                            sm: 6
+                          }}>
+                          <TextField fullWidth label="Contact Person (name & designation)"
+                            value={formData.eventDetails?.contactPerson || ''}
+                            onChange={(e) => setEventDetail('contactPerson', e.target.value)} />
+                        </Grid>
+                        <Grid
+                          size={{
+                            xs: 12,
+                            sm: 6
+                          }}>
+                          <TextField fullWidth type="number"
+                            label={eventCategory(formData.eventType) === 'conference' ? 'No. of Delegates' : 'No. of Attendees'}
+                            value={formData.eventDetails?.delegates || ''}
+                            onChange={(e) => { if (/^\d*$/.test(e.target.value)) { setEventDetail('delegates', e.target.value); } }}
+                            slotProps={{
+                              htmlInput: { min: 0 }
+                            }} />
+                        </Grid>
+                        {eventCategory(formData.eventType) === 'conference' && (
+                          <Grid
+                            size={{
+                              xs: 12,
+                              sm: 6
+                            }}>
+                            <TextField fullWidth type="number" label="Sessions / Days"
+                              value={formData.eventDetails?.sessionsDays || ''}
+                              onChange={(e) => { if (/^\d*$/.test(e.target.value)) { setEventDetail('sessionsDays', e.target.value); } }}
+                              slotProps={{
+                                htmlInput: { min: 0 }
+                              }} />
+                          </Grid>
+                        )}
+                        <Grid
+                          size={{
+                            xs: 12,
+                            sm: 6
+                          }}>
                           <FormControl fullWidth>
-                            <InputLabel>Event Package (optional)</InputLabel>
-                            <Select
-                              label="Event Package (optional)"
-                              value={formData.packageId || ''}
-                              onChange={(e) => applyEventPackage(e.target.value)}
-                              MenuProps={{ PaperProps: { sx: { backgroundColor: '#fff', maxHeight: 360 } } }}
-                            >
-                              <MenuItem value=""><em>— No package (choose floors & decoration manually) —</em></MenuItem>
-                              {eventPackages.filter((p) => p.isActive !== false).map((p) => (
-                                <MenuItem key={p._id} value={p._id}>
-                                  {p.name} — {currencySym()}{((p.basePrice || 0) + (p.decorationCost || 0)).toLocaleString('en-IN')}
-                                </MenuItem>
-                              ))}
+                            <InputLabel>Seating Style</InputLabel>
+                            <Select label="Seating Style" value={formData.seatingStyle || ''}
+                              onChange={(e) => setFormData({ ...formData, seatingStyle: e.target.value })}
+                              MenuProps={{ slotProps: {
+                                paper: { sx: { backgroundColor: '#fff' } }
+                              } }}>
+                              <MenuItem value=""><em>—</em></MenuItem>
+                              {SEATING_STYLES.map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
                             </Select>
-                            <Typography variant="caption" sx={{ mt: 0.5, color: 'text.secondary' }}>
-                              Applying a package sets the venue & decoration cost. Manage packages from the “Packages” tab.
-                            </Typography>
                           </FormControl>
                         </Grid>
-                      )}
+                        <Grid
+                          size={{
+                            xs: 12,
+                            sm: 6
+                          }}>
+                          <FormControlLabel
+                            control={<Checkbox checked={!!formData.eventDetails?.avRequired}
+                              onChange={(e) => setEventDetail('avRequired', e.target.checked)} />}
+                            label="AV / Projector / PA required" />
+                        </Grid>
+                        <Grid size={12}>
+                          <TextField fullWidth label="Agenda / Purpose" multiline rows={2}
+                            value={formData.eventDetails?.agenda || ''}
+                            onChange={(e) => setEventDetail('agenda', e.target.value)} />
+                        </Grid>
+                      </>
+                    )}
 
-                      {/* Applied-package summary OR manual floor + decoration pickers */}
-                      {isDurationPricedType(formData.eventType) ? (
-                        <Grid item xs={12} sm={6}>
-                          <TextField
-                            fullWidth
-                            label="Event Duration (hours)"
-                            type="number"
-                            value={formData.eventDuration}
-                            onChange={e => {
-                              const value = e.target.value;
-                              if (/^\d*$/.test(value)) {
-                                setFormData({ ...formData, eventDuration: value });
+                    {/* Birthday — celebrant, age, theme, cake */}
+                    {eventCategory(formData.eventType) === 'birthday' && (
+                      <>
+                        <Grid
+                          size={{
+                            xs: 12,
+                            sm: 6
+                          }}>
+                          <TextField fullWidth label="Birthday Person"
+                            value={formData.eventDetails?.birthdayPersonName || ''}
+                            onChange={(e) => setEventDetail('birthdayPersonName', e.target.value)} />
+                        </Grid>
+                        <Grid
+                          size={{
+                            xs: 6,
+                            sm: 3
+                          }}>
+                          <TextField fullWidth type="number" label="Age Turning"
+                            value={formData.eventDetails?.birthdayAge || ''}
+                            onChange={(e) => { if (/^\d*$/.test(e.target.value)) { setEventDetail('birthdayAge', e.target.value); } }}
+                            slotProps={{
+                              htmlInput: { min: 0 }
+                            }} />
+                        </Grid>
+                        <Grid
+                          size={{
+                            xs: 6,
+                            sm: 3
+                          }}>
+                          <TextField fullWidth label="Theme"
+                            value={formData.eventDetails?.theme || ''}
+                            onChange={(e) => setEventDetail('theme', e.target.value)} />
+                        </Grid>
+                        <Grid
+                          size={{
+                            xs: 12,
+                            sm: 6
+                          }}>
+                          <FormControlLabel
+                            control={<Checkbox checked={!!formData.eventDetails?.cakeRequired}
+                              onChange={(e) => setEventDetail('cakeRequired', e.target.checked)} />}
+                            label="Cake required" />
+                        </Grid>
+                        {formData.eventDetails?.cakeRequired && (
+                          <Grid
+                            size={{
+                              xs: 12,
+                              sm: 6
+                            }}>
+                            <TextField fullWidth label="Cake Message"
+                              value={formData.eventDetails?.cakeMessage || ''}
+                              onChange={(e) => setEventDetail('cakeMessage', e.target.value)} />
+                          </Grid>
+                        )}
+                      </>
+                    )}
+
+                    {/* Social — engagement / anniversary / party */}
+                    {eventCategory(formData.eventType) === 'social' && (
+                      <>
+                        <Grid
+                          size={{
+                            xs: 12,
+                            sm: 6
+                          }}>
+                          <TextField fullWidth label="Celebrant / Couple Names"
+                            value={formData.eventDetails?.celebrantNames || ''}
+                            onChange={(e) => setEventDetail('celebrantNames', e.target.value)}
+                            placeholder="e.g. Rahul & Priya / Sharma Family" />
+                        </Grid>
+                        <Grid
+                          size={{
+                            xs: 12,
+                            sm: 6
+                          }}>
+                          <TextField fullWidth label="Occasion Note"
+                            value={formData.eventDetails?.occasionNote || ''}
+                            onChange={(e) => setEventDetail('occasionNote', e.target.value)}
+                            placeholder="e.g. 25th Anniversary" />
+                        </Grid>
+                      </>
+                    )}
+                    <Grid
+                      size={{
+                        xs: 12,
+                        sm: 6
+                      }}>
+                      <FormControl fullWidth required>
+                        <InputLabel>Event Type</InputLabel>
+                        <Select
+                          label="Event Type"
+                          value={formData.eventType}
+                          onChange={(e) => {
+                            const eventType = e.target.value;
+                            // Swap in this type's default Contract & Terms text,
+                            // but only for fields still holding an auto-default
+                            // (never overwrite text staff have hand-edited).
+                            const defaults = policyDefaultsForType(eventType);
+                            const policyPatch = {};
+                            POLICY_FIELDS.forEach((f) => {
+                              if (isAutoPolicyValue(f, formData[f])) { policyPatch[f] = defaults[f]; }
+                            });
+                            setFormData({ ...formData, eventType, ...getEventTimingDefaults(eventType, formData.eventDate), ...policyPatch });
+                          }}
+                          MenuProps={{ slotProps: {
+                            paper: { sx: { backgroundColor: '#fff' } }
+                          } }}
+                        >
+                          {EVENT_TYPES.map((type) => (
+                            <MenuItem key={type} value={type}>{type}</MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                    </Grid>
+                    <Grid
+                      size={{
+                        xs: 12,
+                        sm: 6
+                      }}>
+                      <DatePicker
+                        format="dd/MM/yyyy"
+                        label="Event Date"
+                        value={formData.eventDate ? (typeof formData.eventDate === 'string' ? (formData.eventDate ? parseISO(formData.eventDate) : null) : formData.eventDate) : null}
+                        onChange={(date) => {
+                          const eventDate = date ? format(date, 'yyyy-MM-dd') : '';
+                          setFormData({ ...formData, eventDate, ...getEventTimingDefaults(formData.eventType, eventDate) });
+                        }}
+                        slotProps={{ 
+                          textField: { fullWidth: true, required: true },
+                          popper: {
+                            sx: {
+                              '& .MuiPaper-root': {
+                                backgroundColor: 'white',
+                                opacity: 1,
+                                boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+                              }
+                            }
+                          }
+                        }}
+                      />
+                    </Grid>
+                    <Grid
+                      size={{
+                        xs: 12,
+                        sm: 6
+                      }}>
+                      <DatePicker
+                        format="dd/MM/yyyy"
+                        label="End Date"
+                        value={formData.endDate ? (typeof formData.endDate === 'string' ? (formData.endDate ? parseISO(formData.endDate) : null) : formData.endDate) : null}
+                        onChange={(date) => setFormData({ ...formData, endDate: date ? format(date, 'yyyy-MM-dd') : '' })}
+                        slotProps={{ 
+                          textField: { fullWidth: true },
+                          popper: {
+                            sx: {
+                              '& .MuiPaper-root': {
+                                backgroundColor: 'white',
+                                opacity: 1,
+                                boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+                              }
+                            }
+                          }
+                        }}
+                        minDate={formData.eventDate ? parseISO(formData.eventDate) : undefined}
+                      />
+                    </Grid>
+                    <Grid size={12}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                        <AccessTimeIcon sx={{ mr: 1, color: '#10b981' }} />
+                        <Typography variant="subtitle1" sx={{ color: '#10b981', fontWeight: 600 }}>
+                          Event Timing
+                        </Typography>
+                      </Box>
+                      <Grid container spacing={2}>
+                        <Grid
+                          size={{
+                            xs: 12,
+                            sm: 6
+                          }}>
+                          <TimePicker
+                            label="Start Time"
+                            value={formData.startTime ? new Date(`1970-01-01T${formData.startTime}`) : null}
+                            onChange={value => {
+                              const timeStr = value ? value.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : '';
+                              setFormData({ ...formData, startTime: timeStr });
+                            }}
+                            ampm={false}
+                            minutesStep={5}
+                            slotProps={{
+                              textField: {
+                                fullWidth: true,
+                                InputProps: { startAdornment: <AccessTimeIcon sx={{ mr: 1, color: '#10b981' }} /> },
+                                helperText: 'Select when the event starts',
+                              },
+                              clearButton: { title: 'Clear Start Time' },
+                              popper: {
+                                sx: {
+                                  '& .MuiPaper-root': {
+                                    backgroundColor: 'white',
+                                    opacity: 1,
+                                    boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+                                  }
+                                }
                               }
                             }}
-                            onWheel={e => e.target.blur()}
-                            InputProps={{ inputProps: { min: 1 }, sx: {
+                            clearable
+                            disableCloseOnSelect={false}
+                            format="HH:mm"
+                          />
+                        </Grid>
+                        <Grid
+                          size={{
+                            xs: 12,
+                            sm: 6
+                          }}>
+                          <TimePicker
+                            label="End Time"
+                            value={formData.endTime ? new Date(`1970-01-01T${formData.endTime}`) : null}
+                            onChange={value => {
+                              const timeStr = value ? value.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : '';
+                              setFormData({ ...formData, endTime: timeStr });
+                            }}
+                            ampm={false}
+                            minutesStep={5}
+                            slotProps={{
+                              textField: {
+                                fullWidth: true,
+                                InputProps: { startAdornment: <AccessTimeIcon sx={{ mr: 1, color: '#10b981' }} /> },
+                                helperText: 'Select when the event ends',
+                              },
+                              clearButton: { title: 'Clear End Time' },
+                              popper: {
+                                sx: {
+                                  '& .MuiPaper-root': {
+                                    backgroundColor: 'white',
+                                    opacity: 1,
+                                    boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+                                  }
+                                }
+                              }
+                            }}
+                            clearable
+                            disableCloseOnSelect={false}
+                            format="HH:mm"
+                            minTime={formData.startTime ? new Date(`1970-01-01T${formData.startTime}`) : undefined}
+                          />
+                        </Grid>
+                      </Grid>
+                    </Grid>
+                    <Grid
+                      size={{
+                        xs: 12,
+                        sm: 6
+                      }}>
+                      <TextField
+                        fullWidth
+                        label="Guest Count"
+                        type="number"
+                        value={formData.guestCount}
+                        onChange={(e) => setFormData({ ...formData, guestCount: e.target.value })}
+                      />
+                    </Grid>
+                    <Grid
+                      size={{
+                        xs: 12,
+                        sm: 6
+                      }}>
+                      <FormControl fullWidth>
+                        <InputLabel>Status</InputLabel>
+                        <Select
+                          label="Status"
+                          value={formData.status}
+                          onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                          MenuProps={{ slotProps: {
+                            paper: { sx: { backgroundColor: '#fff' } }
+                          } }}
+                        >
+                          {BOOKING_STATUS.map((status) => (
+                            <MenuItem key={status} value={status}>{status}</MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                    </Grid>
+                  </Grid>
+                </Box>
+                )}
+                {/* Floor & Decoration Section / Event Pricing Section */}
+                {activeStep === 2 && (
+                <Box sx={sectionCardSx(isDarkMode)}>
+                  <Typography sx={sectionTitleSx(isDarkMode)}>
+                    <EventIcon sx={{ color: '#a21caf' }} /> 
+                    {isDurationPricedType(formData.eventType) ? 'Event Pricing' : 'Floor & Decoration'}
+                  </Typography>
+                  <Grid container spacing={2}>
+                    {/* Event package selector (non duration-priced events) */}
+                    {!isDurationPricedType(formData.eventType) && (
+                      <Grid size={12}>
+                        <FormControl fullWidth>
+                          <InputLabel>Event Package (optional)</InputLabel>
+                          <Select
+                            label="Event Package (optional)"
+                            value={formData.packageId || ''}
+                            onChange={(e) => applyEventPackage(e.target.value)}
+                            MenuProps={{ slotProps: {
+                              paper: { sx: { backgroundColor: '#fff', maxHeight: 360 } }
+                            } }}
+                          >
+                            <MenuItem value=""><em>— No package (choose floors & decoration manually) —</em></MenuItem>
+                            {eventPackages.filter((p) => p.isActive !== false).map((p) => (
+                              <MenuItem key={p._id} value={p._id}>
+                                {p.name} — {currencySym()}{((p.basePrice || 0) + (p.decorationCost || 0)).toLocaleString('en-IN')}
+                              </MenuItem>
+                            ))}
+                          </Select>
+                          <Typography variant="caption" sx={{ mt: 0.5, color: 'text.secondary' }}>
+                            Applying a package sets the venue & decoration cost. Manage packages from the “Packages” tab.
+                          </Typography>
+                        </FormControl>
+                      </Grid>
+                    )}
+
+                    {/* Applied-package summary OR manual floor + decoration pickers */}
+                    {isDurationPricedType(formData.eventType) ? (
+                      <Grid
+                        size={{
+                          xs: 12,
+                          sm: 6
+                        }}>
+                        <TextField
+                          fullWidth
+                          label="Event Duration (hours)"
+                          type="number"
+                          value={formData.eventDuration}
+                          onChange={e => {
+                            const value = e.target.value;
+                            if (/^\d*$/.test(value)) {
+                              setFormData({ ...formData, eventDuration: value });
+                            }
+                          }}
+                          onWheel={e => e.target.blur()}
+                          helperText={`Cost: ${currencySym()}${liveBilling().banquetVenueHourlyRate.toLocaleString('en-IN')} per hour`}
+                          slotProps={{
+                            input: { inputProps: { min: 1 }, sx: {
                               '& input[type=number]::-webkit-outer-spin-button, & input[type=number]::-webkit-inner-spin-button': {
                                 WebkitAppearance: 'none',
                                 margin: 0,
@@ -1686,791 +1861,510 @@ const BanquetHallBooking = () => {
                               '& input[type=number]': {
                                 MozAppearance: 'textfield',
                               },
-                            } }}
-                            helperText={`Cost: ${currencySym()}${liveBilling().banquetVenueHourlyRate.toLocaleString('en-IN')} per hour`}
-                          />
-                        </Grid>
-                      ) : formData.packageId ? (
-                        <Grid item xs={12}>
-                          <Box sx={{
-                            p: 2, borderRadius: 2,
-                            border: '1px solid rgba(var(--app-primary-rgb),0.3)',
-                            background: 'rgba(var(--app-primary-rgb),0.06)',
-                            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap',
-                          }}>
-                            <Box>
-                              <Typography variant="subtitle1" fontWeight={800} sx={{ color: 'var(--app-primary)' }}>
-                                {formData.packageName}
-                              </Typography>
-                              <Typography variant="body2" color="text.secondary">
-                                Venue {currencySym()}{(Number(formData.packageBasePrice) || 0).toLocaleString('en-IN')}
-                                {' · '}Decoration {currencySym()}{(Number(formData.packageDecorationCost) || 0).toLocaleString('en-IN')}
-                                {formData.decorationType ? ` (${formData.decorationType})` : ''}
-                              </Typography>
-                            </Box>
-                            <Button size="small" variant="outlined" onClick={() => applyEventPackage('')} sx={{ textTransform: 'none', borderRadius: '999px' }}>
-                              Clear package
-                            </Button>
-                          </Box>
-                        </Grid>
-                      ) : (
-                        <Grid item xs={12} sm={6}>
-                          <FormControl fullWidth>
-                            <InputLabel>Floors</InputLabel>
-                            <Select
-                              label="Floors"
-                              multiple
-                              value={formData.selectedFloors}
-                              onChange={(e) => {
-                                const selectedFloors = e.target.value;
-                                // Rooms on a booked floor are part of the package —
-                                // drop them from the separate guest-room reservation.
-                                const covered = levelsForFloors(selectedFloors);
-                                const rooms2 = (formData.rooms || []).filter((id) => {
-                                  const rm = rooms.find((r) => r._id === id);
-                                  return rm ? !covered.has(roomFloorLevel(rm.roomNumber)) : true;
-                                });
-                                setFormData({ ...formData, selectedFloors, rooms: rooms2 });
-                              }}
-                              renderValue={(selected) => (
-                                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                                  {selected.map((value) => (
-                                    <Chip key={value} label={FLOOR_OPTIONS.find(f => f.value === value)?.label || value} sx={{ bgcolor: '#dcfce7', color: '#10b981', fontWeight: 600 }} />
-                                  ))}
-                                </Box>
-                              )}
-                              MenuProps={{ PaperProps: { sx: { backgroundColor: '#fff' } } }}
-                            >
-                              {FLOOR_OPTIONS.map((option) => (
-                                <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>
-                              ))}
-                            </Select>
-                          </FormControl>
-                        </Grid>
-                      )}
-
-                      {/* Repeatable decoration line items — pick a décor package
-                          from the catalog or add a custom item; each is priced
-                          separately and summed into the total. */}
-                      <Grid item xs={12}>
-                        <Box sx={{ p: 2, borderRadius: 2, border: '1px dashed', borderColor: 'rgba(236,72,153,0.4)', background: 'rgba(236,72,153,0.04)' }}>
-                          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5, flexWrap: 'wrap', gap: 1 }}>
-                            <Typography variant="subtitle2" fontWeight={800} sx={{ display: 'flex', alignItems: 'center', gap: 0.75, color: '#ec4899' }}>
-                              <BrushOutlinedIcon fontSize="small" /> Decoration
+                            } }
+                          }}
+                        />
+                      </Grid>
+                    ) : formData.packageId ? (
+                      <Grid size={12}>
+                        <Box sx={{
+                          p: 2, borderRadius: 2,
+                          border: '1px solid rgba(var(--app-primary-rgb),0.3)',
+                          background: 'rgba(var(--app-primary-rgb),0.06)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap',
+                        }}>
+                          <Box>
+                            <Typography
+                              variant="subtitle1"
+                              sx={{
+                                fontWeight: 800,
+                                color: 'var(--app-primary)'
+                              }}>
+                              {formData.packageName}
                             </Typography>
-                            <Button size="small" startIcon={<AddIcon />} onClick={addDecorationItem} sx={{ textTransform: 'none', borderRadius: '999px' }}>
-                              Add decoration
-                            </Button>
-                          </Box>
-                          {(formData.decorationItems || []).length === 0 ? (
-                            <Typography variant="body2" color="text.secondary">
-                              No decoration added. Pick a décor package (managed in the “Decoration” tab) or add a custom item.
+                            <Typography variant="body2" sx={{
+                              color: "text.secondary"
+                            }}>
+                              Venue {currencySym()}{(Number(formData.packageBasePrice) || 0).toLocaleString('en-IN')}
+                              {' · '}Decoration {currencySym()}{(Number(formData.packageDecorationCost) || 0).toLocaleString('en-IN')}
+                              {formData.decorationType ? ` (${formData.decorationType})` : ''}
                             </Typography>
-                          ) : (
-                            <Stack spacing={1.5}>
-                              {formData.decorationItems.map((item, idx) => (
-                                <Grid container spacing={1.5} key={idx} alignItems="center">
-                                  <Grid item xs={12} sm={4}>
-                                    <FormControl fullWidth size="small">
-                                      <InputLabel>Décor package</InputLabel>
-                                      <Select
-                                        label="Décor package"
-                                        value={item.decorationPackageId || ''}
-                                        onChange={(e) => applyDecorationPackageToItem(idx, e.target.value)}
-                                        MenuProps={{ PaperProps: { sx: { backgroundColor: '#fff', maxHeight: 320 } } }}
-                                      >
-                                        <MenuItem value=""><em>— Custom —</em></MenuItem>
-                                        {decorationPackages.filter((p) => p.isActive !== false).map((p) => (
-                                          <MenuItem key={p._id} value={p._id}>
-                                            {p.name} — {currencySym()}{(p.price || 0).toLocaleString('en-IN')}
-                                          </MenuItem>
-                                        ))}
-                                      </Select>
-                                    </FormControl>
-                                  </Grid>
-                                  <Grid item xs={12} sm={4}>
-                                    <TextField
-                                      fullWidth size="small" label="Label"
-                                      placeholder="Stage & Mandap"
-                                      value={item.name}
-                                      onChange={(e) => updateDecorationItem(idx, { name: e.target.value })}
-                                    />
-                                  </Grid>
-                                  <Grid item xs={8} sm={3}>
-                                    <TextField
-                                      fullWidth size="small" type="number" label={`Cost (${currencySym()})`}
-                                      value={item.cost}
-                                      onChange={(e) => updateDecorationItem(idx, { cost: Math.max(0, parseFloat(e.target.value) || 0) })}
-                                      inputProps={{ min: 0, step: 100 }}
-                                    />
-                                  </Grid>
-                                  <Grid item xs={4} sm={1}>
-                                    <IconButton size="small" onClick={() => removeDecorationItem(idx)} sx={{ color: '#ef4444' }}>
-                                      <DeleteIcon fontSize="small" />
-                                    </IconButton>
-                                  </Grid>
-                                  <Grid item xs={12}>
-                                    <TextField
-                                      fullWidth size="small" label="Notes (optional)"
-                                      placeholder="Theme, colours, flowers, lighting…"
-                                      value={item.details}
-                                      onChange={(e) => updateDecorationItem(idx, { details: e.target.value })}
-                                    />
-                                  </Grid>
-                                </Grid>
-                              ))}
-                            </Stack>
-                          )}
+                          </Box>
+                          <Button size="small" variant="outlined" onClick={() => applyEventPackage('')} sx={{ textTransform: 'none', borderRadius: '999px' }}>
+                            Clear package
+                          </Button>
                         </Box>
                       </Grid>
-                      {/* An event package books the whole hotel, so the separate
-                          floor + guest-room reservation is hidden — the package
-                          already covers every floor and its rooms. */}
-                      {!formData.packageId && (
-                      <Grid item xs={12}>
+                    ) : (
+                      <Grid
+                        size={{
+                          xs: 12,
+                          sm: 6
+                        }}>
                         <FormControl fullWidth>
-                          <InputLabel>Reserve Guest Rooms</InputLabel>
+                          <InputLabel>Floors</InputLabel>
                           <Select
-                            label="Reserve Guest Rooms"
+                            label="Floors"
                             multiple
-                            value={formData.rooms}
-                            onChange={(e) => setFormData({ ...formData, rooms: e.target.value })}
+                            value={formData.selectedFloors}
+                            onChange={(e) => {
+                              const selectedFloors = e.target.value;
+                              // Rooms on a booked floor are part of the package —
+                              // drop them from the separate guest-room reservation.
+                              const covered = levelsForFloors(selectedFloors);
+                              const rooms2 = (formData.rooms || []).filter((id) => {
+                                const rm = rooms.find((r) => r._id === id);
+                                return rm ? !covered.has(roomFloorLevel(rm.roomNumber)) : true;
+                              });
+                              setFormData({ ...formData, selectedFloors, rooms: rooms2 });
+                            }}
                             renderValue={(selected) => (
                               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                                {selected.map((id) => {
-                                  const room = rooms.find((r) => r._id === id);
-                                  return (
-                                    <Chip key={id} label={room ? `Room ${room.roomNumber}` : id} sx={{ bgcolor: '#ede9fe', color: '#7c3aed', fontWeight: 600 }} />
-                                  );
-                                })}
+                                {selected.map((value) => (
+                                  <Chip key={value} label={FLOOR_OPTIONS.find(f => f.value === value)?.label || value} sx={{ bgcolor: '#dcfce7', color: '#10b981', fontWeight: 600 }} />
+                                ))}
                               </Box>
                             )}
-                            MenuProps={{ PaperProps: { sx: { backgroundColor: '#fff', maxHeight: 320 } } }}
+                            MenuProps={{ slotProps: {
+                              paper: { sx: { backgroundColor: '#fff' } }
+                            } }}
                           >
-                            {rooms
-                              .filter((room) => !levelsForFloors(formData.selectedFloors).has(roomFloorLevel(room.roomNumber)))
-                              .map((room) => (
-                                <MenuItem key={room._id} value={room._id}>
-                                  Room {room.roomNumber} — {room.type}
-                                </MenuItem>
-                              ))}
+                            {FLOOR_OPTIONS.map((option) => (
+                              <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>
+                            ))}
                           </Select>
-                          <Typography variant="caption" sx={{ mt: 0.5, color: 'text.secondary' }}>
-                            Rooms on a booked floor are part of that package and are hidden here. Selected rooms are blocked from regular guest booking during the event dates.
-                          </Typography>
                         </FormControl>
                       </Grid>
-                      )}
-                    </Grid>
-                  </Box>
-                  )}
-                  {/* Catering Section (repeatable line items) */}
-                  {activeStep === 3 && (
-                  <Box sx={sectionCardSx(isDarkMode)}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1, mb: 1 }}>
-                      <Typography sx={{ ...sectionTitleSx(isDarkMode), mb: 0 }}>
-                        <RestaurantMenuIcon sx={{ color: '#f43f5e' }} /> Catering
-                      </Typography>
-                      <Button size="small" startIcon={<AddIcon />} onClick={addCateringItem} sx={{ textTransform: 'none', borderRadius: '999px' }}>
-                        Add catering
-                      </Button>
-                    </Box>
-                    {(formData.cateringItems || []).length === 0 ? (
-                      <Typography variant="body2" color="text.secondary">
-                        No catering added. Pick a catering package (managed in the “Catering” tab) or add a custom per-plate item.
-                      </Typography>
-                    ) : (
-                      <Stack spacing={2}>
-                        {formData.cateringItems.map((item, idx) => {
-                          const pkg = cateringPackages.find((p) => p._id === item.cateringPackageId);
-                          const lineTotal = cateringItemAmount(item, formData.guestCount);
-                          return (
-                            <Box key={idx} sx={{ p: 2, borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
-                              <Grid container spacing={1.5} alignItems="center">
-                                <Grid item xs={12} sm={4}>
+                    )}
+
+                    {/* Repeatable decoration line items — pick a décor package
+                        from the catalog or add a custom item; each is priced
+                        separately and summed into the total. */}
+                    <Grid size={12}>
+                      <Box sx={{ p: 2, borderRadius: 2, border: '1px dashed', borderColor: 'rgba(236,72,153,0.4)', background: 'rgba(236,72,153,0.04)' }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5, flexWrap: 'wrap', gap: 1 }}>
+                          <Typography
+                            variant="subtitle2"
+                            sx={{
+                              fontWeight: 800,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 0.75,
+                              color: '#ec4899'
+                            }}>
+                            <BrushOutlinedIcon fontSize="small" /> Decoration
+                          </Typography>
+                          <Button size="small" startIcon={<AddIcon />} onClick={addDecorationItem} sx={{ textTransform: 'none', borderRadius: '999px' }}>
+                            Add decoration
+                          </Button>
+                        </Box>
+                        {(formData.decorationItems || []).length === 0 ? (
+                          <Typography variant="body2" sx={{
+                            color: "text.secondary"
+                          }}>
+                            No decoration added. Pick a décor package (managed in the “Decoration” tab) or add a custom item.
+                          </Typography>
+                        ) : (
+                          <Stack spacing={1.5}>
+                            {formData.decorationItems.map((item, idx) => (
+                              <Grid container spacing={1.5} key={idx} sx={{
+                                alignItems: "center"
+                              }}>
+                                <Grid
+                                  size={{
+                                    xs: 12,
+                                    sm: 4
+                                  }}>
                                   <FormControl fullWidth size="small">
-                                    <InputLabel>Catering package</InputLabel>
+                                    <InputLabel>Décor package</InputLabel>
                                     <Select
-                                      label="Catering package"
-                                      value={item.cateringPackageId || ''}
-                                      onChange={(e) => applyCateringPackageToItem(idx, e.target.value)}
-                                      MenuProps={{ PaperProps: { sx: { backgroundColor: '#fff', maxHeight: 320 } } }}
+                                      label="Décor package"
+                                      value={item.decorationPackageId || ''}
+                                      onChange={(e) => applyDecorationPackageToItem(idx, e.target.value)}
+                                      MenuProps={{ slotProps: {
+                                        paper: { sx: { backgroundColor: '#fff', maxHeight: 320 } }
+                                      } }}
                                     >
                                       <MenuItem value=""><em>— Custom —</em></MenuItem>
-                                      {cateringPackages.filter((p) => p.isActive !== false).map((p) => (
+                                      {decorationPackages.filter((p) => p.isActive !== false).map((p) => (
                                         <MenuItem key={p._id} value={p._id}>
-                                          {p.name} — {currencySym()}{(p.pricePerPlate || 0).toLocaleString('en-IN')}/plate ({p.category})
+                                          {p.name} — {currencySym()}{(p.price || 0).toLocaleString('en-IN')}
                                         </MenuItem>
                                       ))}
                                     </Select>
                                   </FormControl>
                                 </Grid>
-                                <Grid item xs={12} sm={4}>
-                                  <TextField fullWidth size="small" label="Label" placeholder="Veg Buffet"
+                                <Grid
+                                  size={{
+                                    xs: 12,
+                                    sm: 4
+                                  }}>
+                                  <TextField
+                                    fullWidth size="small" label="Label"
+                                    placeholder="Stage & Mandap"
                                     value={item.name}
-                                    onChange={(e) => updateCateringItem(idx, { name: e.target.value })} />
+                                    onChange={(e) => updateDecorationItem(idx, { name: e.target.value })}
+                                  />
                                 </Grid>
-                                <Grid item xs={6} sm={4}>
-                                  <FormControl fullWidth size="small">
-                                    <InputLabel>Meal</InputLabel>
-                                    <Select label="Meal" value={item.meal || ''}
-                                      onChange={(e) => updateCateringItem(idx, { meal: e.target.value })}
-                                      MenuProps={{ PaperProps: { sx: { backgroundColor: '#fff' } } }}>
-                                      <MenuItem value=""><em>— Any —</em></MenuItem>
-                                      {MEAL_OPTIONS.map((m) => <MenuItem key={m} value={m}>{m}</MenuItem>)}
-                                    </Select>
-                                  </FormControl>
-                                </Grid>
-                                <Grid item xs={6} sm={4}>
-                                  <TextField fullWidth size="small" type="number" label={`Per plate (${currencySym()})`}
-                                    value={item.perPlate}
-                                    onChange={(e) => updateCateringItem(idx, { perPlate: Math.max(0, parseFloat(e.target.value) || 0) })}
-                                    inputProps={{ min: 0, step: 10 }} />
-                                </Grid>
-                                <Grid item xs={6} sm={3}>
-                                  {item.cateringPackageId ? (
-                                    // Package selected → plates default to the total
-                                    // guest count, so the manual plate field is hidden.
-                                    <TextField fullWidth size="small" label="Plates"
-                                      value={`${parseInt(formData.guestCount, 10) || 0}`}
-                                      InputProps={{ readOnly: true }}
-                                      helperText="= total guests" />
-                                  ) : (
-                                    <TextField fullWidth size="small" type="number" label="Plates"
-                                      value={item.plates}
-                                      onChange={(e) => { if (/^\d*$/.test(e.target.value)) { updateCateringItem(idx, { plates: e.target.value }); } }}
-                                      inputProps={{ min: 0 }} />
-                                  )}
-                                </Grid>
-                                <Grid item xs={6} sm={3}>
-                                  <TextField fullWidth size="small" type="number" label="Days"
-                                    value={item.days}
-                                    onChange={(e) => { if (/^\d*$/.test(e.target.value)) { updateCateringItem(idx, { days: e.target.value }); } }}
-                                    inputProps={{ min: 1 }} />
-                                </Grid>
-                                <Grid item xs={9} sm={5}>
-                                  <Typography variant="body2" sx={{ fontWeight: 700, color: 'var(--app-primary)' }}>
-                                    Line total: {currencySym()}{lineTotal.toLocaleString('en-IN')}
-                                  </Typography>
-                                </Grid>
-                                <Grid item xs={3} sm={1}>
-                                  <IconButton size="small" onClick={() => removeCateringItem(idx)} sx={{ color: '#ef4444' }}>
-                                    <DeleteIcon fontSize="small" />
-                                  </IconButton>
-                                </Grid>
-                                {pkg && (pkg.items || []).length > 0 && (
-                                  <Grid item xs={12}>
-                                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
-                                      {pkg.items.map((it, i) => (
-                                        <Chip key={i} label={it} size="small" sx={{ bgcolor: 'rgba(var(--app-primary-rgb),0.08)' }} />
-                                      ))}
-                                    </Box>
-                                  </Grid>
-                                )}
-                              </Grid>
-                            </Box>
-                          );
-                        })}
-                      </Stack>
-                    )}
-                    <Box sx={{ mt: 2 }}>
-                      <TextField
-                        fullWidth
-                        label="Catering special requests"
-                        value={formData.specialRequests}
-                        onChange={(e) => setFormData({ ...formData, specialRequests: e.target.value })}
-                      />
-                    </Box>
-
-                    {/* Utensils & Cookware — rented to guests who cook their own
-                        food. Each line is chargeable (per-unit × qty) and reserves
-                        stock; the picker shows how many are still available. */}
-                    <Box sx={{ mt: 2, p: 2, borderRadius: 2, border: '1px dashed', borderColor: 'rgba(99,102,241,0.4)', background: 'rgba(99,102,241,0.04)' }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1, flexWrap: 'wrap', gap: 1 }}>
-                        <Typography variant="subtitle2" fontWeight={800} sx={{ display: 'flex', alignItems: 'center', gap: 0.75, color: '#6366F1' }}>
-                          <RestaurantMenuIcon fontSize="small" /> Utensils & Cookware
-                        </Typography>
-                        <Button size="small" startIcon={<AddIcon />} onClick={addUtensilItem} sx={{ textTransform: 'none', borderRadius: '999px' }}>
-                          Add utensil
-                        </Button>
-                      </Box>
-                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
-                        For guests who cook their own food — rent cookware, water jars, gas cylinders etc. (manage the catalog in the “Utensils” tab).
-                      </Typography>
-                      {(formData.utensilItems || []).length === 0 ? (
-                        <Typography variant="body2" color="text.secondary">No utensils added.</Typography>
-                      ) : (
-                        <Stack spacing={1.5}>
-                          {formData.utensilItems.map((item, idx) => {
-                            const available = utensilAvailable(item.utensilItemId);
-                            const qty = parseInt(item.quantity, 10) || 0;
-                            const over = available != null && qty > available;
-                            const lineTotal = utensilItemAmount(item);
-                            return (
-                              <Grid container spacing={1.5} key={idx} alignItems="center">
-                                <Grid item xs={12} sm={4}>
-                                  <FormControl fullWidth size="small">
-                                    <InputLabel>Utensil</InputLabel>
-                                    <Select label="Utensil" value={item.utensilItemId || ''}
-                                      onChange={(e) => applyUtensilToItem(idx, e.target.value)}
-                                      MenuProps={{ PaperProps: { sx: { backgroundColor: '#fff', maxHeight: 320 } } }}>
-                                      <MenuItem value=""><em>— Custom —</em></MenuItem>
-                                      {utensilCatalog.filter((u) => u.isActive !== false).map((u) => (
-                                        <MenuItem key={u._id} value={u._id}>
-                                          {u.name} — {currencySym()}{(u.cost || 0).toLocaleString('en-IN')}/{u.unit || 'unit'} ({u.available ?? u.quantityTotal} left)
-                                        </MenuItem>
-                                      ))}
-                                    </Select>
-                                  </FormControl>
-                                </Grid>
-                                <Grid item xs={6} sm={3}>
-                                  <TextField fullWidth size="small" label="Label" placeholder="Water Jar"
-                                    value={item.name}
-                                    onChange={(e) => updateUtensilItem(idx, { name: e.target.value })} />
-                                </Grid>
-                                <Grid item xs={6} sm={2}>
-                                  <TextField fullWidth size="small" type="number" label={`Cost (${currencySym()})`}
+                                <Grid
+                                  size={{
+                                    xs: 8,
+                                    sm: 3
+                                  }}>
+                                  <TextField
+                                    fullWidth size="small" type="number" label={`Cost (${currencySym()})`}
                                     value={item.cost}
-                                    onChange={(e) => updateUtensilItem(idx, { cost: Math.max(0, parseFloat(e.target.value) || 0) })}
-                                    inputProps={{ min: 0 }} />
+                                    onChange={(e) => updateDecorationItem(idx, { cost: Math.max(0, parseFloat(e.target.value) || 0) })}
+                                    slotProps={{
+                                      htmlInput: { min: 0, step: 100 }
+                                    }}
+                                  />
                                 </Grid>
-                                <Grid item xs={6} sm={2}>
-                                  <TextField fullWidth size="small" type="number" label="Qty"
-                                    value={item.quantity}
-                                    onChange={(e) => { if (/^\d*$/.test(e.target.value)) { updateUtensilItem(idx, { quantity: e.target.value }); } }}
-                                    error={over}
-                                    helperText={available != null ? (over ? `Only ${available} left` : `${available} available`) : ' '}
-                                    inputProps={{ min: 0 }} />
-                                </Grid>
-                                <Grid item xs={6} sm={1}>
-                                  <IconButton size="small" onClick={() => removeUtensilItem(idx)} sx={{ color: '#ef4444' }}>
+                                <Grid
+                                  size={{
+                                    xs: 4,
+                                    sm: 1
+                                  }}>
+                                  <IconButton size="small" onClick={() => removeDecorationItem(idx)} sx={{ color: '#ef4444' }}>
                                     <DeleteIcon fontSize="small" />
                                   </IconButton>
                                 </Grid>
-                                <Grid item xs={12}>
-                                  <Typography variant="body2" sx={{ fontWeight: 700, color: 'var(--app-primary)' }}>
-                                    Line total: {currencySym()}{lineTotal.toLocaleString('en-IN')}
-                                  </Typography>
+                                <Grid size={12}>
+                                  <TextField
+                                    fullWidth size="small" label="Notes (optional)"
+                                    placeholder="Theme, colours, flowers, lighting…"
+                                    value={item.details}
+                                    onChange={(e) => updateDecorationItem(idx, { details: e.target.value })}
+                                  />
                                 </Grid>
                               </Grid>
-                            );
-                          })}
-                        </Stack>
-                      )}
-                    </Box>
-                  </Box>
-                  )}
-                  {/* Guests & Add-ons step */}
-                  {activeStep === 4 && (<>
-                  {/* Additional Services Section */}
-                  <Box sx={sectionCardSx(isDarkMode)}>
-                    <Typography sx={sectionTitleSx(isDarkMode)}>
-                      <CelebrationIcon sx={{ color: '#f59e0b' }} /> Additional Services
-                    </Typography>
-                    <FormGroup row>
-                      {addOnsForCategory(eventCategory(formData.eventType)).services.map((service) => (
-                        <FormControlLabel
-                          key={service}
-                          sx={{ width: { xs: '50%', sm: '33%' }, m: 0 }}
-                          control={(
-                            <Checkbox
-                              checked={(formData.additionalServices || []).includes(service)}
-                              onChange={(e) => {
-                                const current = formData.additionalServices || [];
-                                const next = e.target.checked
-                                  ? [...current, service]
-                                  : current.filter((s) => s !== service);
-                                setFormData({ ...formData, additionalServices: next });
-                              }}
-                            />
-                          )}
-                          label={service}
-                        />
-                      ))}
-                    </FormGroup>
-                  </Box>
-
-                  {/* Decoration Add-ons & Vendor Section */}
-                  <Box sx={sectionCardSx(isDarkMode)}>
-                    <Typography sx={sectionTitleSx(isDarkMode)}>
-                      <CelebrationIcon sx={{ color: '#ec4899' }} /> Decoration Add-ons
-                    </Typography>
-                    <FormGroup row>
-                      {addOnsForCategory(eventCategory(formData.eventType)).decor.map((opt) => (
-                        <FormControlLabel
-                          key={opt}
-                          sx={{ width: { xs: '50%', sm: '33%' }, m: 0 }}
-                          control={(
-                            <Checkbox
-                              checked={(formData.decorationOptions || []).includes(opt)}
-                              onChange={(e) => {
-                                const current = formData.decorationOptions || [];
-                                const next = e.target.checked
-                                  ? [...current, opt]
-                                  : current.filter((s) => s !== opt);
-                                setFormData({ ...formData, decorationOptions: next });
-                              }}
-                            />
-                          )}
-                          label={opt}
-                        />
-                      ))}
-                    </FormGroup>
-                    <Grid container spacing={2} sx={{ mt: 0.5 }}>
-                      <Grid item xs={12} sm={6}>
-                        <TextField
-                          fullWidth label="Decor Vendor"
-                          value={formData.decorVendor}
-                          onChange={(e) => setFormData({ ...formData, decorVendor: e.target.value })}
-                        />
-                      </Grid>
+                            ))}
+                          </Stack>
+                        )}
+                      </Box>
                     </Grid>
-                  </Box>
-
-                  {/* Photography & Videography Section */}
-                  <Box sx={sectionCardSx(isDarkMode)}>
-                    <Typography sx={sectionTitleSx(isDarkMode)}>
-                      <EventIcon sx={{ color: '#8b5cf6' }} /> Photography &amp; Videography
-                    </Typography>
-                    <FormGroup row>
-                      {[
-                        ['photographyRequired', 'Photography'],
-                        ['videographyRequired', 'Videography'],
-                        ['droneCoverage', 'Drone Coverage'],
-                        ['preWeddingShoot', 'Pre-Wedding Shoot'],
-                      ].map(([key, label]) => (
-                        <FormControlLabel
-                          key={key}
-                          sx={{ width: { xs: '50%', sm: '25%' }, m: 0 }}
-                          control={(
-                            <Checkbox
-                              checked={!!formData[key]}
-                              onChange={(e) => setFormData({ ...formData, [key]: e.target.checked })}
-                            />
-                          )}
-                          label={label}
-                        />
-                      ))}
-                    </FormGroup>
-                    <Grid container spacing={2} sx={{ mt: 0.5 }}>
-                      <Grid item xs={12} sm={6}>
-                        <TextField
-                          fullWidth label="Vendor Name"
-                          value={formData.photographyVendor}
-                          onChange={(e) => setFormData({ ...formData, photographyVendor: e.target.value })}
-                        />
-                      </Grid>
-                      <Grid item xs={12} sm={6}>
-                        <TextField
-                          fullWidth label={`Package Amount (${currencySym()})`} type="number"
-                          value={formData.photographyAmount}
-                          onChange={(e) => {
-                            if (/^\d*\.?\d*$/.test(e.target.value)) { setFormData({ ...formData, photographyAmount: e.target.value }); }
-                          }}
-                          inputProps={{ min: 0 }}
-                          helperText="Added to the booking total"
-                        />
-                      </Grid>
-                    </Grid>
-                  </Box>
-
-                  {/* Entertainment Section */}
-                  <Box sx={sectionCardSx(isDarkMode)}>
-                    <Typography sx={sectionTitleSx(isDarkMode)}>
-                      <CelebrationIcon sx={{ color: '#f43f5e' }} /> Entertainment
-                    </Typography>
-                    <FormGroup row>
-                      {addOnsForCategory(eventCategory(formData.eventType)).entertainment.map((opt) => (
-                        <FormControlLabel
-                          key={opt}
-                          sx={{ width: { xs: '50%', sm: '33%' }, m: 0 }}
-                          control={(
-                            <Checkbox
-                              checked={(formData.entertainmentOptions || []).includes(opt)}
-                              onChange={(e) => {
-                                const current = formData.entertainmentOptions || [];
-                                const next = e.target.checked
-                                  ? [...current, opt]
-                                  : current.filter((s) => s !== opt);
-                                setFormData({ ...formData, entertainmentOptions: next });
-                              }}
-                            />
-                          )}
-                          label={opt}
-                        />
-                      ))}
-                    </FormGroup>
-                    <Grid container spacing={2} sx={{ mt: 0.5 }}>
-                      <Grid item xs={12} sm={6}>
-                        <TextField
-                          fullWidth label="Vendor Name"
-                          value={formData.entertainmentVendor}
-                          onChange={(e) => setFormData({ ...formData, entertainmentVendor: e.target.value })}
-                        />
-                      </Grid>
-                      <Grid item xs={12} sm={6}>
-                        <TextField
-                          fullWidth label={`Cost (${currencySym()})`} type="number"
-                          value={formData.entertainmentCost}
-                          onChange={(e) => {
-                            if (/^\d*\.?\d*$/.test(e.target.value)) { setFormData({ ...formData, entertainmentCost: e.target.value }); }
-                          }}
-                          inputProps={{ min: 0 }}
-                          helperText="Added to the booking total"
-                        />
-                      </Grid>
-                    </Grid>
-                  </Box>
-
-                  {/* Event Coordinator Section */}
-                  <Box sx={sectionCardSx(isDarkMode)}>
-                    <Typography sx={sectionTitleSx(isDarkMode)}>
-                      <PeopleIcon sx={{ color: '#14b8a6' }} /> Event Coordinator
-                    </Typography>
-                    <Grid container spacing={2}>
-                      <Grid item xs={12} sm={4}>
-                        <TextField
-                          fullWidth
-                          label="Sales Executive"
-                          value={formData.salesExecutive}
-                          onChange={(e) => setFormData({ ...formData, salesExecutive: e.target.value })}
-                        />
-                      </Grid>
-                      <Grid item xs={12} sm={4}>
-                        <TextField
-                          fullWidth
-                          label="Event Manager"
-                          value={formData.eventManager}
-                          onChange={(e) => setFormData({ ...formData, eventManager: e.target.value })}
-                        />
-                      </Grid>
-                      <Grid item xs={12} sm={4}>
-                        <TextField
-                          fullWidth
-                          label="Coordinator Contact Number"
-                          value={formData.coordinatorPhone}
-                          onChange={(e) => {
-                            const value = e.target.value.replace(/\D/g, '').slice(0, 10);
-                            setFormData({ ...formData, coordinatorPhone: value });
-                          }}
-                          inputProps={{ maxLength: 10, inputMode: 'numeric' }}
-                        />
-                      </Grid>
-                    </Grid>
-                  </Box>
-
-                  </>)}
-                  {/* Price Breakdown Section */}
-                  {activeStep === 5 && (<>
-                  <Box sx={sectionCardSx(isDarkMode)}>
-                    <Typography sx={sectionTitleSx(isDarkMode)}>
-                      <PrintIcon sx={{ color: '#10b981' }} /> Price Breakdown
-                    </Typography>
-                    <Box sx={{
-                      p: 3,
-                      borderRadius: 2,
-                      background: 'rgba(var(--app-primary-rgb), 0.05)',
-                      border: '1px solid rgba(var(--app-primary-rgb), 0.2)',
-                    }}>
-                      {(() => {
-                        const isDurationPriced = isDurationPricedType(formData.eventType);
-                        const cateringItems = formData.cateringItems || [];
-                        const decorationItems = formData.decorationItems || [];
-                        const packageDecoration = (!isDurationPriced && formData.packageId)
-                          ? (Number(formData.packageDecorationCost) || 0) : 0;
-                        const row = (label, value, color, key) => (
-                          <Box key={key} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                            <Typography variant="body2" color="text.secondary">{label}</Typography>
-                            <Typography variant="body2" fontWeight={600} sx={color ? { color } : undefined}>{currencySym()}{(value || 0).toLocaleString('en-IN')}</Typography>
-                          </Box>
-                        );
-                        return (
-                          <>
-                            {row(
-                              isDurationPriced
-                                ? `Duration (${formData.eventDuration || 0} hrs × ${currencySym()}${liveBilling().banquetVenueHourlyRate.toLocaleString('en-IN')}${(formData.numberOfDays || 1) > 1 ? ` × ${formData.numberOfDays} days` : ''})`
-                                : (formData.packageId ? `Venue · ${formData.packageName}` : `Floor cost (${formData.selectedFloors.length} floor${formData.selectedFloors.length === 1 ? '' : 's'})`),
-                              formData.floorCost,
-                              '#10b981'
-                            )}
-                            {(() => {
-                              const reserved = (formData.rooms || []).length;
-                              const complimentary = parseInt(formData.complimentaryRooms, 10) || 0;
-                              const chargeable = Math.max(0, reserved - complimentary);
-                              if (chargeable <= 0) { return null; }
-                              const days = formData.numberOfDays || 1;
-                              return row(
-                                `Reserved rooms (${chargeable} × ${currencySym()}${BANQUET_ROOM_RATE.toLocaleString('en-IN')}${days > 1 ? ` × ${days} days` : ''})`,
-                                chargeable * BANQUET_ROOM_RATE * days,
-                                '#7c3aed',
-                              );
-                            })()}
-                            {packageDecoration > 0 &&
-                              row(`Decoration · ${formData.packageName}`, packageDecoration, '#f59e0b')}
-                            {decorationItems.map((it, i) => {
-                              const cost = Number(it.cost) || 0;
-                              if (cost <= 0) { return null; }
-                              return row(`Decoration · ${it.name || 'Item'}`, cost, '#ec4899', `dec-${i}`);
-                            })}
-                            {cateringItems.map((it, i) => {
-                              const amt = cateringItemAmount(it, formData.guestCount);
-                              if (amt <= 0) { return null; }
-                              const perPlate = Number(it.perPlate) || 0;
-                              const hasActual = it.actualPlates != null && it.actualPlates !== '';
-                              const plates = hasActual
-                                ? (parseInt(it.actualPlates, 10) || 0)
-                                : ((parseInt(it.plates, 10) || 0) || (parseInt(formData.guestCount, 10) || 0));
-                              const days = Math.max(1, parseInt(it.days, 10) || 1);
-                              return row(
-                                `Catering · ${it.name || 'Item'} (${currencySym()}${perPlate.toLocaleString('en-IN')} × ${plates} plate${plates === 1 ? '' : 's'}${days > 1 ? ` × ${days} days` : ''})`,
-                                amt,
-                                '#8b5cf6',
-                                `cat-${i}`
-                              );
-                            })}
-                            {(parseFloat(formData.photographyAmount) || 0) > 0 &&
-                              row(`Photography / Videography${formData.photographyVendor ? ` · ${formData.photographyVendor}` : ''}`, parseFloat(formData.photographyAmount) || 0, '#ec4899')}
-                            {(parseFloat(formData.entertainmentCost) || 0) > 0 &&
-                              row(`Entertainment${formData.entertainmentVendor ? ` · ${formData.entertainmentVendor}` : ''}`, parseFloat(formData.entertainmentCost) || 0, '#f43f5e')}
-                            <Divider sx={{ my: 2 }} />
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <Typography variant="h6" sx={{ color: 'var(--app-primary)', fontWeight: 700 }}>Total Amount</Typography>
-                              <Typography variant="h6" sx={{ color: 'var(--app-primary)', fontWeight: 700 }}>
-                                {currencySym()}{(formData.totalAmount || 0).toLocaleString('en-IN')}
-                              </Typography>
+                    {/* An event package books the whole hotel, so the separate
+                        floor + guest-room reservation is hidden — the package
+                        already covers every floor and its rooms. */}
+                    {!formData.packageId && (
+                    <Grid size={12}>
+                      <FormControl fullWidth>
+                        <InputLabel>Reserve Guest Rooms</InputLabel>
+                        <Select
+                          label="Reserve Guest Rooms"
+                          multiple
+                          value={formData.rooms}
+                          onChange={(e) => setFormData({ ...formData, rooms: e.target.value })}
+                          renderValue={(selected) => (
+                            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                              {selected.map((id) => {
+                                const room = rooms.find((r) => r._id === id);
+                                return (
+                                  <Chip key={id} label={room ? `Room ${room.roomNumber}` : id} sx={{ bgcolor: '#ede9fe', color: '#7c3aed', fontWeight: 600 }} />
+                                );
+                              })}
                             </Box>
-                          </>
-                        );
-                      })()}
-                    </Box>
-                  </Box>
-
-                  {/* Payment Section */}
-                  <Box sx={sectionCardSx(isDarkMode)}>
-                    <Typography sx={sectionTitleSx(isDarkMode)}>
-                      <PrintIcon sx={{ color: '#10b981' }} /> Payment
-                    </Typography>
-                    <Grid container spacing={2}>
-                      <Grid item xs={12} sm={6}>
-                        <TextField
-                          fullWidth
-                          label="Advance Amount"
-                          type="number"
-                          value={formData.advanceAmount}
-                          onChange={(e) => setFormData({ ...formData, advanceAmount: e.target.value })}
-                          inputProps={{ min: 0, step: 100 }}
-                        />
-                      </Grid>
-                      <Grid item xs={12} sm={6}>
-                        <TextField
-                          fullWidth
-                          label="Total Amount"
-                          type="number"
-                          value={formData.totalAmount}
-                          InputProps={{ readOnly: true }}
-                          sx={{ '& .MuiInputBase-input': { fontWeight: 600, color: 'var(--app-primary)' } }}
-                        />
-                      </Grid>
-                      <Grid item xs={12} sm={6}>
-                        <TextField
-                          fullWidth
-                          label="Remaining Amount"
-                          type="number"
-                          value={formData.remainingAmount}
-                          InputProps={{ readOnly: true }}
-                          sx={{ '& .MuiInputBase-input': { fontWeight: 600, color: '#ef4444' } }}
-                        />
-                      </Grid>
+                          )}
+                          MenuProps={{ slotProps: {
+                            paper: { sx: { backgroundColor: '#fff', maxHeight: 320 } }
+                          } }}
+                        >
+                          {rooms
+                            .filter((room) => !levelsForFloors(formData.selectedFloors).has(roomFloorLevel(room.roomNumber)))
+                            .map((room) => (
+                              <MenuItem key={room._id} value={room._id}>
+                                Room {room.roomNumber} — {room.type}
+                              </MenuItem>
+                            ))}
+                        </Select>
+                        <Typography variant="caption" sx={{ mt: 0.5, color: 'text.secondary' }}>
+                          Rooms on a booked floor are part of that package and are hidden here. Selected rooms are blocked from regular guest booking during the event dates.
+                        </Typography>
+                      </FormControl>
                     </Grid>
+                    )}
+                  </Grid>
+                </Box>
+                )}
+                {/* Catering Section (repeatable line items) */}
+                {activeStep === 3 && (
+                <Box sx={sectionCardSx(isDarkMode)}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1, mb: 1 }}>
+                    <Typography sx={{ ...sectionTitleSx(isDarkMode), mb: 0 }}>
+                      <RestaurantMenuIcon sx={{ color: '#f43f5e' }} /> Catering
+                    </Typography>
+                    <Button size="small" startIcon={<AddIcon />} onClick={addCateringItem} sx={{ textTransform: 'none', borderRadius: '999px' }}>
+                      Add catering
+                    </Button>
                   </Box>
-
-                  {/* Payment Schedule Section (installment plan) */}
-                  <Box sx={sectionCardSx(isDarkMode)}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1, flexWrap: 'wrap', gap: 1 }}>
-                      <Typography sx={{ ...sectionTitleSx(isDarkMode), mb: 0 }}>
-                        <PaymentsIcon sx={{ color: '#6366f1' }} /> Payment Schedule
-                      </Typography>
-                      <Button
-                        size="small"
-                        startIcon={<AddIcon />}
-                        onClick={() => setFormData({
-                          ...formData,
-                          paymentSchedule: [
-                            ...(formData.paymentSchedule || []),
-                            { label: '', dueDate: '', amount: '', status: 'Pending' },
-                          ],
-                        })}
-                        sx={{ textTransform: 'none', borderRadius: '999px' }}
-                      >
-                        Add installment
-                      </Button>
-                    </Box>
-                    {(formData.paymentSchedule || []).length === 0 ? (
-                      <Typography variant="body2" color="text.secondary">
-                        No installments planned. Add one to track due dates and payment status.
-                      </Typography>
-                    ) : (
-                      <Stack spacing={1.5}>
-                        {formData.paymentSchedule.map((inst, idx) => {
-                          const updateInst = (patch) => {
-                            const next = formData.paymentSchedule.map((p, i) => (i === idx ? { ...p, ...patch } : p));
-                            setFormData({ ...formData, paymentSchedule: next });
-                          };
-                          return (
-                            <Grid container spacing={1.5} key={idx} alignItems="center">
-                              <Grid item xs={12} sm={3}>
-                                <TextField
-                                  fullWidth size="small" label="Label"
-                                  placeholder="1st Installment"
-                                  value={inst.label}
-                                  onChange={(e) => updateInst({ label: e.target.value })}
-                                />
-                              </Grid>
-                              <Grid item xs={6} sm={3}>
-                                <DatePicker
-                                  format="dd/MM/yyyy"
-                                  label="Due Date"
-                                  value={inst.dueDate ? parseISO(inst.dueDate) : null}
-                                  onChange={(date) => updateInst({ dueDate: date ? format(date, 'yyyy-MM-dd') : '' })}
-                                  slotProps={{
-                                    textField: { fullWidth: true, size: 'small' },
-                                    popper: { sx: { '& .MuiPaper-root': { backgroundColor: 'white', opacity: 1, boxShadow: '0 4px 20px rgba(0,0,0,0.15)' } } },
-                                  }}
-                                />
-                              </Grid>
-                              <Grid item xs={6} sm={3}>
-                                <TextField
-                                  fullWidth size="small" label={`Amount (${currencySym()})`} type="number"
-                                  value={inst.amount}
-                                  onChange={(e) => updateInst({ amount: e.target.value })}
-                                  inputProps={{ min: 0 }}
-                                />
-                              </Grid>
-                              <Grid item xs={9} sm={2}>
+                  {(formData.cateringItems || []).length === 0 ? (
+                    <Typography variant="body2" sx={{
+                      color: "text.secondary"
+                    }}>
+                      No catering added. Pick a catering package (managed in the “Catering” tab) or add a custom per-plate item.
+                    </Typography>
+                  ) : (
+                    <Stack spacing={2}>
+                      {formData.cateringItems.map((item, idx) => {
+                        const pkg = cateringPackages.find((p) => p._id === item.cateringPackageId);
+                        const lineTotal = cateringItemAmount(item, formData.guestCount);
+                        return (
+                          <Box key={idx} sx={{ p: 2, borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+                            <Grid container spacing={1.5} sx={{
+                              alignItems: "center"
+                            }}>
+                              <Grid
+                                size={{
+                                  xs: 12,
+                                  sm: 4
+                                }}>
                                 <FormControl fullWidth size="small">
-                                  <InputLabel>Status</InputLabel>
+                                  <InputLabel>Catering package</InputLabel>
                                   <Select
-                                    label="Status"
-                                    value={inst.status}
-                                    onChange={(e) => updateInst({ status: e.target.value })}
-                                    MenuProps={{ PaperProps: { sx: { backgroundColor: '#fff' } } }}
+                                    label="Catering package"
+                                    value={item.cateringPackageId || ''}
+                                    onChange={(e) => applyCateringPackageToItem(idx, e.target.value)}
+                                    MenuProps={{ slotProps: {
+                                      paper: { sx: { backgroundColor: '#fff', maxHeight: 320 } }
+                                    } }}
                                   >
-                                    <MenuItem value="Pending">Pending</MenuItem>
-                                    <MenuItem value="Paid">Paid</MenuItem>
+                                    <MenuItem value=""><em>— Custom —</em></MenuItem>
+                                    {cateringPackages.filter((p) => p.isActive !== false).map((p) => (
+                                      <MenuItem key={p._id} value={p._id}>
+                                        {p.name} — {currencySym()}{(p.pricePerPlate || 0).toLocaleString('en-IN')}/plate ({p.category})
+                                      </MenuItem>
+                                    ))}
                                   </Select>
                                 </FormControl>
                               </Grid>
-                              <Grid item xs={3} sm={1}>
-                                <IconButton
-                                  size="small"
-                                  onClick={() => setFormData({
-                                    ...formData,
-                                    paymentSchedule: formData.paymentSchedule.filter((_, i) => i !== idx),
-                                  })}
-                                  sx={{ color: '#ef4444' }}
-                                >
+                              <Grid
+                                size={{
+                                  xs: 12,
+                                  sm: 4
+                                }}>
+                                <TextField fullWidth size="small" label="Label" placeholder="Veg Buffet"
+                                  value={item.name}
+                                  onChange={(e) => updateCateringItem(idx, { name: e.target.value })} />
+                              </Grid>
+                              <Grid
+                                size={{
+                                  xs: 6,
+                                  sm: 4
+                                }}>
+                                <FormControl fullWidth size="small">
+                                  <InputLabel>Meal</InputLabel>
+                                  <Select label="Meal" value={item.meal || ''}
+                                    onChange={(e) => updateCateringItem(idx, { meal: e.target.value })}
+                                    MenuProps={{ slotProps: {
+                                      paper: { sx: { backgroundColor: '#fff' } }
+                                    } }}>
+                                    <MenuItem value=""><em>— Any —</em></MenuItem>
+                                    {MEAL_OPTIONS.map((m) => <MenuItem key={m} value={m}>{m}</MenuItem>)}
+                                  </Select>
+                                </FormControl>
+                              </Grid>
+                              <Grid
+                                size={{
+                                  xs: 6,
+                                  sm: 4
+                                }}>
+                                <TextField fullWidth size="small" type="number" label={`Per plate (${currencySym()})`}
+                                  value={item.perPlate}
+                                  onChange={(e) => updateCateringItem(idx, { perPlate: Math.max(0, parseFloat(e.target.value) || 0) })}
+                                  slotProps={{
+                                    htmlInput: { min: 0, step: 10 }
+                                  }} />
+                              </Grid>
+                              <Grid
+                                size={{
+                                  xs: 6,
+                                  sm: 3
+                                }}>
+                                {item.cateringPackageId ? (
+                                  // Package selected → plates default to the total
+                                  // guest count, so the manual plate field is hidden.
+                                  (<TextField fullWidth size="small" label="Plates"
+                                    value={`${parseInt(formData.guestCount, 10) || 0}`}
+                                    helperText="= total guests"
+                                    slotProps={{
+                                      input: { readOnly: true }
+                                    }} />)
+                                ) : (
+                                  <TextField fullWidth size="small" type="number" label="Plates"
+                                    value={item.plates}
+                                    onChange={(e) => { if (/^\d*$/.test(e.target.value)) { updateCateringItem(idx, { plates: e.target.value }); } }}
+                                    slotProps={{
+                                      htmlInput: { min: 0 }
+                                    }} />
+                                )}
+                              </Grid>
+                              <Grid
+                                size={{
+                                  xs: 6,
+                                  sm: 3
+                                }}>
+                                <TextField fullWidth size="small" type="number" label="Days"
+                                  value={item.days}
+                                  onChange={(e) => { if (/^\d*$/.test(e.target.value)) { updateCateringItem(idx, { days: e.target.value }); } }}
+                                  slotProps={{
+                                    htmlInput: { min: 1 }
+                                  }} />
+                              </Grid>
+                              <Grid
+                                size={{
+                                  xs: 9,
+                                  sm: 5
+                                }}>
+                                <Typography variant="body2" sx={{ fontWeight: 700, color: 'var(--app-primary)' }}>
+                                  Line total: {currencySym()}{lineTotal.toLocaleString('en-IN')}
+                                </Typography>
+                              </Grid>
+                              <Grid
+                                size={{
+                                  xs: 3,
+                                  sm: 1
+                                }}>
+                                <IconButton size="small" onClick={() => removeCateringItem(idx)} sx={{ color: '#ef4444' }}>
                                   <DeleteIcon fontSize="small" />
                                 </IconButton>
+                              </Grid>
+                              {pkg && (pkg.items || []).length > 0 && (
+                                <Grid size={12}>
+                                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+                                    {pkg.items.map((it, i) => (
+                                      <Chip key={i} label={it} size="small" sx={{ bgcolor: 'rgba(var(--app-primary-rgb),0.08)' }} />
+                                    ))}
+                                  </Box>
+                                </Grid>
+                              )}
+                            </Grid>
+                          </Box>
+                        );
+                      })}
+                    </Stack>
+                  )}
+                  <Box sx={{ mt: 2 }}>
+                    <TextField
+                      fullWidth
+                      label="Catering special requests"
+                      value={formData.specialRequests}
+                      onChange={(e) => setFormData({ ...formData, specialRequests: e.target.value })}
+                    />
+                  </Box>
+
+                  {/* Utensils & Cookware — rented to guests who cook their own
+                      food. Each line is chargeable (per-unit × qty) and reserves
+                      stock; the picker shows how many are still available. */}
+                  <Box sx={{ mt: 2, p: 2, borderRadius: 2, border: '1px dashed', borderColor: 'rgba(99,102,241,0.4)', background: 'rgba(99,102,241,0.04)' }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1, flexWrap: 'wrap', gap: 1 }}>
+                      <Typography
+                        variant="subtitle2"
+                        sx={{
+                          fontWeight: 800,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 0.75,
+                          color: '#6366F1'
+                        }}>
+                        <RestaurantMenuIcon fontSize="small" /> Utensils & Cookware
+                      </Typography>
+                      <Button size="small" startIcon={<AddIcon />} onClick={addUtensilItem} sx={{ textTransform: 'none', borderRadius: '999px' }}>
+                        Add utensil
+                      </Button>
+                    </Box>
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        color: "text.secondary",
+                        display: 'block',
+                        mb: 1.5
+                      }}>
+                      For guests who cook their own food — rent cookware, water jars, gas cylinders etc. (manage the catalog in the “Utensils” tab).
+                    </Typography>
+                    {(formData.utensilItems || []).length === 0 ? (
+                      <Typography variant="body2" sx={{
+                        color: "text.secondary"
+                      }}>No utensils added.</Typography>
+                    ) : (
+                      <Stack spacing={1.5}>
+                        {formData.utensilItems.map((item, idx) => {
+                          const available = utensilAvailable(item.utensilItemId);
+                          const qty = parseInt(item.quantity, 10) || 0;
+                          const over = available != null && qty > available;
+                          const lineTotal = utensilItemAmount(item);
+                          return (
+                            <Grid container spacing={1.5} key={idx} sx={{
+                              alignItems: "center"
+                            }}>
+                              <Grid
+                                size={{
+                                  xs: 12,
+                                  sm: 4
+                                }}>
+                                <FormControl fullWidth size="small">
+                                  <InputLabel>Utensil</InputLabel>
+                                  <Select label="Utensil" value={item.utensilItemId || ''}
+                                    onChange={(e) => applyUtensilToItem(idx, e.target.value)}
+                                    MenuProps={{ slotProps: {
+                                      paper: { sx: { backgroundColor: '#fff', maxHeight: 320 } }
+                                    } }}>
+                                    <MenuItem value=""><em>— Custom —</em></MenuItem>
+                                    {utensilCatalog.filter((u) => u.isActive !== false).map((u) => (
+                                      <MenuItem key={u._id} value={u._id}>
+                                        {u.name} — {currencySym()}{(u.cost || 0).toLocaleString('en-IN')}/{u.unit || 'unit'} ({u.available ?? u.quantityTotal} left)
+                                      </MenuItem>
+                                    ))}
+                                  </Select>
+                                </FormControl>
+                              </Grid>
+                              <Grid
+                                size={{
+                                  xs: 6,
+                                  sm: 3
+                                }}>
+                                <TextField fullWidth size="small" label="Label" placeholder="Water Jar"
+                                  value={item.name}
+                                  onChange={(e) => updateUtensilItem(idx, { name: e.target.value })} />
+                              </Grid>
+                              <Grid
+                                size={{
+                                  xs: 6,
+                                  sm: 2
+                                }}>
+                                <TextField fullWidth size="small" type="number" label={`Cost (${currencySym()})`}
+                                  value={item.cost}
+                                  onChange={(e) => updateUtensilItem(idx, { cost: Math.max(0, parseFloat(e.target.value) || 0) })}
+                                  slotProps={{
+                                    htmlInput: { min: 0 }
+                                  }} />
+                              </Grid>
+                              <Grid
+                                size={{
+                                  xs: 6,
+                                  sm: 2
+                                }}>
+                                <TextField fullWidth size="small" type="number" label="Qty"
+                                  value={item.quantity}
+                                  onChange={(e) => { if (/^\d*$/.test(e.target.value)) { updateUtensilItem(idx, { quantity: e.target.value }); } }}
+                                  error={over}
+                                  helperText={available != null ? (over ? `Only ${available} left` : `${available} available`) : ' '}
+                                  slotProps={{
+                                    htmlInput: { min: 0 }
+                                  }} />
+                              </Grid>
+                              <Grid
+                                size={{
+                                  xs: 6,
+                                  sm: 1
+                                }}>
+                                <IconButton size="small" onClick={() => removeUtensilItem(idx)} sx={{ color: '#ef4444' }}>
+                                  <DeleteIcon fontSize="small" />
+                                </IconButton>
+                              </Grid>
+                              <Grid size={12}>
+                                <Typography variant="body2" sx={{ fontWeight: 700, color: 'var(--app-primary)' }}>
+                                  Line total: {currencySym()}{lineTotal.toLocaleString('en-IN')}
+                                </Typography>
                               </Grid>
                             </Grid>
                           );
@@ -2478,130 +2372,656 @@ const BanquetHallBooking = () => {
                       </Stack>
                     )}
                   </Box>
+                </Box>
+                )}
+                {/* Guests & Add-ons step */}
+                {activeStep === 4 && (<>
+                {/* Additional Services Section */}
+                <Box sx={sectionCardSx(isDarkMode)}>
+                  <Typography sx={sectionTitleSx(isDarkMode)}>
+                    <CelebrationIcon sx={{ color: '#f59e0b' }} /> Additional Services
+                  </Typography>
+                  <FormGroup row>
+                    {addOnsForCategory(eventCategory(formData.eventType)).services.map((service) => (
+                      <FormControlLabel
+                        key={service}
+                        sx={{ width: { xs: '50%', sm: '33%' }, m: 0 }}
+                        control={(
+                          <Checkbox
+                            checked={(formData.additionalServices || []).includes(service)}
+                            onChange={(e) => {
+                              const current = formData.additionalServices || [];
+                              const next = e.target.checked
+                                ? [...current, service]
+                                : current.filter((s) => s !== service);
+                              setFormData({ ...formData, additionalServices: next });
+                            }}
+                          />
+                        )}
+                        label={service}
+                      />
+                    ))}
+                  </FormGroup>
+                </Box>
 
-                  {/* Contract & Terms Section */}
-                  <Box sx={sectionCardSx(isDarkMode)}>
-                    <Typography sx={sectionTitleSx(isDarkMode)}>
-                      <EventIcon sx={{ color: '#64748b' }} /> Contract &amp; Terms
-                    </Typography>
-                    <Grid container spacing={2}>
-                      <Grid item xs={12} sm={6}>
-                        <TextField
-                          fullWidth multiline minRows={2} label="Cancellation Policy"
-                          value={formData.cancellationPolicy}
-                          onChange={(e) => setFormData({ ...formData, cancellationPolicy: e.target.value })}
-                        />
-                      </Grid>
-                      <Grid item xs={12} sm={6}>
-                        <TextField
-                          fullWidth multiline minRows={2} label="Refund Policy"
-                          value={formData.refundPolicy}
-                          onChange={(e) => setFormData({ ...formData, refundPolicy: e.target.value })}
-                        />
-                      </Grid>
-                      <Grid item xs={12} sm={4}>
-                        <TextField
-                          fullWidth multiline minRows={2} label="Damage Charges"
-                          value={formData.damageCharges}
-                          onChange={(e) => setFormData({ ...formData, damageCharges: e.target.value })}
-                        />
-                      </Grid>
-                      <Grid item xs={12} sm={4}>
-                        <TextField
-                          fullWidth multiline minRows={2} label="Overtime Charges"
-                          value={formData.overtimeCharges}
-                          onChange={(e) => setFormData({ ...formData, overtimeCharges: e.target.value })}
-                        />
-                      </Grid>
-                      <Grid item xs={12} sm={4}>
-                        <TextField
-                          fullWidth multiline minRows={2} label="Outside Vendor Policy"
-                          value={formData.outsideVendorPolicy}
-                          onChange={(e) => setFormData({ ...formData, outsideVendorPolicy: e.target.value })}
-                        />
-                      </Grid>
-                      <Grid item xs={12}>
-                        <FormControlLabel
-                          control={(
-                            <Checkbox
-                              checked={formData.termsAccepted}
-                              onChange={(e) => setFormData({ ...formData, termsAccepted: e.target.checked })}
-                            />
-                          )}
-                          label="Customer agrees to Terms & Conditions"
-                        />
-                      </Grid>
+                {/* Decoration Add-ons & Vendor Section */}
+                <Box sx={sectionCardSx(isDarkMode)}>
+                  <Typography sx={sectionTitleSx(isDarkMode)}>
+                    <CelebrationIcon sx={{ color: '#ec4899' }} /> Decoration Add-ons
+                  </Typography>
+                  <FormGroup row>
+                    {addOnsForCategory(eventCategory(formData.eventType)).decor.map((opt) => (
+                      <FormControlLabel
+                        key={opt}
+                        sx={{ width: { xs: '50%', sm: '33%' }, m: 0 }}
+                        control={(
+                          <Checkbox
+                            checked={(formData.decorationOptions || []).includes(opt)}
+                            onChange={(e) => {
+                              const current = formData.decorationOptions || [];
+                              const next = e.target.checked
+                                ? [...current, opt]
+                                : current.filter((s) => s !== opt);
+                              setFormData({ ...formData, decorationOptions: next });
+                            }}
+                          />
+                        )}
+                        label={opt}
+                      />
+                    ))}
+                  </FormGroup>
+                  <Grid container spacing={2} sx={{ mt: 0.5 }}>
+                    <Grid
+                      size={{
+                        xs: 12,
+                        sm: 6
+                      }}>
+                      <TextField
+                        fullWidth label="Decor Vendor"
+                        value={formData.decorVendor}
+                        onChange={(e) => setFormData({ ...formData, decorVendor: e.target.value })}
+                      />
                     </Grid>
+                  </Grid>
+                </Box>
+
+                {/* Photography & Videography Section */}
+                <Box sx={sectionCardSx(isDarkMode)}>
+                  <Typography sx={sectionTitleSx(isDarkMode)}>
+                    <EventIcon sx={{ color: '#8b5cf6' }} /> Photography &amp; Videography
+                  </Typography>
+                  <FormGroup row>
+                    {[
+                      ['photographyRequired', 'Photography'],
+                      ['videographyRequired', 'Videography'],
+                      ['droneCoverage', 'Drone Coverage'],
+                      ['preWeddingShoot', 'Pre-Wedding Shoot'],
+                    ].map(([key, label]) => (
+                      <FormControlLabel
+                        key={key}
+                        sx={{ width: { xs: '50%', sm: '25%' }, m: 0 }}
+                        control={(
+                          <Checkbox
+                            checked={!!formData[key]}
+                            onChange={(e) => setFormData({ ...formData, [key]: e.target.checked })}
+                          />
+                        )}
+                        label={label}
+                      />
+                    ))}
+                  </FormGroup>
+                  <Grid container spacing={2} sx={{ mt: 0.5 }}>
+                    <Grid
+                      size={{
+                        xs: 12,
+                        sm: 6
+                      }}>
+                      <TextField
+                        fullWidth label="Vendor Name"
+                        value={formData.photographyVendor}
+                        onChange={(e) => setFormData({ ...formData, photographyVendor: e.target.value })}
+                      />
+                    </Grid>
+                    <Grid
+                      size={{
+                        xs: 12,
+                        sm: 6
+                      }}>
+                      <TextField
+                        fullWidth label={`Package Amount (${currencySym()})`} type="number"
+                        value={formData.photographyAmount}
+                        onChange={(e) => {
+                          if (/^\d*\.?\d*$/.test(e.target.value)) { setFormData({ ...formData, photographyAmount: e.target.value }); }
+                        }}
+                        helperText="Added to the booking total"
+                        slotProps={{
+                          htmlInput: { min: 0 }
+                        }}
+                      />
+                    </Grid>
+                  </Grid>
+                </Box>
+
+                {/* Entertainment Section */}
+                <Box sx={sectionCardSx(isDarkMode)}>
+                  <Typography sx={sectionTitleSx(isDarkMode)}>
+                    <CelebrationIcon sx={{ color: '#f43f5e' }} /> Entertainment
+                  </Typography>
+                  <FormGroup row>
+                    {addOnsForCategory(eventCategory(formData.eventType)).entertainment.map((opt) => (
+                      <FormControlLabel
+                        key={opt}
+                        sx={{ width: { xs: '50%', sm: '33%' }, m: 0 }}
+                        control={(
+                          <Checkbox
+                            checked={(formData.entertainmentOptions || []).includes(opt)}
+                            onChange={(e) => {
+                              const current = formData.entertainmentOptions || [];
+                              const next = e.target.checked
+                                ? [...current, opt]
+                                : current.filter((s) => s !== opt);
+                              setFormData({ ...formData, entertainmentOptions: next });
+                            }}
+                          />
+                        )}
+                        label={opt}
+                      />
+                    ))}
+                  </FormGroup>
+                  <Grid container spacing={2} sx={{ mt: 0.5 }}>
+                    <Grid
+                      size={{
+                        xs: 12,
+                        sm: 6
+                      }}>
+                      <TextField
+                        fullWidth label="Vendor Name"
+                        value={formData.entertainmentVendor}
+                        onChange={(e) => setFormData({ ...formData, entertainmentVendor: e.target.value })}
+                      />
+                    </Grid>
+                    <Grid
+                      size={{
+                        xs: 12,
+                        sm: 6
+                      }}>
+                      <TextField
+                        fullWidth label={`Cost (${currencySym()})`} type="number"
+                        value={formData.entertainmentCost}
+                        onChange={(e) => {
+                          if (/^\d*\.?\d*$/.test(e.target.value)) { setFormData({ ...formData, entertainmentCost: e.target.value }); }
+                        }}
+                        helperText="Added to the booking total"
+                        slotProps={{
+                          htmlInput: { min: 0 }
+                        }}
+                      />
+                    </Grid>
+                  </Grid>
+                </Box>
+
+                {/* Event Coordinator Section */}
+                <Box sx={sectionCardSx(isDarkMode)}>
+                  <Typography sx={sectionTitleSx(isDarkMode)}>
+                    <PeopleIcon sx={{ color: '#14b8a6' }} /> Event Coordinator
+                  </Typography>
+                  <Grid container spacing={2}>
+                    <Grid
+                      size={{
+                        xs: 12,
+                        sm: 4
+                      }}>
+                      <TextField
+                        fullWidth
+                        label="Sales Executive"
+                        value={formData.salesExecutive}
+                        onChange={(e) => setFormData({ ...formData, salesExecutive: e.target.value })}
+                      />
+                    </Grid>
+                    <Grid
+                      size={{
+                        xs: 12,
+                        sm: 4
+                      }}>
+                      <TextField
+                        fullWidth
+                        label="Event Manager"
+                        value={formData.eventManager}
+                        onChange={(e) => setFormData({ ...formData, eventManager: e.target.value })}
+                      />
+                    </Grid>
+                    <Grid
+                      size={{
+                        xs: 12,
+                        sm: 4
+                      }}>
+                      <TextField
+                        fullWidth
+                        label="Coordinator Contact Number"
+                        value={formData.coordinatorPhone}
+                        onChange={(e) => {
+                          const value = e.target.value.replace(/\D/g, '').slice(0, 10);
+                          setFormData({ ...formData, coordinatorPhone: value });
+                        }}
+                        slotProps={{
+                          htmlInput: { maxLength: 10, inputMode: 'numeric' }
+                        }}
+                      />
+                    </Grid>
+                  </Grid>
+                </Box>
+
+                </>)}
+                {/* Price Breakdown Section */}
+                {activeStep === 5 && (<>
+                <Box sx={sectionCardSx(isDarkMode)}>
+                  <Typography sx={sectionTitleSx(isDarkMode)}>
+                    <PrintIcon sx={{ color: '#10b981' }} /> Price Breakdown
+                  </Typography>
+                  <Box sx={{
+                    p: 3,
+                    borderRadius: 2,
+                    background: 'rgba(var(--app-primary-rgb), 0.05)',
+                    border: '1px solid rgba(var(--app-primary-rgb), 0.2)',
+                  }}>
+                    {(() => {
+                      const isDurationPriced = isDurationPricedType(formData.eventType);
+                      const cateringItems = formData.cateringItems || [];
+                      const decorationItems = formData.decorationItems || [];
+                      const packageDecoration = (!isDurationPriced && formData.packageId)
+                        ? (Number(formData.packageDecorationCost) || 0) : 0;
+                      const row = (label, value, color, key) => (
+                        <Box key={key} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                          <Typography variant="body2" sx={{
+                            color: "text.secondary"
+                          }}>{label}</Typography>
+                          <Typography
+                            variant="body2"
+                            sx={[{
+                              fontWeight: 600
+                            }, color ? { color } : undefined]}>{currencySym()}{(value || 0).toLocaleString('en-IN')}</Typography>
+                        </Box>
+                      );
+                      return (
+                        <>
+                          {row(
+                            isDurationPriced
+                              ? `Duration (${formData.eventDuration || 0} hrs × ${currencySym()}${liveBilling().banquetVenueHourlyRate.toLocaleString('en-IN')}${(formData.numberOfDays || 1) > 1 ? ` × ${formData.numberOfDays} days` : ''})`
+                              : (formData.packageId ? `Venue · ${formData.packageName}` : `Floor cost (${formData.selectedFloors.length} floor${formData.selectedFloors.length === 1 ? '' : 's'})`),
+                            formData.floorCost,
+                            '#10b981'
+                          )}
+                          {(() => {
+                            const reserved = (formData.rooms || []).length;
+                            const complimentary = parseInt(formData.complimentaryRooms, 10) || 0;
+                            const chargeable = Math.max(0, reserved - complimentary);
+                            if (chargeable <= 0) { return null; }
+                            const days = formData.numberOfDays || 1;
+                            return row(
+                              `Reserved rooms (${chargeable} × ${currencySym()}${BANQUET_ROOM_RATE.toLocaleString('en-IN')}${days > 1 ? ` × ${days} days` : ''})`,
+                              chargeable * BANQUET_ROOM_RATE * days,
+                              '#7c3aed',
+                            );
+                          })()}
+                          {packageDecoration > 0 &&
+                            row(`Decoration · ${formData.packageName}`, packageDecoration, '#f59e0b')}
+                          {decorationItems.map((it, i) => {
+                            const cost = Number(it.cost) || 0;
+                            if (cost <= 0) { return null; }
+                            return row(`Decoration · ${it.name || 'Item'}`, cost, '#ec4899', `dec-${i}`);
+                          })}
+                          {cateringItems.map((it, i) => {
+                            const amt = cateringItemAmount(it, formData.guestCount);
+                            if (amt <= 0) { return null; }
+                            const perPlate = Number(it.perPlate) || 0;
+                            const hasActual = it.actualPlates != null && it.actualPlates !== '';
+                            const plates = hasActual
+                              ? (parseInt(it.actualPlates, 10) || 0)
+                              : ((parseInt(it.plates, 10) || 0) || (parseInt(formData.guestCount, 10) || 0));
+                            const days = Math.max(1, parseInt(it.days, 10) || 1);
+                            return row(
+                              `Catering · ${it.name || 'Item'} (${currencySym()}${perPlate.toLocaleString('en-IN')} × ${plates} plate${plates === 1 ? '' : 's'}${days > 1 ? ` × ${days} days` : ''})`,
+                              amt,
+                              '#8b5cf6',
+                              `cat-${i}`
+                            );
+                          })}
+                          {(parseFloat(formData.photographyAmount) || 0) > 0 &&
+                            row(`Photography / Videography${formData.photographyVendor ? ` · ${formData.photographyVendor}` : ''}`, parseFloat(formData.photographyAmount) || 0, '#ec4899')}
+                          {(parseFloat(formData.entertainmentCost) || 0) > 0 &&
+                            row(`Entertainment${formData.entertainmentVendor ? ` · ${formData.entertainmentVendor}` : ''}`, parseFloat(formData.entertainmentCost) || 0, '#f43f5e')}
+                          <Divider sx={{ my: 2 }} />
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <Typography variant="h6" sx={{ color: 'var(--app-primary)', fontWeight: 700 }}>Total Amount</Typography>
+                            <Typography variant="h6" sx={{ color: 'var(--app-primary)', fontWeight: 700 }}>
+                              {currencySym()}{(formData.totalAmount || 0).toLocaleString('en-IN')}
+                            </Typography>
+                          </Box>
+                        </>
+                      );
+                    })()}
                   </Box>
-                  </>)}
-                </Stack>
-                </WizardStepBoundary>
-              </Box>
-            </motion.div>
-          </DialogContent>
-          <DialogActions sx={actionsBarSx(isDarkMode)}>
-            <Button onClick={handleCloseDialog} variant="outlined" sx={secondaryButtonSx(isDarkMode)}>
-              Cancel
+                </Box>
+
+                {/* Payment Section */}
+                <Box sx={sectionCardSx(isDarkMode)}>
+                  <Typography sx={sectionTitleSx(isDarkMode)}>
+                    <PrintIcon sx={{ color: '#10b981' }} /> Payment
+                  </Typography>
+                  <Grid container spacing={2}>
+                    <Grid
+                      size={{
+                        xs: 12,
+                        sm: 6
+                      }}>
+                      <TextField
+                        fullWidth
+                        label="Advance Amount"
+                        type="number"
+                        value={formData.advanceAmount}
+                        onChange={(e) => setFormData({ ...formData, advanceAmount: e.target.value })}
+                        slotProps={{
+                          htmlInput: { min: 0, step: 100 }
+                        }}
+                      />
+                    </Grid>
+                    <Grid
+                      size={{
+                        xs: 12,
+                        sm: 6
+                      }}>
+                      <TextField
+                        fullWidth
+                        label="Total Amount"
+                        type="number"
+                        value={formData.totalAmount}
+                        sx={{ '& .MuiInputBase-input': { fontWeight: 600, color: 'var(--app-primary)' } }}
+                        slotProps={{
+                          input: { readOnly: true }
+                        }}
+                      />
+                    </Grid>
+                    <Grid
+                      size={{
+                        xs: 12,
+                        sm: 6
+                      }}>
+                      <TextField
+                        fullWidth
+                        label="Remaining Amount"
+                        type="number"
+                        value={formData.remainingAmount}
+                        sx={{ '& .MuiInputBase-input': { fontWeight: 600, color: '#ef4444' } }}
+                        slotProps={{
+                          input: { readOnly: true }
+                        }}
+                      />
+                    </Grid>
+                  </Grid>
+                </Box>
+
+                {/* Payment Schedule Section (installment plan) */}
+                <Box sx={sectionCardSx(isDarkMode)}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1, flexWrap: 'wrap', gap: 1 }}>
+                    <Typography sx={{ ...sectionTitleSx(isDarkMode), mb: 0 }}>
+                      <PaymentsIcon sx={{ color: '#6366f1' }} /> Payment Schedule
+                    </Typography>
+                    <Button
+                      size="small"
+                      startIcon={<AddIcon />}
+                      onClick={() => setFormData({
+                        ...formData,
+                        paymentSchedule: [
+                          ...(formData.paymentSchedule || []),
+                          { label: '', dueDate: '', amount: '', status: 'Pending' },
+                        ],
+                      })}
+                      sx={{ textTransform: 'none', borderRadius: '999px' }}
+                    >
+                      Add installment
+                    </Button>
+                  </Box>
+                  {(formData.paymentSchedule || []).length === 0 ? (
+                    <Typography variant="body2" sx={{
+                      color: "text.secondary"
+                    }}>
+                      No installments planned. Add one to track due dates and payment status.
+                    </Typography>
+                  ) : (
+                    <Stack spacing={1.5}>
+                      {formData.paymentSchedule.map((inst, idx) => {
+                        const updateInst = (patch) => {
+                          const next = formData.paymentSchedule.map((p, i) => (i === idx ? { ...p, ...patch } : p));
+                          setFormData({ ...formData, paymentSchedule: next });
+                        };
+                        return (
+                          <Grid container spacing={1.5} key={idx} sx={{
+                            alignItems: "center"
+                          }}>
+                            <Grid
+                              size={{
+                                xs: 12,
+                                sm: 3
+                              }}>
+                              <TextField
+                                fullWidth size="small" label="Label"
+                                placeholder="1st Installment"
+                                value={inst.label}
+                                onChange={(e) => updateInst({ label: e.target.value })}
+                              />
+                            </Grid>
+                            <Grid
+                              size={{
+                                xs: 6,
+                                sm: 3
+                              }}>
+                              <DatePicker
+                                format="dd/MM/yyyy"
+                                label="Due Date"
+                                value={inst.dueDate ? parseISO(inst.dueDate) : null}
+                                onChange={(date) => updateInst({ dueDate: date ? format(date, 'yyyy-MM-dd') : '' })}
+                                slotProps={{
+                                  textField: { fullWidth: true, size: 'small' },
+                                  popper: { sx: { '& .MuiPaper-root': { backgroundColor: 'white', opacity: 1, boxShadow: '0 4px 20px rgba(0,0,0,0.15)' } } },
+                                }}
+                              />
+                            </Grid>
+                            <Grid
+                              size={{
+                                xs: 6,
+                                sm: 3
+                              }}>
+                              <TextField
+                                fullWidth size="small" label={`Amount (${currencySym()})`} type="number"
+                                value={inst.amount}
+                                onChange={(e) => updateInst({ amount: e.target.value })}
+                                slotProps={{
+                                  htmlInput: { min: 0 }
+                                }}
+                              />
+                            </Grid>
+                            <Grid
+                              size={{
+                                xs: 9,
+                                sm: 2
+                              }}>
+                              <FormControl fullWidth size="small">
+                                <InputLabel>Status</InputLabel>
+                                <Select
+                                  label="Status"
+                                  value={inst.status}
+                                  onChange={(e) => updateInst({ status: e.target.value })}
+                                  MenuProps={{ slotProps: {
+                                    paper: { sx: { backgroundColor: '#fff' } }
+                                  } }}
+                                >
+                                  <MenuItem value="Pending">Pending</MenuItem>
+                                  <MenuItem value="Paid">Paid</MenuItem>
+                                </Select>
+                              </FormControl>
+                            </Grid>
+                            <Grid
+                              size={{
+                                xs: 3,
+                                sm: 1
+                              }}>
+                              <IconButton
+                                size="small"
+                                onClick={() => setFormData({
+                                  ...formData,
+                                  paymentSchedule: formData.paymentSchedule.filter((_, i) => i !== idx),
+                                })}
+                                sx={{ color: '#ef4444' }}
+                              >
+                                <DeleteIcon fontSize="small" />
+                              </IconButton>
+                            </Grid>
+                          </Grid>
+                        );
+                      })}
+                    </Stack>
+                  )}
+                </Box>
+
+                {/* Contract & Terms Section */}
+                <Box sx={sectionCardSx(isDarkMode)}>
+                  <Typography sx={sectionTitleSx(isDarkMode)}>
+                    <EventIcon sx={{ color: '#64748b' }} /> Contract &amp; Terms
+                  </Typography>
+                  <Grid container spacing={2}>
+                    <Grid
+                      size={{
+                        xs: 12,
+                        sm: 6
+                      }}>
+                      <TextField
+                        fullWidth multiline minRows={2} label="Cancellation Policy"
+                        value={formData.cancellationPolicy}
+                        onChange={(e) => setFormData({ ...formData, cancellationPolicy: e.target.value })}
+                      />
+                    </Grid>
+                    <Grid
+                      size={{
+                        xs: 12,
+                        sm: 6
+                      }}>
+                      <TextField
+                        fullWidth multiline minRows={2} label="Refund Policy"
+                        value={formData.refundPolicy}
+                        onChange={(e) => setFormData({ ...formData, refundPolicy: e.target.value })}
+                      />
+                    </Grid>
+                    <Grid
+                      size={{
+                        xs: 12,
+                        sm: 4
+                      }}>
+                      <TextField
+                        fullWidth multiline minRows={2} label="Damage Charges"
+                        value={formData.damageCharges}
+                        onChange={(e) => setFormData({ ...formData, damageCharges: e.target.value })}
+                      />
+                    </Grid>
+                    <Grid
+                      size={{
+                        xs: 12,
+                        sm: 4
+                      }}>
+                      <TextField
+                        fullWidth multiline minRows={2} label="Overtime Charges"
+                        value={formData.overtimeCharges}
+                        onChange={(e) => setFormData({ ...formData, overtimeCharges: e.target.value })}
+                      />
+                    </Grid>
+                    <Grid
+                      size={{
+                        xs: 12,
+                        sm: 4
+                      }}>
+                      <TextField
+                        fullWidth multiline minRows={2} label="Outside Vendor Policy"
+                        value={formData.outsideVendorPolicy}
+                        onChange={(e) => setFormData({ ...formData, outsideVendorPolicy: e.target.value })}
+                      />
+                    </Grid>
+                    <Grid size={12}>
+                      <FormControlLabel
+                        control={(
+                          <Checkbox
+                            checked={formData.termsAccepted}
+                            onChange={(e) => setFormData({ ...formData, termsAccepted: e.target.checked })}
+                          />
+                        )}
+                        label="Customer agrees to Terms & Conditions"
+                      />
+                    </Grid>
+                  </Grid>
+                </Box>
+                </>)}
+              </Stack>
+              </WizardStepBoundary>
+            </Box>
+          </motion.div>
+        </DialogContent>
+        <DialogActions sx={actionsBarSx(isDarkMode)}>
+          <Button onClick={handleCloseDialog} variant="outlined" sx={secondaryButtonSx(isDarkMode)}>
+            Cancel
+          </Button>
+          <Box sx={{ flexGrow: 1 }} />
+          {activeStep > 0 && (
+            <Button onClick={handleBack} variant="outlined" sx={secondaryButtonSx(isDarkMode)}>
+              Back
             </Button>
-            <Box sx={{ flexGrow: 1 }} />
-            {activeStep > 0 && (
-              <Button onClick={handleBack} variant="outlined" sx={secondaryButtonSx(isDarkMode)}>
-                Back
-              </Button>
-            )}
-            {activeStep < BOOKING_STEPS.length - 1 ? (
-              <Button key="wizard-next" onClick={handleNext} variant="contained" sx={primaryButtonSx}>
-                Next
-              </Button>
-            ) : (
-              <Button
-                key="wizard-submit"
-                type="submit"
-                form="marriage-form"
-                variant="contained"
-                sx={primaryButtonSx}
-              >
-                {selectedBooking ? 'Update booking' : 'Create booking'}
-              </Button>
-            )}
-          </DialogActions>
-        </Dialog>
-
-
-        <Snackbar
-          open={snackbar.open}
-          autoHideDuration={6000}
+          )}
+          {activeStep < BOOKING_STEPS.length - 1 ? (
+            <Button key="wizard-next" onClick={handleNext} variant="contained" sx={primaryButtonSx}>
+              Next
+            </Button>
+          ) : (
+            <Button
+              key="wizard-submit"
+              type="submit"
+              form="marriage-form"
+              variant="contained"
+              sx={primaryButtonSx}
+            >
+              {selectedBooking ? 'Update booking' : 'Create booking'}
+            </Button>
+          )}
+        </DialogActions>
+      </Dialog>
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+      >
+        <Alert
           onClose={() => setSnackbar({ ...snackbar, open: false })}
+          severity={snackbar.severity}
+          sx={{ width: '100%' }}
         >
-          <Alert
-            onClose={() => setSnackbar({ ...snackbar, open: false })}
-            severity={snackbar.severity}
-            sx={{ width: '100%' }}
-          >
-            {snackbar.message}
-          </Alert>
-        </Snackbar>
-
-        <AdvancePaymentsDialog
-          open={paymentsOpen}
-          onClose={() => { setPaymentsOpen(false); setPaymentsBooking(null); }}
-          booking={paymentsBooking}
-          onUpdated={(fresh) => {
-            // Reflect the new advance/remaining in the list without a refetch.
-            setBookings((prev) => prev.map((b) => (b._id === fresh._id ? { ...b, ...fresh } : b)));
-            setPaymentsBooking(fresh);
-          }}
-        />
-
-        <FinalizeBillingDialog
-          open={finalizeOpen}
-          onClose={() => { setFinalizeOpen(false); setFinalizeBooking(null); }}
-          booking={finalizeBooking}
-          onUpdated={(fresh) => {
-            setBookings((prev) => prev.map((b) => (b._id === fresh._id ? { ...b, ...fresh } : b)));
-            showSnackbar('Billing finalized with actual plates', 'success');
-          }}
-        />
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
+      <AdvancePaymentsDialog
+        open={paymentsOpen}
+        onClose={() => { setPaymentsOpen(false); setPaymentsBooking(null); }}
+        booking={paymentsBooking}
+        onUpdated={(fresh) => {
+          // Reflect the new advance/remaining in the list without a refetch.
+          setBookings((prev) => prev.map((b) => (b._id === fresh._id ? { ...b, ...fresh } : b)));
+          setPaymentsBooking(fresh);
+        }}
+      />
+      <FinalizeBillingDialog
+        open={finalizeOpen}
+        onClose={() => { setFinalizeOpen(false); setFinalizeBooking(null); }}
+        booking={finalizeBooking}
+        onUpdated={(fresh) => {
+          setBookings((prev) => prev.map((b) => (b._id === fresh._id ? { ...b, ...fresh } : b)));
+          showSnackbar('Billing finalized with actual plates', 'success');
+        }}
+      />
     </PageLayout>
   );
 };

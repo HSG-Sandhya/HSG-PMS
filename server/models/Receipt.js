@@ -54,7 +54,7 @@ const receiptSchema = new mongoose.Schema(
 receiptSchema.index({ createdAt: -1 });
 
 // RCPT-YYMMDD-### — same day-scoped numbering scheme as orders.
-receiptSchema.pre('save', async function (next) {
+receiptSchema.pre('save', async function () {
   if (!this.receiptNumber) {
     const date = new Date();
     const year = date.getFullYear().toString().substr(-2);
@@ -73,7 +73,6 @@ receiptSchema.pre('save', async function (next) {
 
     this.receiptNumber = `RCPT-${year}${month}${day}-${sequence.toString().padStart(3, '0')}`;
   }
-  next();
 });
 
 export default mongoose.model('Receipt', receiptSchema);

@@ -4,10 +4,19 @@ import {
 import { fmt, fmtDate, cardSx, INCOME_COLOR, EXPENSE_COLOR } from './accountingShared';
 
 const Stat = ({ label, value, color }) => (
-  <Grid item xs={6} md={3}>
+  <Grid
+    size={{
+      xs: 6,
+      md: 3
+    }}>
     <Box sx={{ ...cardSx, textAlign: 'center' }}>
       <Typography variant="caption" sx={{ textTransform: 'uppercase', letterSpacing: '0.08em', color: 'text.secondary' }}>{label}</Typography>
-      <Typography variant="h6" fontWeight={800} sx={{ color: color || 'text.primary' }}>{value}</Typography>
+      <Typography
+        variant="h6"
+        sx={{
+          fontWeight: 800,
+          color: color || 'text.primary'
+        }}>{value}</Typography>
     </Box>
   </Grid>
 );
@@ -22,11 +31,20 @@ const CashBookTab = ({ reports }) => {
         <Stat label="Payments" value={fmt(cb.totalPayments)} color={EXPENSE_COLOR} />
         <Stat label="Closing" value={fmt(cb.closingBalance)} color="var(--app-primary)" />
       </Grid>
-
       <Box sx={cardSx}>
-        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.5 }}>
-          <Typography variant="h6" fontWeight={800}>Cash Book</Typography>
-          <Typography variant="caption" color="text.secondary">Cash account only</Typography>
+        <Stack
+          direction="row"
+          sx={{
+            justifyContent: "space-between",
+            alignItems: "center",
+            mb: 1.5
+          }}>
+          <Typography variant="h6" sx={{
+            fontWeight: 800
+          }}>Cash Book</Typography>
+          <Typography variant="caption" sx={{
+            color: "text.secondary"
+          }}>Cash account only</Typography>
         </Stack>
         {cb.rows.length === 0 ? (
           <Box sx={{ textAlign: 'center', py: 5, color: 'text.secondary' }}>No cash movements in this period.</Box>
@@ -52,7 +70,12 @@ const CashBookTab = ({ reports }) => {
                     <TableCell>{fmtDate(r.date)}</TableCell>
                     <TableCell>
                       {r.particulars}
-                      {r.description ? <Typography variant="caption" display="block" color="text.secondary">{r.description}</Typography> : null}
+                      {r.description ? <Typography
+                        variant="caption"
+                        sx={{
+                          display: "block",
+                          color: "text.secondary"
+                        }}>{r.description}</Typography> : null}
                     </TableCell>
                     <TableCell align="right" sx={{ color: INCOME_COLOR }}>{r.receipt ? fmt(r.receipt) : '—'}</TableCell>
                     <TableCell align="right" sx={{ color: EXPENSE_COLOR }}>{r.payment ? fmt(r.payment) : '—'}</TableCell>

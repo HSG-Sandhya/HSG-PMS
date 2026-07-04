@@ -87,29 +87,50 @@ const RoomTransferDialog = ({ open, onClose, booking, rooms = [], onTransferred 
     >
       <FormSection>
         {/* From → To visual */}
-        <Stack direction="row" alignItems="center" spacing={2} sx={{ mb: 1.5 }}>
+        <Stack
+          direction="row"
+          spacing={2}
+          sx={{
+            alignItems: "center",
+            mb: 1.5
+          }}>
           <Box sx={{ flex: 1, p: 2, borderRadius: 2, border: '1px solid', borderColor: 'divider', textAlign: 'center' }}>
             <Typography variant="caption" sx={{ textTransform: 'uppercase', letterSpacing: '0.1em', color: 'text.secondary' }}>From</Typography>
-            <Typography variant="h6" fontWeight={800} sx={{ color: 'var(--app-primary)' }}>
+            <Typography
+              variant="h6"
+              sx={{
+                fontWeight: 800,
+                color: 'var(--app-primary)'
+              }}>
               {currentRoom?.roomNumber || '—'}
             </Typography>
-            <Typography variant="caption" color="text.secondary">{currentRoom?.type || ''}</Typography>
+            <Typography variant="caption" sx={{
+              color: "text.secondary"
+            }}>{currentRoom?.type || ''}</Typography>
           </Box>
           <ArrowRightAltIcon sx={{ color: 'var(--app-primary)', fontSize: 32 }} />
           <Box sx={{ flex: 1, p: 2, borderRadius: 2, border: '1px dashed', borderColor: destRoom ? 'var(--app-primary)' : 'divider', textAlign: 'center', background: destRoom ? 'rgba(var(--app-primary-rgb,99,102,241),0.06)' : 'transparent' }}>
             <Typography variant="caption" sx={{ textTransform: 'uppercase', letterSpacing: '0.1em', color: 'text.secondary' }}>To</Typography>
-            <Typography variant="h6" fontWeight={800} sx={{ color: destRoom ? 'var(--app-primary)' : 'text.disabled' }}>
+            <Typography
+              variant="h6"
+              sx={{
+                fontWeight: 800,
+                color: destRoom ? 'var(--app-primary)' : 'text.disabled'
+              }}>
               {destRoom?.roomNumber || '—'}
             </Typography>
-            <Typography variant="caption" color="text.secondary">{destRoom?.type || 'Pick a room'}</Typography>
+            <Typography variant="caption" sx={{
+              color: "text.secondary"
+            }}>{destRoom?.type || 'Pick a room'}</Typography>
           </Box>
         </Stack>
 
-        <Typography variant="body2" color="text.secondary">
+        <Typography variant="body2" sx={{
+          color: "text.secondary"
+        }}>
           {booking.guestName} · {fmt(booking.checkIn)} – {fmt(booking.checkOut)} · {nights} night{nights > 1 ? 's' : ''}
         </Typography>
       </FormSection>
-
       <FormSection title="Transfer Details">
         <TextField
           select fullWidth label="Move to room" value={toRoomId}
@@ -118,7 +139,12 @@ const RoomTransferDialog = ({ open, onClose, booking, rooms = [], onTransferred 
         >
           {available.map((r) => (
             <MenuItem key={r._id} value={r._id}>
-              <Stack direction="row" justifyContent="space-between" sx={{ width: '100%' }}>
+              <Stack
+                direction="row"
+                sx={{
+                  justifyContent: "space-between",
+                  width: '100%'
+                }}>
                 <span>Room {r.roomNumber} · {r.type}</span>
                 <span style={{ color: 'var(--app-primary)', fontWeight: 700 }}>{currencySym()}{r.pricePerNight?.toLocaleString('en-IN')}/n</span>
               </Stack>
@@ -137,7 +163,9 @@ const RoomTransferDialog = ({ open, onClose, booking, rooms = [], onTransferred 
           value={priceAdjustment}
           onChange={(e) => setPriceAdjustment(e.target.value)}
           helperText="Auto-suggested from the room rate difference. Positive = charge more, negative = refund."
-          InputProps={{ startAdornment: <InputAdornment position="start">{currencySym()}</InputAdornment> }}
+          slotProps={{
+            input: { startAdornment: <InputAdornment position="start">{currencySym()}</InputAdornment> }
+          }}
         />
 
         {error && (

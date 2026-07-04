@@ -33,11 +33,12 @@ const ServicesPicker = ({ value = [], onChange }) => {
             role="button"
             direction="row"
             spacing={0.9}
-            alignItems="center"
             onClick={() => toggle(s.value)}
             sx={{
+              alignItems: "center",
               cursor: 'pointer',
-              px: 1.75, py: 1,
+              px: 1.75,
+              py: 1,
               borderRadius: '999px',
               userSelect: 'none',
               transition: 'all 0.18s ease',
@@ -46,9 +47,8 @@ const ServicesPicker = ({ value = [], onChange }) => {
               color: on ? 'var(--app-primary)' : 'text.secondary',
               background: on ? 'rgba(var(--app-primary-rgb),0.10)' : 'transparent',
               fontWeight: 700,
-              '&:hover': { borderColor: 'var(--app-primary)' },
-            }}
-          >
+              '&:hover': { borderColor: 'var(--app-primary)' }
+            }}>
             {s.icon}
             <Typography variant="body2" sx={{ fontWeight: 700 }}>{s.value}</Typography>
           </Stack>

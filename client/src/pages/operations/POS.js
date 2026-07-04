@@ -427,10 +427,18 @@ const POS = () => {
           border: '1px solid rgba(255, 255, 255, var(--app-surface-border-alpha, 0.08))',
           boxShadow: '0 4px 24px rgba(0, 0, 0, 0.05), 0 0 24px rgba(var(--app-primary-rgb), 0.08), inset 0 1px 0 rgba(255, 255, 255, var(--app-surface-border-alpha, 0.08))',
         }}>
-          <Stack direction="row" alignItems="center" spacing={2}>
+          <Stack direction="row" spacing={2} sx={{
+            alignItems: "center"
+          }}>
             <Restaurant sx={{ fontSize: 40, color: 'var(--app-primary)' }} />
             <Box>
-              <Typography variant="h4" fontWeight={700} sx={{ mb: 0.5, color: 'var(--app-primary)' }}>
+              <Typography
+                variant="h4"
+                sx={{
+                  fontWeight: 700,
+                  mb: 0.5,
+                  color: 'var(--app-primary)'
+                }}>
                 Point of Sale
               </Typography>
               <Typography variant="body1" sx={{ color: 'rgba(var(--app-primary-rgb),0.8)' }}>
@@ -447,7 +455,11 @@ const POS = () => {
       >
         <Grid container spacing={3}>
           {/* Left Panel - Categories */}
-          <Grid item xs={12} md={2.5}>
+          <Grid
+            size={{
+              xs: 12,
+              md: 2.5
+            }}>
             <motion.div
               initial={{ opacity: 0, x: -30 }}
               animate={{ opacity: 1, x: 0 }}
@@ -529,7 +541,11 @@ const POS = () => {
           </Grid>
 
           {/* Center Panel - Menu Items */}
-          <Grid item xs={12} md={6}>
+          <Grid
+            size={{
+              xs: 12,
+              md: 6
+            }}>
             <motion.div
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
@@ -569,7 +585,13 @@ const POS = () => {
                   <Grid container spacing={2}>
                     <AnimatePresence>
                       {menuItems.map(item => (
-                        <Grid item xs={6} sm={4} md={3} key={item._id}>
+                        <Grid
+                          key={item._id}
+                          size={{
+                            xs: 6,
+                            sm: 4,
+                            md: 3
+                          }}>
                           <motion.div
                             initial={{ opacity: 0, scale: 0.9 }}
                             animate={{ opacity: 1, scale: 1 }}
@@ -662,7 +684,11 @@ const POS = () => {
           </Grid>
 
           {/* Right Panel - Cart */}
-          <Grid item xs={12} md={3.5}>
+          <Grid
+            size={{
+              xs: 12,
+              md: 3.5
+            }}>
             <motion.div
               initial={{ opacity: 0, x: 30 }}
               animate={{ opacity: 1, x: 0 }}
@@ -730,7 +756,12 @@ const POS = () => {
                             >
                               <ListItemText
                                 primary={
-                                  <Typography variant="body1" fontWeight="600" sx={{ color: '#23272f' }}>
+                                  <Typography
+                                    variant="body1"
+                                    sx={{
+                                      fontWeight: "600",
+                                      color: '#23272f'
+                                    }}>
                                     {item.name}
                                   </Typography>
                                 }
@@ -799,26 +830,38 @@ const POS = () => {
                   mt: 'auto',
                 }}>
                   <Grid container spacing={1} sx={{ mb: 2 }}>
-                    <Grid item xs={6}>
+                    <Grid size={6}>
                       <Typography variant="body2" sx={{ color: 'rgba(35, 39, 47, 0.8)' }}>Subtotal:</Typography>
                     </Grid>
-                    <Grid item xs={6}>
-                      <Typography variant="body2" align="right" fontWeight="600" sx={{ color: '#23272f' }}>
+                    <Grid size={6}>
+                      <Typography
+                        variant="body2"
+                        align="right"
+                        sx={{
+                          fontWeight: "600",
+                          color: '#23272f'
+                        }}>
                         {currencySym()}{calculateSubtotal().toFixed(2)}
                       </Typography>
                     </Grid>
-                    <Grid item xs={6}>
+                    <Grid size={6}>
                       <Typography variant="body2" sx={{ color: 'rgba(35, 39, 47, 0.6)' }}>GST ({billing.posGstRate}%):</Typography>
                     </Grid>
-                    <Grid item xs={6}>
-                      <Typography variant="body2" align="right" fontWeight="600" sx={{ color: 'rgba(35, 39, 47, 0.6)' }}>
+                    <Grid size={6}>
+                      <Typography
+                        variant="body2"
+                        align="right"
+                        sx={{
+                          fontWeight: "600",
+                          color: 'rgba(35, 39, 47, 0.6)'
+                        }}>
                         {currencySym()}{calculateGST().toFixed(2)}
                       </Typography>
                     </Grid>
-                    <Grid item xs={6}>
+                    <Grid size={6}>
                       <Typography variant="h6" sx={{ color: 'var(--app-primary)', fontWeight: 700 }}>Total:</Typography>
                     </Grid>
-                    <Grid item xs={6}>
+                    <Grid size={6}>
                       <Typography variant="h6" align="right" sx={{ color: 'var(--app-primary)', fontWeight: 700 }}>
                         {currencySym()}{calculateTotal().toFixed(2)}
                       </Typography>
@@ -874,7 +917,6 @@ const POS = () => {
           </Grid>
         </Grid>
       </motion.div>
-
       {/* Payment Dialog */}
       <FormDialog
         open={openPaymentDialog}
@@ -889,7 +931,7 @@ const POS = () => {
       >
         <FormSection title="Payment Details" icon={<Payment fontSize="small" />} iconColor="#10b981">
           <Grid container spacing={2}>
-            <Grid item xs={12}>
+            <Grid size={12}>
               <FormControl fullWidth>
                 <InputLabel>Payment Method</InputLabel>
                 <Select
@@ -906,30 +948,34 @@ const POS = () => {
             
             {paymentMethod === 'cash' && (
               <>
-                <Grid item xs={12}>
+                <Grid size={12}>
                   <TextField
                     fullWidth
                     label="Cash Received"
                     type="number"
                     value={cashReceived}
                     onChange={(e) => setCashReceived(e.target.value)}
-                    InputProps={{
-                      startAdornment: <Typography sx={{ mr: 1 }}>{currencySym()}</Typography>,
+                    slotProps={{
+                      input: {
+                        startAdornment: <Typography sx={{ mr: 1 }}>{currencySym()}</Typography>,
+                      }
                     }}
                   />
                 </Grid>
-                <Grid item xs={6}>
+                <Grid size={6}>
                   <Typography variant="body1">Change Amount:</Typography>
                 </Grid>
-                <Grid item xs={6}>
-                  <Typography variant="body1" align="right" fontWeight="bold" color="primary">
+                <Grid size={6}>
+                  <Typography variant="body1" align="right" color="primary" sx={{
+                    fontWeight: "bold"
+                  }}>
                     {currencySym()}{calculateChange().toFixed(2)}
                   </Typography>
                 </Grid>
               </>
             )}
             
-            <Grid item xs={12}>
+            <Grid size={12}>
               <TextField
                 fullWidth
                 label="Customer Name (Optional)"
@@ -937,7 +983,7 @@ const POS = () => {
                 onChange={(e) => setCustomerName(e.target.value)}
               />
             </Grid>
-            <Grid item xs={12}>
+            <Grid size={12}>
               <TextField
                 fullWidth
                 label="Customer Phone (Optional)"
@@ -945,7 +991,7 @@ const POS = () => {
                 onChange={(e) => setCustomerPhone(e.target.value)}
               />
             </Grid>
-            <Grid item xs={12}>
+            <Grid size={12}>
               <FormControl fullWidth>
                 <InputLabel>Table Number (Optional)</InputLabel>
                 <Select
@@ -953,26 +999,28 @@ const POS = () => {
                   onChange={(e) => setSelectedTable(e.target.value)}
                   label="Table Number (Optional)"
                   MenuProps={{
-                    PaperProps: {
-                      sx: {
-                        backgroundColor: 'white',
-                        boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
-                        border: '1px solid #e0e0e0',
-                        '& .MuiMenuItem-root': {
+                    slotProps: {
+                      paper: {
+                        sx: {
                           backgroundColor: 'white',
-                          color: '#333',
-                          '&:hover': {
-                            backgroundColor: '#f5f5f5',
-                          },
-                          '&.Mui-selected': {
-                            backgroundColor: '#667eea',
-                            color: 'white',
+                          boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+                          border: '1px solid #e0e0e0',
+                          '& .MuiMenuItem-root': {
+                            backgroundColor: 'white',
+                            color: '#333',
                             '&:hover': {
-                              backgroundColor: '#5a6fd8',
+                              backgroundColor: '#f5f5f5',
+                            },
+                            '&.Mui-selected': {
+                              backgroundColor: '#667eea',
+                              color: 'white',
+                              '&:hover': {
+                                backgroundColor: '#5a6fd8',
+                              },
                             },
                           },
                         },
-                      },
+                      }
                     },
                   }}
                 >
@@ -990,7 +1038,6 @@ const POS = () => {
           </Grid>
         </FormSection>
       </FormDialog>
-
       {/* Thermal Receipt Dialog */}
       <FormDialog
         open={openReceiptDialog}
@@ -1243,8 +1290,6 @@ const POS = () => {
           )}
         </FormSection>
       </FormDialog>
-
-
       {/* Snackbar */}
       <Snackbar 
         open={snackbar.open} 

@@ -117,7 +117,12 @@ const PaymentGatewaySection = ({ onNotify }) => {
 
   if (loading) {
     return (
-      <Box display="flex" justifyContent="center" py={6}>
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "center",
+          py: 6
+        }}>
         <CircularProgress />
       </Box>
     );
@@ -128,8 +133,16 @@ const PaymentGatewaySection = ({ onNotify }) => {
       {/* Status banner */}
       <Card sx={sectionPaper}>
         <CardContent>
-          <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems={{ md: 'center' }} justifyContent="space-between">
-            <Stack direction="row" spacing={2} alignItems="center">
+          <Stack
+            direction={{ xs: 'column', md: 'row' }}
+            spacing={2}
+            sx={{
+              alignItems: { md: 'center' },
+              justifyContent: "space-between"
+            }}>
+            <Stack direction="row" spacing={2} sx={{
+              alignItems: "center"
+            }}>
               <Box
                 sx={{
                   width: 52, height: 52, borderRadius: '14px',
@@ -144,10 +157,17 @@ const PaymentGatewaySection = ({ onNotify }) => {
                 {isLive ? <BoltIcon /> : <ScienceIcon />}
               </Box>
               <Box>
-                <Typography variant="h6" fontWeight={700} sx={{ color: 'var(--app-primary)' }}>
+                <Typography
+                  variant="h6"
+                  sx={{
+                    fontWeight: 700,
+                    color: 'var(--app-primary)'
+                  }}>
                   Razorpay
                 </Typography>
-                <Typography variant="body2" color="text.secondary">
+                <Typography variant="body2" sx={{
+                  color: "text.secondary"
+                }}>
                   {isLive
                     ? 'Live mode — real payments are being processed.'
                     : isDemoFlow
@@ -156,7 +176,9 @@ const PaymentGatewaySection = ({ onNotify }) => {
                 </Typography>
               </Box>
             </Stack>
-            <Stack direction="row" spacing={1.5} alignItems="center">
+            <Stack direction="row" spacing={1.5} sx={{
+              alignItems: "center"
+            }}>
               <Chip
                 size="small"
                 label={isLive ? 'Live' : isDemoFlow ? 'Demo' : 'Test'}
@@ -177,7 +199,9 @@ const PaymentGatewaySection = ({ onNotify }) => {
                     onChange={(e) => update('enabled', e.target.checked)}
                   />
                 }
-                label={<Typography variant="body2" fontWeight={600}>Gateway enabled</Typography>}
+                label={<Typography variant="body2" sx={{
+                  fontWeight: 600
+                }}>Gateway enabled</Typography>}
               />
             </Stack>
           </Stack>
@@ -190,32 +214,49 @@ const PaymentGatewaySection = ({ onNotify }) => {
           )}
         </CardContent>
       </Card>
-
       {/* Credentials card */}
       <Card sx={sectionPaper}>
         <CardContent>
-          <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 2 }}>
+          <Stack
+            direction="row"
+            spacing={1.5}
+            sx={{
+              alignItems: "center",
+              mb: 2
+            }}>
             <Box sx={{ width: 4, height: 22, borderRadius: 2, background: 'var(--app-primary)' }} />
-            <Typography variant="subtitle1" fontWeight={700}>
+            <Typography variant="subtitle1" sx={{
+              fontWeight: 700
+            }}>
               API credentials
             </Typography>
           </Stack>
 
           <Grid container spacing={2.5}>
-            <Grid item xs={12} sm={4}>
+            <Grid
+              size={{
+                xs: 12,
+                sm: 4
+              }}>
               <TextField
                 select
                 fullWidth
                 label="Environment"
                 value={form.environment}
                 onChange={(e) => update('environment', e.target.value)}
-                SelectProps={{ native: true }}
+                slotProps={{
+                  select: { native: true }
+                }}
               >
                 <option value="test">Test</option>
                 <option value="live">Live</option>
               </TextField>
             </Grid>
-            <Grid item xs={12} sm={8}>
+            <Grid
+              size={{
+                xs: 12,
+                sm: 8
+              }}>
               <TextField
                 fullWidth
                 label="Key ID"
@@ -223,19 +264,21 @@ const PaymentGatewaySection = ({ onNotify }) => {
                 value={form.keyId}
                 onChange={(e) => update('keyId', e.target.value.trim())}
                 helperText="From Razorpay dashboard → Settings → API Keys"
-                InputProps={{
-                  endAdornment: form.keyId ? (
-                    <InputAdornment position="end">
-                      <IconButton size="small" onClick={() => handleCopy('Key ID', form.keyId)}>
-                        <CopyIcon fontSize="small" />
-                      </IconButton>
-                    </InputAdornment>
-                  ) : null,
+                slotProps={{
+                  input: {
+                    endAdornment: form.keyId ? (
+                      <InputAdornment position="end">
+                        <IconButton size="small" onClick={() => handleCopy('Key ID', form.keyId)}>
+                          <CopyIcon fontSize="small" />
+                        </IconButton>
+                      </InputAdornment>
+                    ) : null,
+                  }
                 }}
               />
             </Grid>
 
-            <Grid item xs={12}>
+            <Grid size={12}>
               <TextField
                 fullWidth
                 label="Key Secret"
@@ -243,19 +286,21 @@ const PaymentGatewaySection = ({ onNotify }) => {
                 value={form.keySecret}
                 onChange={(e) => update('keySecret', e.target.value.trim())}
                 helperText="Razorpay shows this once when you generate the key — store it carefully."
-                InputProps={{
-                  endAdornment: (
-                    <InputAdornment position="end">
-                      <IconButton size="small" onClick={() => setShowSecret((v) => !v)}>
-                        {showSecret ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
-                      </IconButton>
-                    </InputAdornment>
-                  ),
+                slotProps={{
+                  input: {
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <IconButton size="small" onClick={() => setShowSecret((v) => !v)}>
+                          {showSecret ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+                        </IconButton>
+                      </InputAdornment>
+                    ),
+                  }
                 }}
               />
             </Grid>
 
-            <Grid item xs={12}>
+            <Grid size={12}>
               <TextField
                 fullWidth
                 label="Webhook Secret (optional)"
@@ -263,14 +308,16 @@ const PaymentGatewaySection = ({ onNotify }) => {
                 value={form.webhookSecret}
                 onChange={(e) => update('webhookSecret', e.target.value.trim())}
                 helperText="Only required if you create a Razorpay webhook for payment status notifications."
-                InputProps={{
-                  endAdornment: (
-                    <InputAdornment position="end">
-                      <IconButton size="small" onClick={() => setShowWebhook((v) => !v)}>
-                        {showWebhook ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
-                      </IconButton>
-                    </InputAdornment>
-                  ),
+                slotProps={{
+                  input: {
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <IconButton size="small" onClick={() => setShowWebhook((v) => !v)}>
+                          {showWebhook ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+                        </IconButton>
+                      </InputAdornment>
+                    ),
+                  }
                 }}
               />
             </Grid>
@@ -278,8 +325,16 @@ const PaymentGatewaySection = ({ onNotify }) => {
 
           <Divider sx={{ my: 3 }} />
 
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} alignItems="center" justifyContent="space-between">
-            <Stack direction="row" spacing={2} alignItems="center">
+          <Stack
+            direction={{ xs: 'column', sm: 'row' }}
+            spacing={1.5}
+            sx={{
+              alignItems: "center",
+              justifyContent: "space-between"
+            }}>
+            <Stack direction="row" spacing={2} sx={{
+              alignItems: "center"
+            }}>
               <Button
                 component="a"
                 href="https://dashboard.razorpay.com/app/keys"
@@ -314,13 +369,20 @@ const PaymentGatewaySection = ({ onNotify }) => {
           </Stack>
         </CardContent>
       </Card>
-
       {/* Help card */}
       <Card sx={sectionPaper}>
         <CardContent>
-          <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 2 }}>
+          <Stack
+            direction="row"
+            spacing={1.5}
+            sx={{
+              alignItems: "center",
+              mb: 2
+            }}>
             <Box sx={{ width: 4, height: 22, borderRadius: 2, background: 'var(--app-primary)' }} />
-            <Typography variant="subtitle1" fontWeight={700}>
+            <Typography variant="subtitle1" sx={{
+              fontWeight: 700
+            }}>
               How to get your keys
             </Typography>
           </Stack>

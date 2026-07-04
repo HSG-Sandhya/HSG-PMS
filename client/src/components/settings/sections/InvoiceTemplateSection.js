@@ -75,20 +75,32 @@ const TemplateRow = ({ template, selectedId, originalId, actions }) => {
         p: 1.5,
       }}
     >
-      <Stack direction="row" alignItems="flex-start" justifyContent="space-between" spacing={2}>
+      <Stack
+        direction="row"
+        spacing={2}
+        sx={{
+          alignItems: "flex-start",
+          justifyContent: "space-between"
+        }}>
         <FormControlLabel
           value={id}
           control={<Radio />}
           label={
             <Box>
-              <Stack direction="row" spacing={1} alignItems="center">
-                <Typography variant="subtitle2" fontWeight={600}>
+              <Stack direction="row" spacing={1} sx={{
+                alignItems: "center"
+              }}>
+                <Typography variant="subtitle2" sx={{
+                  fontWeight: 600
+                }}>
                   {template.name || id}
                 </Typography>
                 {id === originalId && <Chip label="Active" color="success" size="small" />}
               </Stack>
               {template.description && (
-                <Typography variant="body2" color="text.secondary">
+                <Typography variant="body2" sx={{
+                  color: "text.secondary"
+                }}>
                   {template.description}
                 </Typography>
               )}
@@ -212,7 +224,12 @@ const InvoiceTemplateSection = ({ onNotify }) => {
 
   if (loading) {
     return (
-      <Box display="flex" justifyContent="center" py={6}>
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "center",
+          py: 6
+        }}>
         <CircularProgress />
       </Box>
     );
@@ -226,10 +243,18 @@ const InvoiceTemplateSection = ({ onNotify }) => {
       {/* Room / hotel invoice template */}
       <Card elevation={0} sx={glassCardSx}>
         <CardContent>
-          <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
+          <Stack
+            direction="row"
+            sx={{
+              justifyContent: "space-between",
+              alignItems: "center",
+              mb: 2
+            }}>
             <Box>
               <Typography variant="h6">Room invoice template</Typography>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={{
+                color: "text.secondary"
+              }}>
                 Template used when generating room / hotel booking invoices.
               </Typography>
             </Box>
@@ -264,7 +289,12 @@ const InvoiceTemplateSection = ({ onNotify }) => {
               </Stack>
             </RadioGroup>
           )}
-          <Box display="flex" justifyContent="flex-end" mt={2}>
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "flex-end",
+              mt: 2
+            }}>
             <Button
               variant="contained"
               startIcon={savingRoom ? <CircularProgress size={16} color="inherit" /> : <SaveIcon />}
@@ -276,17 +306,26 @@ const InvoiceTemplateSection = ({ onNotify }) => {
           </Box>
         </CardContent>
       </Card>
-
       {/* Banquet quotation + invoice template */}
       <Card elevation={0} sx={glassCardSx}>
         <CardContent>
-          <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
+          <Stack
+            direction="row"
+            sx={{
+              justifyContent: "space-between",
+              alignItems: "center",
+              mb: 2
+            }}>
             <Box>
-              <Stack direction="row" spacing={1} alignItems="center">
+              <Stack direction="row" spacing={1} sx={{
+                alignItems: "center"
+              }}>
                 <BanquetIcon fontSize="small" color="primary" />
                 <Typography variant="h6">Banquet quotation &amp; invoice template</Typography>
               </Stack>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={{
+                color: "text.secondary"
+              }}>
                 One design applies to both the banquet hall quotation and the invoice. Preview each mode below.
               </Typography>
             </Box>
@@ -320,7 +359,12 @@ const InvoiceTemplateSection = ({ onNotify }) => {
               </Stack>
             </RadioGroup>
           )}
-          <Box display="flex" justifyContent="flex-end" mt={2}>
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "flex-end",
+              mt: 2
+            }}>
             <Button
               variant="contained"
               startIcon={savingBanquet ? <CircularProgress size={16} color="inherit" /> : <SaveIcon />}

@@ -41,10 +41,13 @@ export const getTemplateList = () =>
 export const getTemplate = (id) =>
   TEMPLATES.find((t) => t.id === id) || TEMPLATES.find((t) => t.id === DEFAULT_TEMPLATE_ID);
 
-// Injected into every rendered invoice so it always prints on a single A4 sheet.
-// A plain CSS transform does not change pagination height, so we wrap the body's
-// content, scale it down when it would overflow, and collapse the wrapper's
-// layout box to the scaled height. Runs on load and again once fonts settle.
+// Injected into every rendered invoice to keep it on a single A4 sheet WHEN a
+// gentle scale-down (>= 85%) is enough. A plain CSS transform does not change
+// pagination height, so we wrap the body's content, scale it down when it would
+// overflow, and collapse the wrapper's layout box to the scaled height. When the
+// content is so long that fitting it would shrink the invoice below 85% (which
+// also narrows it and wastes the sheet's width), we skip scaling entirely and let
+// it flow full-width across multiple sheets. Runs on load and again once fonts settle.
 // Templates set no @page, so Chrome's default print margins apply (~12.7mm); a
 // slightly conservative printable height keeps it on one sheet at those margins.
 const FIT_TO_PAGE_SNIPPET = `
@@ -62,13 +65,20 @@ const FIT_TO_PAGE_SNIPPET = `
     var inner = document.getElementById('__invFitInner');
     inner.style.transform = 'none'; outer.style.height = ''; outer.style.overflow = 'visible';
     var available = 1015; // printable px for A4 (96dpi) at default print margins
+    var minScale = 0.85;  // never shrink below this: scale() is uniform, so a
+                          // heavier shrink also narrows the invoice and wastes the
+                          // sheet's width. Longer invoices flow onto a 2nd sheet.
     var h = inner.scrollHeight;
     if (h > available) {
       var s = available / h;
-      inner.style.transformOrigin = 'top center';
-      inner.style.transform = 'scale(' + s + ')';
-      outer.style.height = Math.floor(h * s) + 'px';
-      outer.style.overflow = 'hidden';
+      if (s >= minScale) {
+        inner.style.transformOrigin = 'top center';
+        inner.style.transform = 'scale(' + s + ')';
+        outer.style.height = Math.floor(h * s) + 'px';
+        outer.style.overflow = 'hidden';
+      }
+      // else: too tall to fit one sheet without over-shrinking — keep it at full
+      // width and let the browser paginate across pages.
     }
   }
   function run() { try { fit(); } catch (e) {} }

@@ -157,7 +157,12 @@ const HotelProfileSection = ({ onNotify }) => {
 
   if (loading) {
     return (
-      <Box display="flex" justifyContent="center" py={6}>
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "center",
+          py: 6
+        }}>
         <CircularProgress />
       </Box>
     );
@@ -167,18 +172,26 @@ const HotelProfileSection = ({ onNotify }) => {
     <Stack spacing={3}>
       <Card sx={sectionPaper}>
         <CardContent>
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={3} alignItems="center">
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={3} sx={{
+            alignItems: "center"
+          }}>
             <Avatar
               src={profile.logo}
               alt="Hotel logo"
               variant="rounded"
               sx={{ width: 96, height: 96, bgcolor: 'grey.100', border: '1px solid', borderColor: 'divider' }}
             />
-            <Stack spacing={1} flex={1}>
-              <Typography variant="subtitle1" fontWeight={600}>
+            <Stack spacing={1} sx={{
+              flex: 1
+            }}>
+              <Typography variant="subtitle1" sx={{
+                fontWeight: 600
+              }}>
                 Hotel logo
               </Typography>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={{
+                color: "text.secondary"
+              }}>
                 PNG, JPG, or SVG. Recommended: square, 512×512 or larger.
               </Typography>
               <Box>
@@ -196,122 +209,209 @@ const HotelProfileSection = ({ onNotify }) => {
           </Stack>
         </CardContent>
       </Card>
-
       <Card sx={sectionPaper}>
         <CardContent>
           <Typography variant="h6" gutterBottom>Business identity</Typography>
           <Divider sx={{ mb: 2 }} />
           <Grid container spacing={2}>
-            <Grid item xs={12} sm={6}>
+            <Grid
+              size={{
+                xs: 12,
+                sm: 6
+              }}>
               <TextField fullWidth label="Hotel name" value={profile.hotelName} onChange={(e) => updateField('hotelName', e.target.value)} />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid
+              size={{
+                xs: 12,
+                sm: 6
+              }}>
               <TextField fullWidth label="Legal name" value={profile.legalName} onChange={(e) => updateField('legalName', e.target.value)} />
             </Grid>
-            <Grid item xs={12}>
+            <Grid size={12}>
               <TextField fullWidth label="Description" multiline rows={2} value={profile.description} onChange={(e) => updateField('description', e.target.value)} />
             </Grid>
           </Grid>
         </CardContent>
       </Card>
-
       <Card sx={sectionPaper}>
         <CardContent>
           <Typography variant="h6" gutterBottom>Address</Typography>
           <Divider sx={{ mb: 2 }} />
           <Grid container spacing={2}>
-            <Grid item xs={12} sm={6}>
+            <Grid
+              size={{
+                xs: 12,
+                sm: 6
+              }}>
               <TextField fullWidth label="Address line 1" value={profile.address.line1} onChange={(e) => updateField('address.line1', e.target.value)} />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid
+              size={{
+                xs: 12,
+                sm: 6
+              }}>
               <TextField fullWidth label="Address line 2" value={profile.address.line2} onChange={(e) => updateField('address.line2', e.target.value)} />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid
+              size={{
+                xs: 12,
+                sm: 6
+              }}>
               <TextField fullWidth label="Area / locality" value={profile.address.area} onChange={(e) => updateField('address.area', e.target.value)} />
             </Grid>
-            <Grid item xs={6} sm={3}>
+            <Grid
+              size={{
+                xs: 6,
+                sm: 3
+              }}>
               <TextField fullWidth label="City" value={profile.address.city} onChange={(e) => updateField('address.city', e.target.value)} />
             </Grid>
-            <Grid item xs={6} sm={3}>
+            <Grid
+              size={{
+                xs: 6,
+                sm: 3
+              }}>
               <TextField fullWidth label="State" value={profile.address.state} onChange={(e) => updateField('address.state', e.target.value)} />
             </Grid>
-            <Grid item xs={6} sm={3}>
+            <Grid
+              size={{
+                xs: 6,
+                sm: 3
+              }}>
               <TextField fullWidth label="Postal code" value={profile.address.postalCode} onChange={(e) => updateField('address.postalCode', e.target.value)} />
             </Grid>
-            <Grid item xs={6} sm={3}>
+            <Grid
+              size={{
+                xs: 6,
+                sm: 3
+              }}>
               <TextField fullWidth label="Country" value={profile.address.country} onChange={(e) => updateField('address.country', e.target.value)} />
             </Grid>
           </Grid>
         </CardContent>
       </Card>
-
       <Card sx={sectionPaper}>
         <CardContent>
           <Typography variant="h6" gutterBottom>Contact</Typography>
           <Divider sx={{ mb: 2 }} />
           <Grid container spacing={2}>
-            <Grid item xs={12} sm={6}>
+            <Grid
+              size={{
+                xs: 12,
+                sm: 6
+              }}>
               <TextField fullWidth label="Phone" value={profile.contact.phone} onChange={(e) => updateField('contact.phone', e.target.value)} />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid
+              size={{
+                xs: 12,
+                sm: 6
+              }}>
               <TextField fullWidth label="Alt phone" value={profile.contact.altPhone} onChange={(e) => updateField('contact.altPhone', e.target.value)} />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid
+              size={{
+                xs: 12,
+                sm: 6
+              }}>
               <TextField fullWidth label="Email" type="email" value={profile.contact.email} onChange={(e) => updateField('contact.email', e.target.value)} />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid
+              size={{
+                xs: 12,
+                sm: 6
+              }}>
               <TextField fullWidth label="Website" value={profile.contact.website} onChange={(e) => updateField('contact.website', e.target.value)} />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid
+              size={{
+                xs: 12,
+                sm: 6
+              }}>
               <TextField fullWidth label="WhatsApp business" value={profile.contact.whatsappBusinessNumber} onChange={(e) => updateField('contact.whatsappBusinessNumber', e.target.value)} />
             </Grid>
           </Grid>
         </CardContent>
       </Card>
-
       <Card sx={sectionPaper}>
         <CardContent>
           <Typography variant="h6" gutterBottom>Business registration</Typography>
           <Divider sx={{ mb: 2 }} />
           <Grid container spacing={2}>
-            <Grid item xs={12} sm={6}>
+            <Grid
+              size={{
+                xs: 12,
+                sm: 6
+              }}>
               <TextField fullWidth label="GST number" value={profile.businessRegistration.gstNumber} onChange={(e) => updateField('businessRegistration.gstNumber', e.target.value.toUpperCase())} />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid
+              size={{
+                xs: 12,
+                sm: 6
+              }}>
               <TextField fullWidth label="PAN number" value={profile.businessRegistration.panNumber} onChange={(e) => updateField('businessRegistration.panNumber', e.target.value.toUpperCase())} />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid
+              size={{
+                xs: 12,
+                sm: 6
+              }}>
               <TextField fullWidth label="FSSAI number" value={profile.businessRegistration.fssaiNumber} onChange={(e) => updateField('businessRegistration.fssaiNumber', e.target.value)} />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid
+              size={{
+                xs: 12,
+                sm: 6
+              }}>
               <TextField fullWidth label="CIN" value={profile.businessRegistration.cin} onChange={(e) => updateField('businessRegistration.cin', e.target.value.toUpperCase())} />
             </Grid>
           </Grid>
         </CardContent>
       </Card>
-
       <Card sx={sectionPaper}>
         <CardContent>
           <Typography variant="h6" gutterBottom>Restaurant identity</Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          <Typography
+            variant="body2"
+            sx={{
+              color: "text.secondary",
+              mb: 2
+            }}>
             Used on the food bill page when the restaurant has its own GST registration.
           </Typography>
           <Divider sx={{ mb: 2 }} />
           <Grid container spacing={2}>
-            <Grid item xs={12} sm={6}>
+            <Grid
+              size={{
+                xs: 12,
+                sm: 6
+              }}>
               <TextField fullWidth label="Restaurant name" value={profile.restaurant.name} onChange={(e) => updateField('restaurant.name', e.target.value)} placeholder="e.g. Sandhya Kitchen" />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid
+              size={{
+                xs: 12,
+                sm: 6
+              }}>
               <TextField fullWidth label="Restaurant GSTIN" value={profile.restaurant.gstNumber} onChange={(e) => updateField('restaurant.gstNumber', e.target.value.toUpperCase())} />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid
+              size={{
+                xs: 12,
+                sm: 6
+              }}>
               <TextField fullWidth label="Restaurant FSSAI" value={profile.restaurant.fssaiNumber} onChange={(e) => updateField('restaurant.fssaiNumber', e.target.value)} />
             </Grid>
           </Grid>
         </CardContent>
       </Card>
-
-      <Box display="flex" justifyContent="flex-end">
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "flex-end"
+        }}>
         <Button
           variant="contained"
           size="large"

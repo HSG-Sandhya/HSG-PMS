@@ -70,8 +70,12 @@ const OperationsSection = ({ onNotify }) => {
             control={<Switch checked={!!hk.autoCreateOnCheckout} onChange={(e) => setGroup('housekeeping', { autoCreateOnCheckout: e.target.checked })} />}
             label={
               <Box>
-                <Typography fontWeight={700}>Auto-create cleaning task on checkout</Typography>
-                <Typography variant="caption" color="text.secondary">
+                <Typography sx={{
+                  fontWeight: 700
+                }}>Auto-create cleaning task on checkout</Typography>
+                <Typography variant="caption" sx={{
+                  color: "text.secondary"
+                }}>
                   Raise a housekeeping task automatically when a guest checks out.
                 </Typography>
               </Box>
@@ -96,22 +100,24 @@ const OperationsSection = ({ onNotify }) => {
           </Stack>
         </Stack>
       </FormSection>
-
       <FormSection title="Payroll" icon={<PaymentsIcon fontSize="small" />} iconColor="#10b981">
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
           <TextField label="Default salary" type="number" fullWidth
             value={pr.defaultSalary}
             onChange={(e) => setGroup('payroll', { defaultSalary: e.target.value })}
-            InputProps={{ startAdornment: <InputAdornment position="start">{symbol}</InputAdornment> }}
-            helperText="Used when a staff record has no salary set" />
+            helperText="Used when a staff record has no salary set"
+            slotProps={{
+              input: { startAdornment: <InputAdornment position="start">{symbol}</InputAdornment> }
+            }} />
           <TextField label="Minimum wallet recharge" type="number" fullWidth
             value={pr.minWalletRecharge}
             onChange={(e) => setGroup('payroll', { minWalletRecharge: e.target.value })}
-            InputProps={{ startAdornment: <InputAdornment position="start">{symbol}</InputAdornment> }}
-            helperText="Smallest allowed staff wallet top-up" />
+            helperText="Smallest allowed staff wallet top-up"
+            slotProps={{
+              input: { startAdornment: <InputAdornment position="start">{symbol}</InputAdornment> }
+            }} />
         </Stack>
       </FormSection>
-
       <FormSection title="Accounting" icon={<AccountBalanceIcon fontSize="small" />} iconColor="#f59e0b">
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
           <TextField select label="Default account type" fullWidth
@@ -126,7 +132,6 @@ const OperationsSection = ({ onNotify }) => {
           </TextField>
         </Stack>
       </FormSection>
-
       <Divider />
       <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
         <Button

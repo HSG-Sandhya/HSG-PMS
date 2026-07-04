@@ -57,7 +57,13 @@ const RoomSelectionGrid = ({ rooms = [], value, onSelect, checkInDate, checkOutD
 
   return (
     <Box>
-      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} alignItems={{ sm: 'center' }} sx={{ mb: 2 }}>
+      <Stack
+        direction={{ xs: 'column', sm: 'row' }}
+        spacing={1.5}
+        sx={{
+          alignItems: { sm: 'center' },
+          mb: 2
+        }}>
         <ToggleButtonGroup
           exclusive size="small" value={typeFilter}
           onChange={(e, v) => v && setTypeFilter(v)}
@@ -73,14 +79,17 @@ const RoomSelectionGrid = ({ rooms = [], value, onSelect, checkInDate, checkOutD
         <Chip size="small" label={`${availableCount} available`} sx={{ fontWeight: 700, background: 'rgba(34,197,94,0.12)', color: '#16a34a' }} />
         <TextField
           size="small" placeholder="Find room…" value={query} onChange={(e) => setQuery(e.target.value)}
-          InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> }}
           sx={{ minWidth: { xs: '100%', sm: 200 } }}
+          slotProps={{
+            input: { startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> }
+          }}
         />
       </Stack>
-
       {filtered.length === 0 ? (
         <Box sx={{ py: 5, textAlign: 'center', border: '1px dashed', borderColor: 'divider', borderRadius: 2 }}>
-          <Typography variant="body2" color="text.secondary">No rooms match these filters.</Typography>
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>No rooms match these filters.</Typography>
         </Box>
       ) : (
         <Grid container spacing={1.5}>
@@ -90,7 +99,13 @@ const RoomSelectionGrid = ({ rooms = [], value, onSelect, checkInDate, checkOutD
             const cap = (room.capacity?.adults || 0) + (room.capacity?.children || 0);
             const selectable = free;
             return (
-              <Grid item xs={12} sm={6} md={4} key={room._id}>
+              <Grid
+                key={room._id}
+                size={{
+                  xs: 12,
+                  sm: 6,
+                  md: 4
+                }}>
                 <Box
                   role="button"
                   onClick={() => selectable && onSelect(room._id)}
@@ -113,7 +128,12 @@ const RoomSelectionGrid = ({ rooms = [], value, onSelect, checkInDate, checkOutD
                   {selected && (
                     <CheckCircleIcon sx={{ position: 'absolute', top: 10, right: 10, fontSize: 20, color: 'var(--app-primary)' }} />
                   )}
-                  <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
+                  <Stack
+                    direction="row"
+                    sx={{
+                      justifyContent: "space-between",
+                      alignItems: "flex-start"
+                    }}>
                     <Box>
                       <Typography sx={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1 }}>
                         {room.roomNumber}
@@ -125,16 +145,39 @@ const RoomSelectionGrid = ({ rooms = [], value, onSelect, checkInDate, checkOutD
                   </Stack>
 
                   <Stack direction="row" spacing={1.5} sx={{ mt: 1.25, color: 'text.secondary', flexWrap: 'wrap', gap: 0.5 }}>
-                    <Stack direction="row" spacing={0.4} alignItems="center"><LayersIcon sx={{ fontSize: 15 }} /><Typography variant="caption" fontWeight={600}>Floor {room.floor ?? '—'}</Typography></Stack>
-                    <Stack direction="row" spacing={0.4} alignItems="center"><PeopleAltIcon sx={{ fontSize: 15 }} /><Typography variant="caption" fontWeight={600}>Sleeps {cap || '—'}</Typography></Stack>
-                    <Stack direction="row" spacing={0.4} alignItems="center"><KingBedIcon sx={{ fontSize: 15 }} /><Typography variant="caption" fontWeight={600}>{room.capacity?.adults > 1 ? 'Double' : 'Single'}</Typography></Stack>
+                    <Stack direction="row" spacing={0.4} sx={{
+                      alignItems: "center"
+                    }}><LayersIcon sx={{ fontSize: 15 }} /><Typography variant="caption" sx={{
+                      fontWeight: 600
+                    }}>Floor {room.floor ?? '—'}</Typography></Stack>
+                    <Stack direction="row" spacing={0.4} sx={{
+                      alignItems: "center"
+                    }}><PeopleAltIcon sx={{ fontSize: 15 }} /><Typography variant="caption" sx={{
+                      fontWeight: 600
+                    }}>Sleeps {cap || '—'}</Typography></Stack>
+                    <Stack direction="row" spacing={0.4} sx={{
+                      alignItems: "center"
+                    }}><KingBedIcon sx={{ fontSize: 15 }} /><Typography variant="caption" sx={{
+                      fontWeight: 600
+                    }}>{room.capacity?.adults > 1 ? 'Double' : 'Single'}</Typography></Stack>
                   </Stack>
 
-                  <Stack direction="row" justifyContent="space-between" alignItems="baseline" sx={{ mt: 1.25, pt: 1.25, borderTop: '1px dashed', borderColor: 'divider' }}>
+                  <Stack
+                    direction="row"
+                    sx={{
+                      justifyContent: "space-between",
+                      alignItems: "baseline",
+                      mt: 1.25,
+                      pt: 1.25,
+                      borderTop: '1px dashed',
+                      borderColor: 'divider'
+                    }}>
                     <Typography sx={{ fontSize: 17, fontWeight: 800, color: 'var(--app-primary)' }}>
                       {sym}{(room.pricePerNight || 0).toLocaleString('en-IN')}
                     </Typography>
-                    <Typography variant="caption" color="text.secondary">/ night</Typography>
+                    <Typography variant="caption" sx={{
+                      color: "text.secondary"
+                    }}>/ night</Typography>
                   </Stack>
                 </Box>
               </Grid>

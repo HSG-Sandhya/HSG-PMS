@@ -116,9 +116,18 @@ const BankAccountsTab = ({ onNotify }) => {
 
   return (
     <Box sx={cardSx}>
-      <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" alignItems={{ md: 'center' }} spacing={1.5} sx={{ mb: 2 }}>
+      <Stack
+        direction={{ xs: 'column', md: 'row' }}
+        spacing={1.5}
+        sx={{
+          justifyContent: "space-between",
+          alignItems: { md: 'center' },
+          mb: 2
+        }}>
         <Box>
-          <Typography variant="h6" fontWeight={800}>Bank Accounts</Typography>
+          <Typography variant="h6" sx={{
+            fontWeight: 800
+          }}>Bank Accounts</Typography>
           <Typography variant="body2" sx={{ color: 'text.secondary' }}>
             {accounts.length} account{accounts.length === 1 ? '' : 's'} · Total balance {fmt(totalBalance)}
           </Typography>
@@ -129,7 +138,6 @@ const BankAccountsTab = ({ onNotify }) => {
           Add account
         </Button>
       </Stack>
-
       {loading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}><CircularProgress /></Box>
       ) : accounts.length === 0 ? (
@@ -139,15 +147,29 @@ const BankAccountsTab = ({ onNotify }) => {
       ) : (
         <Grid container spacing={2}>
           {accounts.map((a) => (
-            <Grid item xs={12} sm={6} lg={4} key={a._id}>
+            <Grid
+              key={a._id}
+              size={{
+                xs: 12,
+                sm: 6,
+                lg: 4
+              }}>
               <Box sx={{ p: 2.5, borderRadius: 3, height: '100%', border: '1px solid rgba(var(--app-primary-rgb),0.12)',
                 background: 'rgba(var(--app-primary-rgb),0.03)', display: 'flex', flexDirection: 'column' }}>
-                <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 1.5 }}>
+                <Stack
+                  direction="row"
+                  spacing={1.5}
+                  sx={{
+                    alignItems: "center",
+                    mb: 1.5
+                  }}>
                   <Avatar sx={{ bgcolor: 'rgba(var(--app-primary-rgb),0.12)', color: 'var(--app-primary)' }}>
                     <AccountBalanceIcon />
                   </Avatar>
                   <Box sx={{ minWidth: 0, flex: 1 }}>
-                    <Typography fontWeight={800} noWrap>{a.name}</Typography>
+                    <Typography noWrap sx={{
+                      fontWeight: 800
+                    }}>{a.name}</Typography>
                     <Typography variant="caption" sx={{ color: 'text.secondary' }}>
                       {a.bankName || ACCOUNT_TYPES.find((t) => t.value === a.type)?.label || a.type}
                     </Typography>
@@ -156,7 +178,13 @@ const BankAccountsTab = ({ onNotify }) => {
                     sx={{ height: 22, fontWeight: 700 }} />
                 </Stack>
 
-                <Typography variant="h5" fontWeight={800} sx={{ color: 'var(--app-primary)', mb: 0.25 }}>
+                <Typography
+                  variant="h5"
+                  sx={{
+                    fontWeight: 800,
+                    color: 'var(--app-primary)',
+                    mb: 0.25
+                  }}>
                   {fmt(balanceOf(a))}
                 </Typography>
                 {a.currentBalance != null && (
@@ -194,7 +222,6 @@ const BankAccountsTab = ({ onNotify }) => {
           ))}
         </Grid>
       )}
-
       {/* Add / Edit dialog */}
       <FormDialog
         open={dialogOpen}
@@ -209,46 +236,84 @@ const BankAccountsTab = ({ onNotify }) => {
       >
         <FormSection title="Account Details" icon={<AccountBalanceIcon fontSize="small" />} iconColor="#6366f1">
           <Grid container spacing={2} sx={{ mt: 0 }}>
-            <Grid item xs={12} sm={8}>
+            <Grid
+              size={{
+                xs: 12,
+                sm: 8
+              }}>
               <TextField fullWidth required label="Account Name" value={form.name} onChange={set('name')} />
             </Grid>
-            <Grid item xs={12} sm={4}>
+            <Grid
+              size={{
+                xs: 12,
+                sm: 4
+              }}>
               <TextField select fullWidth label="Type" value={form.type}
                 onChange={(e) => setForm((f) => ({ ...f, type: e.target.value, paymentMethods: defaultMethodsForType(e.target.value) }))}>
                 {ACCOUNT_TYPES.map((t) => <MenuItem key={t.value} value={t.value}>{t.label}</MenuItem>)}
               </TextField>
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid
+              size={{
+                xs: 12,
+                sm: 6
+              }}>
               <TextField fullWidth label="Bank Name" value={form.bankName} onChange={set('bankName')} />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid
+              size={{
+                xs: 12,
+                sm: 6
+              }}>
               <TextField fullWidth label="Account Number" value={form.accountNumber} onChange={set('accountNumber')} />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid
+              size={{
+                xs: 12,
+                sm: 6
+              }}>
               <TextField fullWidth label="IFSC" value={form.ifsc} onChange={set('ifsc')} />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid
+              size={{
+                xs: 12,
+                sm: 6
+              }}>
               <TextField fullWidth label="Branch" value={form.branch} onChange={set('branch')} />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid
+              size={{
+                xs: 12,
+                sm: 6
+              }}>
               <TextField fullWidth label="UPI ID" value={form.upi} onChange={set('upi')} />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid
+              size={{
+                xs: 12,
+                sm: 6
+              }}>
               <TextField fullWidth type="number" label="Opening balance" value={form.balance} onChange={set('balance')}
                 helperText="Starting balance before ledger tracking" />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid
+              size={{
+                xs: 12,
+                sm: 6
+              }}>
               <TextField
                 select fullWidth label="Receives payments"
                 value={form.paymentMethods}
                 onChange={(e) => setForm((f) => ({ ...f, paymentMethods: e.target.value }))}
-                SelectProps={{ multiple: true, renderValue: (sel) => (sel.length ? sel.join(', ') : 'None') }}
                 helperText="Ledger money in these buckets updates this balance"
+                slotProps={{
+                  select: { multiple: true, renderValue: (sel) => (sel.length ? sel.join(', ') : 'None') }
+                }}
               >
                 {PAYMENT_BUCKETS.map((m) => <MenuItem key={m} value={m}>{m}</MenuItem>)}
               </TextField>
             </Grid>
-            <Grid item xs={12}>
+            <Grid size={12}>
               <TextField fullWidth multiline minRows={2} label="Notes" value={form.notes} onChange={set('notes')} />
             </Grid>
           </Grid>

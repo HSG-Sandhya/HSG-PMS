@@ -51,7 +51,11 @@ const PaymentStep = ({
         </Typography>
         <Divider sx={{ mb: 3 }} />
         <Grid container spacing={3}>
-          <Grid item xs={12} sm={6}>
+          <Grid
+            size={{
+              xs: 12,
+              sm: 6
+            }}>
             <TextField
               name="totalAmount"
               label="Total Amount"
@@ -62,16 +66,22 @@ const PaymentStep = ({
               onKeyDown={handleKeyDown}
               variant={inputStyle}
               sx={fieldSx}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <Typography variant="body2" color="action">{currencySym()}</Typography>
-                  </InputAdornment>
-                ),
+              slotProps={{
+                input: {
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <Typography variant="body2" color="action">{currencySym()}</Typography>
+                    </InputAdornment>
+                  ),
+                }
               }}
             />
           </Grid>
-          <Grid item xs={12} sm={6}>
+          <Grid
+            size={{
+              xs: 12,
+              sm: 6
+            }}>
             <TextField
               name="paidAmount"
               label="Paid Amount"
@@ -82,16 +92,22 @@ const PaymentStep = ({
               onKeyDown={handleKeyDown}
               variant={inputStyle}
               sx={fieldSx}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <Typography variant="body2" color="action">{currencySym()}</Typography>
-                  </InputAdornment>
-                ),
+              slotProps={{
+                input: {
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <Typography variant="body2" color="action">{currencySym()}</Typography>
+                    </InputAdornment>
+                  ),
+                }
               }}
             />
           </Grid>
-          <Grid item xs={12} sm={6}>
+          <Grid
+            size={{
+              xs: 12,
+              sm: 6
+            }}>
             <FormControl fullWidth>
               <InputLabel>Payment Method</InputLabel>
               <Select
@@ -102,7 +118,9 @@ const PaymentStep = ({
                 label="Payment Method"
                 variant={inputStyle}
                 sx={fieldSx}
-                MenuProps={{ PaperProps: { sx: { backgroundColor: '#fff' } } }}
+                MenuProps={{ slotProps: {
+                  paper: { sx: { backgroundColor: '#fff' } }
+                } }}
               >
                 <MenuItem value="">Select Method</MenuItem>
                 <MenuItem value="Cash">Cash</MenuItem>
@@ -115,7 +133,11 @@ const PaymentStep = ({
               </Select>
             </FormControl>
           </Grid>
-          <Grid item xs={12} sm={6}>
+          <Grid
+            size={{
+              xs: 12,
+              sm: 6
+            }}>
             <TextField
               name="paymentReference"
               label="Payment Reference"
@@ -128,7 +150,11 @@ const PaymentStep = ({
               placeholder="Transaction ID, UPI reference, etc."
             />
           </Grid>
-          <Grid item xs={12} sm={6}>
+          <Grid
+            size={{
+              xs: 12,
+              sm: 6
+            }}>
             <TextField
               name="discount"
               label="Discount"
@@ -139,16 +165,22 @@ const PaymentStep = ({
               onKeyDown={handleKeyDown}
               variant={inputStyle}
               sx={fieldSx}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <Typography variant="body2" color="action">%</Typography>
-                  </InputAdornment>
-                ),
+              slotProps={{
+                input: {
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <Typography variant="body2" color="action">%</Typography>
+                    </InputAdornment>
+                  ),
+                }
               }}
             />
           </Grid>
-          <Grid item xs={12} sm={6}>
+          <Grid
+            size={{
+              xs: 12,
+              sm: 6
+            }}>
             <TextField
               name="gstAmount"
               label="GST Amount"
@@ -159,12 +191,14 @@ const PaymentStep = ({
               onKeyDown={handleKeyDown}
               variant={inputStyle}
               sx={fieldSx}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <Typography variant="body2" color="action">{currencySym()}</Typography>
-                  </InputAdornment>
-                ),
+              slotProps={{
+                input: {
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <Typography variant="body2" color="action">{currencySym()}</Typography>
+                    </InputAdornment>
+                  ),
+                }
               }}
             />
           </Grid>
@@ -177,7 +211,11 @@ const PaymentStep = ({
           </Typography>
           <Divider sx={{ mb: 3 }} />
           <Grid container spacing={3}>
-            <Grid item xs={12} sm={6}>
+            <Grid
+              size={{
+                xs: 12,
+                sm: 6
+              }}>
               <FormControl fullWidth>
                 <InputLabel>ID Card Type</InputLabel>
                 <Select
@@ -188,7 +226,9 @@ const PaymentStep = ({
                   label="ID Card Type"
                   variant={inputStyle}
                   sx={fieldSx}
-                  MenuProps={{ PaperProps: { sx: { backgroundColor: '#fff' } } }}
+                  MenuProps={{ slotProps: {
+                    paper: { sx: { backgroundColor: '#fff' } }
+                  } }}
                 >
                   <MenuItem value="">Select Type</MenuItem>
                   <MenuItem value="Aadhaar Card">Aadhaar Card</MenuItem>
@@ -200,7 +240,11 @@ const PaymentStep = ({
                 </Select>
               </FormControl>
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid
+              size={{
+                xs: 12,
+                sm: 6
+              }}>
               <TextField
                 name="idCardNumber"
                 label="ID Card Number"
@@ -221,26 +265,32 @@ const PaymentStep = ({
                           idType === 'PAN Card' ? 'ABCDE1234F' :
                             'Enter ID Card Number'
                 }
-                inputProps={{
-                  maxLength:
-                    idType === 'Aadhaar Card' ? 14 : // 12 digits + 2 hyphens
-                      idType === 'Passport' ? 11 : // 2 alphabets + 7 digits + 2 optional alphabets
-                        idType === 'Driving License' ? 15 : // 2 alphabets + 2 digits + space + 11 digits
-                          idType === 'Voter ID' ? 10 : // 3 alphabets + 7 digits
-                            idType === 'PAN Card' ? 10 : // 5 alphabets + 4 digits + 1 alphabet
-                              undefined,
-                  pattern:
-                    idType === 'Aadhaar Card' ? '[0-9\\-]*' :
-                      idType === 'Passport' ? '[A-Z0-9]*' :
-                        idType === 'Driving License' ? '[A-Z0-9\\s]*' :
-                          idType === 'Voter ID' ? '[A-Z0-9]*' :
-                            idType === 'PAN Card' ? '[A-Z0-9]*' :
-                              undefined,
+                slotProps={{
+                  htmlInput: {
+                    maxLength:
+                      idType === 'Aadhaar Card' ? 14 : // 12 digits + 2 hyphens
+                        idType === 'Passport' ? 11 : // 2 alphabets + 7 digits + 2 optional alphabets
+                          idType === 'Driving License' ? 15 : // 2 alphabets + 2 digits + space + 11 digits
+                            idType === 'Voter ID' ? 10 : // 3 alphabets + 7 digits
+                              idType === 'PAN Card' ? 10 : // 5 alphabets + 4 digits + 1 alphabet
+                                undefined,
+                    pattern:
+                      idType === 'Aadhaar Card' ? '[0-9\\-]*' :
+                        idType === 'Passport' ? '[A-Z0-9]*' :
+                          idType === 'Driving License' ? '[A-Z0-9\\s]*' :
+                            idType === 'Voter ID' ? '[A-Z0-9]*' :
+                              idType === 'PAN Card' ? '[A-Z0-9]*' :
+                                undefined,
+                  }
                 }}
               />
             </Grid>
             {!hideImageUpload && (
-            <Grid item xs={12} sm={6}>
+            <Grid
+              size={{
+                xs: 12,
+                sm: 6
+              }}>
               <Button
                 variant="outlined"
                 component="label"

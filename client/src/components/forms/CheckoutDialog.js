@@ -194,11 +194,18 @@ const CheckoutDialog = ({ open, onClose, booking, room, onPaymentComplete }) => 
       onClose={onClose}
       maxWidth="md"
       fullWidth
-      PaperProps={{ sx: dialogPaperSx(isDarkMode) }}
-      BackdropProps={{ sx: dialogBackdropSx }}
-    >
+      slotProps={{
+        backdrop: { sx: dialogBackdropSx },
+        paper: { sx: dialogPaperSx(isDarkMode) }
+      }}>
       <Box sx={headerWrapSx(isDarkMode)}>
-        <Stack direction="row" alignItems="flex-end" justifyContent="space-between" spacing={2}>
+        <Stack
+          direction="row"
+          spacing={2}
+          sx={{
+            alignItems: "flex-end",
+            justifyContent: "space-between"
+          }}>
           <Box>
             <Typography sx={{ fontSize: 12, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'text.secondary', fontWeight: 600 }}>
               Checkout
@@ -237,11 +244,14 @@ const CheckoutDialog = ({ open, onClose, booking, room, onPaymentComplete }) => 
           </Box>
         </Stack>
       </Box>
-
       <DialogContent sx={{ px: { xs: 3, sm: 4 }, py: 3 }}>
         <Grid container spacing={2.5}>
           {/* Summary */}
-          <Grid item xs={12} md={6}>
+          <Grid
+            size={{
+              xs: 12,
+              md: 6
+            }}>
             <Box sx={sectionCardSx(isDarkMode)}>
               <Typography sx={sectionTitleSx(isDarkMode)}>Stay summary</Typography>
 
@@ -305,7 +315,11 @@ const CheckoutDialog = ({ open, onClose, booking, room, onPaymentComplete }) => 
           </Grid>
 
           {/* Payment */}
-          <Grid item xs={12} md={6}>
+          <Grid
+            size={{
+              xs: 12,
+              md: 6
+            }}>
             <Box sx={sectionCardSx(isDarkMode)}>
               <Typography sx={sectionTitleSx(isDarkMode)}>Checkout details</Typography>
 
@@ -351,10 +365,12 @@ const CheckoutDialog = ({ open, onClose, booking, room, onPaymentComplete }) => 
                 fullWidth
                 value={paymentAmount}
                 onChange={(e) => setPaymentAmount(e.target.value)}
-                InputProps={{
-                  startAdornment: <InputAdornment position="start">{currencySym()}</InputAdornment>,
-                }}
                 sx={{ mb: paymentMethod !== 'Cash' ? 2 : 0 }}
+                slotProps={{
+                  input: {
+                    startAdornment: <InputAdornment position="start">{currencySym()}</InputAdornment>,
+                  }
+                }}
               />
 
               {paymentMethod !== 'Cash' && (
@@ -369,7 +385,6 @@ const CheckoutDialog = ({ open, onClose, booking, room, onPaymentComplete }) => 
           </Grid>
         </Grid>
       </DialogContent>
-
       <DialogActions sx={actionsBarSx(isDarkMode)}>
         <Button onClick={onClose} variant="outlined" sx={secondaryButtonSx(isDarkMode)}>
           Cancel

@@ -490,7 +490,11 @@ const Housekeepings = () => {
 
         {/* Operational modules */}
         <Grid container spacing={2.5}>
-          <Grid item xs={12} lg={8}>
+          <Grid
+            size={{
+              xs: 12,
+              lg: 8
+            }}>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
               <RoomStatusBoard
                 rooms={annotatedRooms}
@@ -508,7 +512,11 @@ const Housekeepings = () => {
               />
             </Box>
           </Grid>
-          <Grid item xs={12} lg={4}>
+          <Grid
+            size={{
+              xs: 12,
+              lg: 4
+            }}>
             <StaffPanel staff={staffStats} isDark={isDark} loading={busy} />
           </Grid>
         </Grid>
@@ -523,7 +531,6 @@ const Housekeepings = () => {
           staffProductivity={staffProductivity}
         />
       </Box>
-
       <FormDialog
         open={openDialog}
         onClose={handleCloseDialog}
@@ -536,7 +543,11 @@ const Housekeepings = () => {
       >
         <FormSection title="Task Details" icon={<CleaningIcon fontSize="small" />} iconColor="#06b6d4">
           <Grid container spacing={3}>
-            <Grid item xs={12} sm={6}>
+            <Grid
+              size={{
+                xs: 12,
+                sm: 6
+              }}>
               <FormControl fullWidth>
                 <InputLabel id="location-type-label">Location Type</InputLabel>
                 <Select
@@ -546,7 +557,9 @@ const Housekeepings = () => {
                   value={formData.locationType}
                   label="Location Type"
                   onChange={(e) => setFormData({ ...formData, locationType: e.target.value, roomId: '', hallId: '' })}
-                  MenuProps={{ PaperProps: { sx: { backgroundColor: '#fff' } } }}
+                  MenuProps={{ slotProps: {
+                    paper: { sx: { backgroundColor: '#fff' } }
+                  } }}
                 >
                   <MenuItem value="room">Guest Room</MenuItem>
                   <MenuItem value="hall">Banquet Hall</MenuItem>
@@ -554,7 +567,11 @@ const Housekeepings = () => {
               </FormControl>
             </Grid>
 
-            <Grid item xs={12} sm={6}>
+            <Grid
+              size={{
+                xs: 12,
+                sm: 6
+              }}>
               {formData.locationType === 'hall' ? (
                 <FormControl fullWidth required>
                   <InputLabel id="hall-select-label">Banquet Hall</InputLabel>
@@ -565,7 +582,9 @@ const Housekeepings = () => {
                     value={formData.hallId}
                     label="Banquet Hall"
                     onChange={(e) => setFormData({ ...formData, hallId: e.target.value })}
-                    MenuProps={{ PaperProps: { sx: { backgroundColor: '#fff' } } }}
+                    MenuProps={{ slotProps: {
+                      paper: { sx: { backgroundColor: '#fff' } }
+                    } }}
                   >
                     {Array.isArray(halls) && halls.map((hall) => (
                       <MenuItem key={hall._id} value={hall._id}>
@@ -584,7 +603,9 @@ const Housekeepings = () => {
                     value={formData.roomId}
                     label="Room"
                     onChange={(e) => setFormData({ ...formData, roomId: e.target.value })}
-                    MenuProps={{ PaperProps: { sx: { backgroundColor: '#fff' } } }}
+                    MenuProps={{ slotProps: {
+                      paper: { sx: { backgroundColor: '#fff' } }
+                    } }}
                   >
                     {Array.isArray(rooms) && rooms.map((room) => (
                       <MenuItem key={room._id} value={room._id}>
@@ -596,7 +617,11 @@ const Housekeepings = () => {
               )}
             </Grid>
 
-            <Grid item xs={12} sm={6}>
+            <Grid
+              size={{
+                xs: 12,
+                sm: 6
+              }}>
               <FormControl fullWidth required>
                 <InputLabel id="task-type-label">Task Type</InputLabel>
                 <Select
@@ -606,7 +631,9 @@ const Housekeepings = () => {
                   value={formData.taskType || ''}
                   label="Task Type"
                   onChange={(e) => setFormData({ ...formData, taskType: e.target.value })}
-                  MenuProps={{ PaperProps: { sx: { backgroundColor: '#fff' } } }}
+                  MenuProps={{ slotProps: {
+                    paper: { sx: { backgroundColor: '#fff' } }
+                  } }}
                 >
                   {(TASK_TYPES.includes(formData.taskType)
                     ? TASK_TYPES
@@ -618,7 +645,7 @@ const Housekeepings = () => {
               </FormControl>
             </Grid>
 
-            <Grid item xs={12}>
+            <Grid size={12}>
               <TextField
                 id="description"
                 name="description"
@@ -631,7 +658,11 @@ const Housekeepings = () => {
               />
             </Grid>
 
-            <Grid item xs={12} sm={6}>
+            <Grid
+              size={{
+                xs: 12,
+                sm: 6
+              }}>
               <FormControl fullWidth>
                 <InputLabel id="assigned-to-label">Assigned To</InputLabel>
                 <Select
@@ -641,7 +672,9 @@ const Housekeepings = () => {
                   value={formData.assignedTo || ''}
                   label="Assigned To"
                   onChange={(e) => setFormData({ ...formData, assignedTo: e.target.value })}
-                  MenuProps={{ PaperProps: { sx: { backgroundColor: '#fff' } } }}
+                  MenuProps={{ slotProps: {
+                    paper: { sx: { backgroundColor: '#fff' } }
+                  } }}
                 >
                   <MenuItem value=""><em>Select Staff Member</em></MenuItem>
                   {Array.isArray(staff) && staff.map((member) => (
@@ -660,7 +693,11 @@ const Housekeepings = () => {
               </FormControl>
             </Grid>
 
-            <Grid item xs={12} sm={6}>
+            <Grid
+              size={{
+                xs: 12,
+                sm: 6
+              }}>
               <FormControl fullWidth>
                 <InputLabel id="priority-select-label">Priority</InputLabel>
                 <Select
@@ -670,7 +707,9 @@ const Housekeepings = () => {
                   value={formData.priority}
                   label="Priority"
                   onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
-                  MenuProps={{ PaperProps: { sx: { backgroundColor: '#fff' } } }}
+                  MenuProps={{ slotProps: {
+                    paper: { sx: { backgroundColor: '#fff' } }
+                  } }}
                 >
                   {PRIORITY_LEVELS.map((level) => (
                     <MenuItem key={level} value={level}>{level}</MenuItem>
@@ -679,7 +718,11 @@ const Housekeepings = () => {
               </FormControl>
             </Grid>
 
-            <Grid item xs={12} sm={6}>
+            <Grid
+              size={{
+                xs: 12,
+                sm: 6
+              }}>
               <FormControl fullWidth>
                 <InputLabel id="status-select-label">Status</InputLabel>
                 <Select
@@ -689,7 +732,9 @@ const Housekeepings = () => {
                   value={formData.status}
                   label="Status"
                   onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                  MenuProps={{ PaperProps: { sx: { backgroundColor: '#fff' } } }}
+                  MenuProps={{ slotProps: {
+                    paper: { sx: { backgroundColor: '#fff' } }
+                  } }}
                 >
                   {TASK_STATUS.map((status) => (
                     <MenuItem key={status} value={status}>{status}</MenuItem>
@@ -698,7 +743,11 @@ const Housekeepings = () => {
               </FormControl>
             </Grid>
 
-            <Grid item xs={12} sm={6}>
+            <Grid
+              size={{
+                xs: 12,
+                sm: 6
+              }}>
               <AppDateTimePicker
                 label="Scheduled For"
                 value={formData.scheduledFor}
@@ -707,7 +756,7 @@ const Housekeepings = () => {
               />
             </Grid>
 
-            <Grid item xs={12}>
+            <Grid size={12}>
               <TextField
                 id="notes"
                 name="notes"
@@ -722,7 +771,6 @@ const Housekeepings = () => {
           </Grid>
         </FormSection>
       </FormDialog>
-
       <Snackbar
         open={snackbar.open}
         autoHideDuration={6000}
@@ -737,7 +785,6 @@ const Housekeepings = () => {
           {snackbar.message}
         </Alert>
       </Snackbar>
-
       <ConfirmDialog
         open={Boolean(deleteTarget)}
         severity="error"

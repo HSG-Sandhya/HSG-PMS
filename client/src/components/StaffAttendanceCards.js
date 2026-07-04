@@ -214,7 +214,7 @@ const StaffAttendanceCards = () => {
           const isToday = isSameDay(day, new Date());
           
           return (
-            <Grid item key={day.toString()}>
+            <Grid key={day.toString()}>
               <Box
                 sx={{
                   width: 35,
@@ -590,9 +590,10 @@ const StaffAttendanceCards = () => {
               </Typography>
               <Typography
                 variant="body2"
-                color="text.secondary"
-                sx={{ fontWeight: 500 }}
-              >
+                sx={{
+                  color: "text.secondary",
+                  fontWeight: 500
+                }}>
                 {staffMember.role?.name || 'Staff'}
               </Typography>
             </Box>
@@ -625,9 +626,11 @@ const StaffAttendanceCards = () => {
             {/* Phone */}
             <Typography
               variant="body2"
-              color="text.secondary"
-              sx={{ mb: 2, fontWeight: 500 }}
-            >
+              sx={{
+                color: "text.secondary",
+                mb: 2,
+                fontWeight: 500
+              }}>
               📱 {staffMember.phone ? `+91 ${staffMember.phone}` : 'N/A'}
             </Typography>
 
@@ -739,7 +742,14 @@ const StaffAttendanceCards = () => {
         <AnimatePresence>
           <Grid container spacing={3}>
             {staff.map((staffMember, index) => (
-              <Grid item xs={12} sm={6} md={4} lg={3} key={staffMember._id}>
+              <Grid
+                key={staffMember._id}
+                size={{
+                  xs: 12,
+                  sm: 6,
+                  md: 4,
+                  lg: 3
+                }}>
                 <StaffCard staffMember={staffMember} index={index} />
               </Grid>
             ))}
@@ -852,26 +862,28 @@ const StaffAttendanceCards = () => {
             </Typography>
 
             <Grid container spacing={2}>
-              <Grid item xs={12}>
+              <Grid size={12}>
                 <FormControl fullWidth>
                   <InputLabel>Status</InputLabel>
                   <Select
                     value={attendanceForm.status}
                     onChange={(e) => setAttendanceForm({...attendanceForm, status: e.target.value})}
                     MenuProps={{
-                      PaperProps: {
-                        sx: {
-                          backgroundColor: 'white',
-                          boxShadow: 3,
-                          '& .MuiMenuItem-root': {
+                      slotProps: {
+                        paper: {
+                          sx: {
                             backgroundColor: 'white',
-                            '&:hover': {
-                              backgroundColor: '#f5f5f5'
-                            },
-                            '&.Mui-selected': {
-                              backgroundColor: '#e3f2fd',
+                            boxShadow: 3,
+                            '& .MuiMenuItem-root': {
+                              backgroundColor: 'white',
                               '&:hover': {
-                                backgroundColor: '#bbdefb'
+                                backgroundColor: '#f5f5f5'
+                              },
+                              '&.Mui-selected': {
+                                backgroundColor: '#e3f2fd',
+                                '&:hover': {
+                                  backgroundColor: '#bbdefb'
+                                }
                               }
                             }
                           }
@@ -890,26 +902,28 @@ const StaffAttendanceCards = () => {
               
               {/* Show leave type selector only when leave is selected */}
               {attendanceForm.status === 'leave' && (
-                <Grid item xs={12}>
+                <Grid size={12}>
                   <FormControl fullWidth>
                     <InputLabel>Leave Type</InputLabel>
                     <Select
                       value={attendanceForm.leaveType}
                       onChange={(e) => setAttendanceForm({...attendanceForm, leaveType: e.target.value})}
                       MenuProps={{
-                        PaperProps: {
-                          sx: {
-                            backgroundColor: 'white',
-                            boxShadow: 3,
-                            '& .MuiMenuItem-root': {
+                        slotProps: {
+                          paper: {
+                            sx: {
                               backgroundColor: 'white',
-                              '&:hover': {
-                                backgroundColor: '#f5f5f5'
-                              },
-                              '&.Mui-selected': {
-                                backgroundColor: '#e3f2fd',
+                              boxShadow: 3,
+                              '& .MuiMenuItem-root': {
+                                backgroundColor: 'white',
                                 '&:hover': {
-                                  backgroundColor: '#bbdefb'
+                                  backgroundColor: '#f5f5f5'
+                                },
+                                '&.Mui-selected': {
+                                  backgroundColor: '#e3f2fd',
+                                  '&:hover': {
+                                    backgroundColor: '#bbdefb'
+                                  }
                                 }
                               }
                             }
@@ -929,7 +943,7 @@ const StaffAttendanceCards = () => {
                 </Grid>
               )}
               
-              <Grid item xs={12}>
+              <Grid size={12}>
                 <TextField
                   fullWidth
                   label={attendanceForm.status === 'leave' ? "Leave Reason (Required)" : "Notes (Optional)"}
@@ -959,7 +973,9 @@ const StaffAttendanceCards = () => {
             <Typography variant="body1" sx={{ mb: 2 }}>
               Generate payroll record for the current month based on attendance records.
             </Typography>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" sx={{
+              color: "text.secondary"
+            }}>
               This will create a payroll record. You can download the PDF from the Payroll Management page.
             </Typography>
           </FormSection>
@@ -979,7 +995,11 @@ const StaffAttendanceCards = () => {
             {/* Add New Transaction */}
             <FormSection title="Add New Transaction" icon={<WalletIcon fontSize="small" />} iconColor="#6366f1">
               <Grid container spacing={2}>
-                <Grid item xs={12} sm={6}>
+                <Grid
+                  size={{
+                    xs: 12,
+                    sm: 6
+                  }}>
                   <TextField
                     fullWidth
                     label={`Amount (${currencySym()})`}
@@ -988,26 +1008,32 @@ const StaffAttendanceCards = () => {
                     onChange={(e) => setNewTransaction({...newTransaction, amount: e.target.value})}
                   />
                 </Grid>
-                <Grid item xs={12} sm={6}>
+                <Grid
+                  size={{
+                    xs: 12,
+                    sm: 6
+                  }}>
                   <FormControl fullWidth>
                     <InputLabel>Type</InputLabel>
                     <Select
                       value={newTransaction.type}
                       onChange={(e) => setNewTransaction({...newTransaction, type: e.target.value})}
                       MenuProps={{
-                        PaperProps: {
-                          sx: {
-                            backgroundColor: 'white',
-                            boxShadow: 3,
-                            '& .MuiMenuItem-root': {
+                        slotProps: {
+                          paper: {
+                            sx: {
                               backgroundColor: 'white',
-                              '&:hover': {
-                                backgroundColor: '#f5f5f5'
-                              },
-                              '&.Mui-selected': {
-                                backgroundColor: '#e3f2fd',
+                              boxShadow: 3,
+                              '& .MuiMenuItem-root': {
+                                backgroundColor: 'white',
                                 '&:hover': {
-                                  backgroundColor: '#bbdefb'
+                                  backgroundColor: '#f5f5f5'
+                                },
+                                '&.Mui-selected': {
+                                  backgroundColor: '#e3f2fd',
+                                  '&:hover': {
+                                    backgroundColor: '#bbdefb'
+                                  }
                                 }
                               }
                             }
@@ -1022,7 +1048,7 @@ const StaffAttendanceCards = () => {
                     </Select>
                   </FormControl>
                 </Grid>
-                <Grid item xs={12}>
+                <Grid size={12}>
                   <TextField
                     fullWidth
                     label="Reason (optional)"
@@ -1030,7 +1056,7 @@ const StaffAttendanceCards = () => {
                     onChange={(e) => setNewTransaction({...newTransaction, reason: e.target.value})}
                   />
                 </Grid>
-                <Grid item xs={12}>
+                <Grid size={12}>
                   <Button 
                     variant="contained" 
                     onClick={addMoneyTransaction} 
@@ -1090,61 +1116,89 @@ const StaffAttendanceCards = () => {
             {/* New Recharge */}
             <FormSection title="Process New Recharge" icon={<PhoneIcon fontSize="small" />} iconColor="#6366f1">
               <Grid container spacing={2}>
-                <Grid item xs={12} sm={6}>
+                <Grid
+                  size={{
+                    xs: 12,
+                    sm: 6
+                  }}>
                   <TextField
                     fullWidth
                     label="Phone Number"
                     placeholder="10-digit mobile number"
                     value={newRecharge.phoneNumber}
                     onChange={(e) => setNewRecharge({ ...newRecharge, phoneNumber: phoneLocal(e.target.value) })}
-                    inputProps={{ maxLength: 10, inputMode: 'numeric', pattern: '[0-9]*' }}
-                    InputProps={{
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600 }}>+91</Typography>
-                        </InputAdornment>
-                      ),
-                    }}
                     helperText="India (+91) · 10 digits"
-                  />
+                    slotProps={{
+                      input: {
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <Typography
+                              variant="body2"
+                              sx={{
+                                color: "text.secondary",
+                                fontWeight: 600
+                              }}>+91</Typography>
+                          </InputAdornment>
+                        ),
+                      },
+
+                      htmlInput: { maxLength: 10, inputMode: 'numeric', pattern: '[0-9]*' }
+                    }} />
                 </Grid>
-                <Grid item xs={12} sm={6}>
+                <Grid
+                  size={{
+                    xs: 12,
+                    sm: 6
+                  }}>
                   <TextField
                     fullWidth
                     label="Amount"
                     type="number"
                     value={newRecharge.amount}
                     onChange={(e) => setNewRecharge({...newRecharge, amount: e.target.value})}
-                    InputProps={{
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600 }}>{currencySym()}</Typography>
-                        </InputAdornment>
-                      ),
-                    }}
                     helperText={`Minimum ${currencySym()}${ops.payroll.minWalletRecharge}`}
+                    slotProps={{
+                      input: {
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <Typography
+                              variant="body2"
+                              sx={{
+                                color: "text.secondary",
+                                fontWeight: 600
+                              }}>{currencySym()}</Typography>
+                          </InputAdornment>
+                        ),
+                      }
+                    }}
                   />
                 </Grid>
-                <Grid item xs={12} sm={6}>
+                <Grid
+                  size={{
+                    xs: 12,
+                    sm: 6
+                  }}>
                   <FormControl fullWidth>
                     <InputLabel>Operator</InputLabel>
                     <Select
                       value={newRecharge.operator}
                       onChange={(e) => setNewRecharge({...newRecharge, operator: e.target.value})}
                       MenuProps={{
-                        PaperProps: {
-                          sx: {
-                            backgroundColor: 'white',
-                            boxShadow: 3,
-                            '& .MuiMenuItem-root': {
+                        slotProps: {
+                          paper: {
+                            sx: {
                               backgroundColor: 'white',
-                              '&:hover': {
-                                backgroundColor: '#f5f5f5'
-                              },
-                              '&.Mui-selected': {
-                                backgroundColor: '#e3f2fd',
+                              boxShadow: 3,
+                              '& .MuiMenuItem-root': {
+                                backgroundColor: 'white',
                                 '&:hover': {
-                                  backgroundColor: '#bbdefb'
+                                  backgroundColor: '#f5f5f5'
+                                },
+                                '&.Mui-selected': {
+                                  backgroundColor: '#e3f2fd',
+                                  '&:hover': {
+                                    backgroundColor: '#bbdefb'
+                                  }
                                 }
                               }
                             }
@@ -1159,26 +1213,32 @@ const StaffAttendanceCards = () => {
                     </Select>
                   </FormControl>
                 </Grid>
-                <Grid item xs={12} sm={6}>
+                <Grid
+                  size={{
+                    xs: 12,
+                    sm: 6
+                  }}>
                   <FormControl fullWidth>
                     <InputLabel>Plan Type</InputLabel>
                     <Select
                       value={newRecharge.planType}
                       onChange={(e) => setNewRecharge({...newRecharge, planType: e.target.value})}
                       MenuProps={{
-                        PaperProps: {
-                          sx: {
-                            backgroundColor: 'white',
-                            boxShadow: 3,
-                            '& .MuiMenuItem-root': {
+                        slotProps: {
+                          paper: {
+                            sx: {
                               backgroundColor: 'white',
-                              '&:hover': {
-                                backgroundColor: '#f5f5f5'
-                              },
-                              '&.Mui-selected': {
-                                backgroundColor: '#e3f2fd',
+                              boxShadow: 3,
+                              '& .MuiMenuItem-root': {
+                                backgroundColor: 'white',
                                 '&:hover': {
-                                  backgroundColor: '#bbdefb'
+                                  backgroundColor: '#f5f5f5'
+                                },
+                                '&.Mui-selected': {
+                                  backgroundColor: '#e3f2fd',
+                                  '&:hover': {
+                                    backgroundColor: '#bbdefb'
+                                  }
                                 }
                               }
                             }
@@ -1191,7 +1251,7 @@ const StaffAttendanceCards = () => {
                     </Select>
                   </FormControl>
                 </Grid>
-                <Grid item xs={12}>
+                <Grid size={12}>
                   <Button 
                     variant="contained" 
                     onClick={processRecharge} 

@@ -106,19 +106,27 @@ const FinalizeBillingDialog = ({ open, onClose, booking, onUpdated }) => {
       submitDisabled={saving || !items.length}
     >
       <FormSection>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
+        <Typography
+          variant="body2"
+          sx={{
+            color: "text.secondary",
+            mb: 0.5
+          }}>
           {booking.customerName} · {booking.eventType} · {fmtDate(booking.eventDate)}
           {booking.billingFinalized ? '  ·  already finalized' : ''}
         </Typography>
-        <Typography variant="caption" color="text.secondary">
+        <Typography variant="caption" sx={{
+          color: "text.secondary"
+        }}>
           Enter the actual plates consumed for each catering line. The catering charge, grand total
           and balance update from the actuals; venue, décor and other charges stay as quoted.
         </Typography>
       </FormSection>
-
       {items.length === 0 ? (
         <FormSection>
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>
             This booking has no catering lines to finalize.
           </Typography>
         </FormSection>
@@ -127,24 +135,52 @@ const FinalizeBillingDialog = ({ open, onClose, booking, onUpdated }) => {
           <Stack divider={<Divider />} spacing={0}>
             {items.map((it, i) => (
               <Box key={i} sx={{ py: 1.25 }}>
-                <Grid container spacing={1.5} alignItems="center">
-                  <Grid item xs={12} sm={5}>
-                    <Typography variant="body2" fontWeight={700}>{it.name || 'Catering Package'}</Typography>
-                    <Typography variant="caption" color="text.secondary">
+                <Grid container spacing={1.5} sx={{
+                  alignItems: "center"
+                }}>
+                  <Grid
+                    size={{
+                      xs: 12,
+                      sm: 5
+                    }}>
+                    <Typography variant="body2" sx={{
+                      fontWeight: 700
+                    }}>{it.name || 'Catering Package'}</Typography>
+                    <Typography variant="caption" sx={{
+                      color: "text.secondary"
+                    }}>
                       {fmt(it.perPlate)}/plate{days(it) > 1 ? ` × ${days(it)} days` : ''} · Est. {Number(it.plates) || 0} plates ({fmt(estAmount(it))})
                     </Typography>
                   </Grid>
-                  <Grid item xs={6} sm={3}>
+                  <Grid
+                    size={{
+                      xs: 6,
+                      sm: 3
+                    }}>
                     <TextField
                       fullWidth size="small" type="number" label="Actual plates"
                       value={actuals[i] ?? ''}
                       onChange={(e) => setActuals((p) => ({ ...p, [i]: e.target.value }))}
-                      inputProps={{ min: 0 }}
+                      slotProps={{
+                        htmlInput: { min: 0 }
+                      }}
                     />
                   </Grid>
-                  <Grid item xs={6} sm={4} sx={{ textAlign: 'right' }}>
-                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>Line amount</Typography>
-                    <Typography variant="subtitle2" fontWeight={800}>
+                  <Grid
+                    sx={{ textAlign: 'right' }}
+                    size={{
+                      xs: 6,
+                      sm: 4
+                    }}>
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        color: "text.secondary",
+                        display: 'block'
+                      }}>Line amount</Typography>
+                    <Typography variant="subtitle2" sx={{
+                      fontWeight: 800
+                    }}>
                       {fmt(lineAmount(it.perPlate, actuals[i], it.days))}
                     </Typography>
                   </Grid>
@@ -154,7 +190,6 @@ const FinalizeBillingDialog = ({ open, onClose, booking, onUpdated }) => {
           </Stack>
         </FormSection>
       )}
-
       <FormSection title="Revised bill">
         <Grid container spacing={1.5}>
           <Summary label="Other charges" value={fmt(nonCatering)} />
@@ -171,10 +206,19 @@ const FinalizeBillingDialog = ({ open, onClose, booking, onUpdated }) => {
 };
 
 const Summary = ({ label, value, color }) => (
-  <Grid item xs={6} sm={4}>
+  <Grid
+    size={{
+      xs: 6,
+      sm: 4
+    }}>
     <Box sx={{ p: 1.25, borderRadius: 2, border: '1px solid', borderColor: 'divider', textAlign: 'center' }}>
       <Typography variant="caption" sx={{ textTransform: 'uppercase', letterSpacing: '0.08em', color: 'text.secondary' }}>{label}</Typography>
-      <Typography variant="subtitle2" fontWeight={800} sx={{ color: color || 'text.primary' }}>{value}</Typography>
+      <Typography
+        variant="subtitle2"
+        sx={{
+          fontWeight: 800,
+          color: color || 'text.primary'
+        }}>{value}</Typography>
     </Box>
   </Grid>
 );

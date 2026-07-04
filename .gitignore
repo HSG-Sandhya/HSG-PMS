@@ -100,3 +100,4 @@ backups/
 # ===========================
 *.swp
 *.swo
+node_modules

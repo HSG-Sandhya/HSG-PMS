@@ -52,10 +52,21 @@ const BookingMetaBar = ({ formData, handleInputChange, user, isEdit, bookingId }
       {/* subtle gold glow */}
       <Box sx={{ position: 'absolute', top: -60, right: -40, width: 200, height: 200, borderRadius: '50%',
         background: 'radial-gradient(circle, rgba(var(--app-primary-rgb),0.35), transparent 70%)' }} />
-
-      <Grid container spacing={2.5} alignItems="center" sx={{ position: 'relative' }}>
-        <Grid item xs={12} md={6}>
-          <Stack direction="row" spacing={1.5} alignItems="center">
+      <Grid
+        container
+        spacing={2.5}
+        sx={{
+          alignItems: "center",
+          position: 'relative'
+        }}>
+        <Grid
+          size={{
+            xs: 12,
+            md: 6
+          }}>
+          <Stack direction="row" spacing={1.5} sx={{
+            alignItems: "center"
+          }}>
             <Box sx={{ width: 44, height: 44, borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'center',
               background: 'rgba(var(--app-primary-rgb),0.18)', color: 'var(--app-primary)', border: '1px solid rgba(var(--app-primary-rgb),0.3)' }}>
               <ConfirmationNumberIcon />
@@ -70,20 +81,36 @@ const BookingMetaBar = ({ formData, handleInputChange, user, isEdit, bookingId }
             </Box>
           </Stack>
           <Stack direction="row" spacing={2.5} sx={{ mt: 1.75, flexWrap: 'wrap', gap: 1 }}>
-            <Stack direction="row" spacing={0.75} alignItems="center" sx={{ color: 'rgba(255,255,255,0.85)' }}>
+            <Stack
+              direction="row"
+              spacing={0.75}
+              sx={{
+                alignItems: "center",
+                color: 'rgba(255,255,255,0.85)'
+              }}>
               <ScheduleIcon sx={{ fontSize: 16 }} />
               <Typography variant="body2" sx={{ fontWeight: 600 }}>
                 {now.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })} · {now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
               </Typography>
             </Stack>
-            <Stack direction="row" spacing={0.75} alignItems="center" sx={{ color: 'rgba(255,255,255,0.85)' }}>
+            <Stack
+              direction="row"
+              spacing={0.75}
+              sx={{
+                alignItems: "center",
+                color: 'rgba(255,255,255,0.85)'
+              }}>
               <PersonOutlineIcon sx={{ fontSize: 16 }} />
               <Typography variant="body2" sx={{ fontWeight: 600 }}>{staff}</Typography>
             </Stack>
           </Stack>
         </Grid>
 
-        <Grid item xs={6} md={3}>
+        <Grid
+          size={{
+            xs: 6,
+            md: 3
+          }}>
           <Typography sx={fieldLabelSx}>Booking Source</Typography>
           <FormControl fullWidth size="small">
             <Select name="bookingSource" value={formData.bookingSource || 'Walk-in'} onChange={handleInputChange} sx={lightSelectSx}>
@@ -92,7 +119,11 @@ const BookingMetaBar = ({ formData, handleInputChange, user, isEdit, bookingId }
           </FormControl>
         </Grid>
 
-        <Grid item xs={6} md={3}>
+        <Grid
+          size={{
+            xs: 6,
+            md: 3
+          }}>
           <Typography sx={fieldLabelSx}>Status</Typography>
           <FormControl fullWidth size="small">
             <Select
@@ -105,7 +136,9 @@ const BookingMetaBar = ({ formData, handleInputChange, user, isEdit, bookingId }
                   display: 'flex', alignItems: 'center', gap: 1 },
               }}
               renderValue={(v) => (
-                <Stack direction="row" spacing={1} alignItems="center">
+                <Stack direction="row" spacing={1} sx={{
+                  alignItems: "center"
+                }}>
                   <Box sx={{ width: 8, height: 8, borderRadius: '50%', background: STATUS_COLOR[v] || NAVY }} />
                   {STATUSES.find((s) => s.value === v)?.label || v}
                 </Stack>
@@ -113,7 +146,9 @@ const BookingMetaBar = ({ formData, handleInputChange, user, isEdit, bookingId }
             >
               {STATUSES.map((s) => (
                 <MenuItem key={s.value} value={s.value} disabled={!isEdit && (s.value === 'Completed' || s.value === 'Cancelled')}>
-                  <Stack direction="row" spacing={1} alignItems="center">
+                  <Stack direction="row" spacing={1} sx={{
+                    alignItems: "center"
+                  }}>
                     <Box sx={{ width: 8, height: 8, borderRadius: '50%', background: STATUS_COLOR[s.value] }} />
                     {s.label}
                   </Stack>

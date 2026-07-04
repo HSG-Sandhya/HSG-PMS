@@ -66,7 +66,9 @@ const BillingSection = ({ onNotify }) => {
     <Stack spacing={2.5}>
       <FormSection title="Tax & charges" icon={<PercentIcon fontSize="small" />} iconColor="#6366F1">
         <Stack spacing={2}>
-          <Typography variant="caption" color="text.secondary">
+          <Typography variant="caption" sx={{
+            color: "text.secondary"
+          }}>
             GST rates apply to room tariff and restaurant/POS bills. The breakfast charge is added per night when a booking includes breakfast.
           </Typography>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
@@ -74,13 +76,17 @@ const BillingSection = ({ onNotify }) => {
               label="Room GST rate" type="number" fullWidth
               value={form.roomGstRate}
               onChange={(e) => set({ roomGstRate: e.target.value })}
-              InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment> }}
+              slotProps={{
+                input: { endAdornment: <InputAdornment position="end">%</InputAdornment> }
+              }}
             />
             <TextField
               label="Restaurant / POS GST rate" type="number" fullWidth
               value={form.posGstRate}
               onChange={(e) => set({ posGstRate: e.target.value })}
-              InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment> }}
+              slotProps={{
+                input: { endAdornment: <InputAdornment position="end">%</InputAdornment> }
+              }}
             />
           </Stack>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
@@ -88,14 +94,18 @@ const BillingSection = ({ onNotify }) => {
               label="Breakfast charge (per night)" type="number" fullWidth
               value={form.breakfastChargePerNight}
               onChange={(e) => set({ breakfastChargePerNight: e.target.value })}
-              InputProps={{ startAdornment: <InputAdornment position="start">{symbol}</InputAdornment> }}
+              slotProps={{
+                input: { startAdornment: <InputAdornment position="start">{symbol}</InputAdornment> }
+              }}
             />
             <TextField
               label="Max discount" type="number" fullWidth
               value={form.maxDiscountPercent}
               onChange={(e) => set({ maxDiscountPercent: e.target.value })}
-              InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment> }}
               helperText="Upper limit a discount can reach"
+              slotProps={{
+                input: { endAdornment: <InputAdornment position="end">%</InputAdornment> }
+              }}
             />
           </Stack>
           <TextField
@@ -103,15 +113,18 @@ const BillingSection = ({ onNotify }) => {
             value={form.banquetVenueHourlyRate}
             onChange={(e) => set({ banquetVenueHourlyRate: e.target.value })}
             sx={{ maxWidth: { sm: 320 } }}
-            InputProps={{ startAdornment: <InputAdornment position="start">{symbol}</InputAdornment> }}
             helperText="Duration-based banquet venue cost per hour"
+            slotProps={{
+              input: { startAdornment: <InputAdornment position="start">{symbol}</InputAdornment> }
+            }}
           />
         </Stack>
       </FormSection>
-
       <FormSection title="Default times" icon={<ScheduleIcon fontSize="small" />} iconColor="#0ea5e9">
         <Stack spacing={2}>
-          <Typography variant="caption" color="text.secondary">
+          <Typography variant="caption" sx={{
+            color: "text.secondary"
+          }}>
             Used to pre-fill new bookings when no time is entered.
           </Typography>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
@@ -119,18 +132,21 @@ const BillingSection = ({ onNotify }) => {
               label="Default check-in time" type="time" fullWidth
               value={form.defaultCheckInTime}
               onChange={(e) => set({ defaultCheckInTime: e.target.value })}
-              InputLabelProps={{ shrink: true }}
+              slotProps={{
+                inputLabel: { shrink: true }
+              }}
             />
             <TextField
               label="Default check-out time" type="time" fullWidth
               value={form.defaultCheckOutTime}
               onChange={(e) => set({ defaultCheckOutTime: e.target.value })}
-              InputLabelProps={{ shrink: true }}
+              slotProps={{
+                inputLabel: { shrink: true }
+              }}
             />
           </Stack>
         </Stack>
       </FormSection>
-
       <FormSection title="Currency" icon={<CurrencyRupeeIcon fontSize="small" />} iconColor="#10b981">
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
           <TextField
@@ -154,7 +170,6 @@ const BillingSection = ({ onNotify }) => {
           />
         </Stack>
       </FormSection>
-
       <FormSection title="Invoice & rounding" icon={<ReceiptIcon fontSize="small" />} iconColor="#f59e0b">
         <Stack spacing={2}>
           <TextField
@@ -168,8 +183,12 @@ const BillingSection = ({ onNotify }) => {
             control={<Switch checked={!!form.roundAmounts} onChange={(e) => set({ roundAmounts: e.target.checked })} />}
             label={
               <Box>
-                <Typography fontWeight={700}>Round amounts</Typography>
-                <Typography variant="caption" color="text.secondary">
+                <Typography sx={{
+                  fontWeight: 700
+                }}>Round amounts</Typography>
+                <Typography variant="caption" sx={{
+                  color: "text.secondary"
+                }}>
                   Round computed GST/charges to whole {symbol} on bookings.
                 </Typography>
               </Box>
@@ -177,7 +196,6 @@ const BillingSection = ({ onNotify }) => {
           />
         </Stack>
       </FormSection>
-
       <Divider />
       <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
         <Button

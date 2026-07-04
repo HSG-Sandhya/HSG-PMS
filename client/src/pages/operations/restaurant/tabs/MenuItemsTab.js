@@ -148,7 +148,6 @@ const MenuItemsTab = ({
     <Box>
       {/* Search and Filter Controls */}
       {menuFilters}
-
       {/* Action Buttons */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3, gap: 1.5, flexWrap: 'wrap' }}>
         <Button
@@ -176,7 +175,6 @@ const MenuItemsTab = ({
           </Button>
         </Box>
       </Box>
-
       {/* Menu Items grouped by category, two-column list */}
       {groups.map(({ category, items }) => (
         <Box key={category._id} sx={{ mb: 4 }}>
@@ -185,7 +183,9 @@ const MenuItemsTab = ({
             sx={{ mb: 1.5, fontWeight: 700, color: '#2c3e50', display: 'flex', alignItems: 'center', gap: 1 }}
           >
             {category.name}
-            <Typography component="span" variant="body2" color="text.secondary">
+            <Typography component="span" variant="body2" sx={{
+              color: "text.secondary"
+            }}>
               ({items.length})
             </Typography>
           </Typography>
@@ -194,7 +194,12 @@ const MenuItemsTab = ({
               const available = item.isAvailable !== false;
               const tint = item.isVeg ? VEG_TINT : NONVEG_TINT;
               return (
-                <Grid item xs={12} sm={6} key={item._id}>
+                <Grid
+                  key={item._id}
+                  size={{
+                    xs: 12,
+                    sm: 6
+                  }}>
                   <Tooltip title={available ? 'Available — tap row to mark Sold out' : 'Sold out — tap row to mark Available'} disableInteractive>
                     <Box
                       role="button"

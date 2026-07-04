@@ -695,7 +695,9 @@ const Rooms = ({ _sidebarOpen }) => {
               <Typography
                 component="span"
                 variant="body2"
-                color="text.secondary"
+                sx={{
+                  color: "text.secondary"
+                }}
               >
                 /night
               </Typography>
@@ -706,13 +708,17 @@ const Rooms = ({ _sidebarOpen }) => {
             >
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                 <LocationOnIcon color="action" fontSize="small" />
-                <Typography variant="body2" color="text.secondary">
+                <Typography variant="body2" sx={{
+                  color: "text.secondary"
+                }}>
                   Floor {room.floor}
                 </Typography>
               </Box>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                 <PeopleIcon color="action" fontSize="small" />
-                <Typography variant="body2" color="text.secondary">
+                <Typography variant="body2" sx={{
+                  color: "text.secondary"
+                }}>
                   {displayOccupancy} {displayOccupancy === 1 ? 'guest' : 'guests'}
                 </Typography>
               </Box>
@@ -722,9 +728,11 @@ const Rooms = ({ _sidebarOpen }) => {
               <Box sx={{ mb: 1 }}>
                 <Typography
                   variant="body2"
-                  color="text.secondary"
-                  sx={{ mb: 0.5, fontWeight: 500 }}
-                >
+                  sx={{
+                    color: "text.secondary",
+                    mb: 0.5,
+                    fontWeight: 500
+                  }}>
                   Amenities:
                 </Typography>
                 <Box
@@ -955,26 +963,38 @@ const Rooms = ({ _sidebarOpen }) => {
               borderRadius: 3,
             }}
           >
-            <Grid container spacing={2} alignItems="center">
-              <Grid item xs={12} sm={4}>
+            <Grid container spacing={2} sx={{
+              alignItems: "center"
+            }}>
+              <Grid
+                size={{
+                  xs: 12,
+                  sm: 4
+                }}>
                 <TextField
                   fullWidth
                   variant="outlined"
                   label="Search by Room Number"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  InputProps={{
-                    startAdornment: (
-                      <Box
-                        sx={{ mr: 1, display: 'flex', alignItems: 'center' }}
-                      >
-                        <SearchIcon color="action" />
-                      </Box>
-                    ),
+                  slotProps={{
+                    input: {
+                      startAdornment: (
+                        <Box
+                          sx={{ mr: 1, display: 'flex', alignItems: 'center' }}
+                        >
+                          <SearchIcon color="action" />
+                        </Box>
+                      ),
+                    }
                   }}
                 />
               </Grid>
-              <Grid item xs={12} sm={3}>
+              <Grid
+                size={{
+                  xs: 12,
+                  sm: 3
+                }}>
                 <FormControl fullWidth variant="outlined">
                   <InputLabel>Filter by Type</InputLabel>
                   <Select
@@ -982,33 +1002,37 @@ const Rooms = ({ _sidebarOpen }) => {
                     onChange={(e) => setTypeFilter(e.target.value)}
                     label="Filter by Type"
                     MenuProps={{
-                      PaperProps: {
-                        sx: {
-                          backgroundColor: '#ffffff',
-                          boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
-                          borderRadius: 2,
-                          border: '2px solid #e0e0e0',
-                          opacity: 1,
-                          '& .MuiMenuItem-root': {
+                      slotProps: {
+                        paper: {
+                          sx: {
                             backgroundColor: '#ffffff',
-                            '&:hover': {
-                              backgroundColor: '#f5f5f5',
-                            },
-                            '&.Mui-selected': {
-                              backgroundColor: '#e3f2fd',
+                            boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
+                            borderRadius: 2,
+                            border: '2px solid #e0e0e0',
+                            opacity: 1,
+                            '& .MuiMenuItem-root': {
+                              backgroundColor: '#ffffff',
                               '&:hover': {
-                                backgroundColor: '#bbdefb',
+                                backgroundColor: '#f5f5f5',
+                              },
+                              '&.Mui-selected': {
+                                backgroundColor: '#e3f2fd',
+                                '&:hover': {
+                                  backgroundColor: '#bbdefb',
+                                },
                               },
                             },
                           },
-                        },
+                        }
                       },
                     }}
                   >
                     <MenuItem value="all">All Types</MenuItem>
                     {Array.isArray(roomCategories) && roomCategories.length === 0 ? (
                       <MenuItem disabled>
-                        <Typography variant="body2" color="text.secondary">
+                        <Typography variant="body2" sx={{
+                          color: "text.secondary"
+                        }}>
                           No room categories available. Please configure in Settings.
                         </Typography>
                       </MenuItem>
@@ -1028,7 +1052,11 @@ const Rooms = ({ _sidebarOpen }) => {
                   </Select>
                 </FormControl>
               </Grid>
-              <Grid item xs={12} sm={3}>
+              <Grid
+                size={{
+                  xs: 12,
+                  sm: 3
+                }}>
                 <FormControl fullWidth variant="outlined">
                   <InputLabel>Filter by Status</InputLabel>
                   <Select
@@ -1036,26 +1064,28 @@ const Rooms = ({ _sidebarOpen }) => {
                     onChange={(e) => setStatusFilter(e.target.value)}
                     label="Filter by Status"
                     MenuProps={{
-                      PaperProps: {
-                        sx: {
-                          backgroundColor: '#ffffff',
-                          boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
-                          borderRadius: 2,
-                          border: '2px solid #e0e0e0',
-                          opacity: 1,
-                          '& .MuiMenuItem-root': {
+                      slotProps: {
+                        paper: {
+                          sx: {
                             backgroundColor: '#ffffff',
-                            '&:hover': {
-                              backgroundColor: '#f5f5f5',
-                            },
-                            '&.Mui-selected': {
-                              backgroundColor: '#e3f2fd',
+                            boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
+                            borderRadius: 2,
+                            border: '2px solid #e0e0e0',
+                            opacity: 1,
+                            '& .MuiMenuItem-root': {
+                              backgroundColor: '#ffffff',
                               '&:hover': {
-                                backgroundColor: '#bbdefb',
+                                backgroundColor: '#f5f5f5',
+                              },
+                              '&.Mui-selected': {
+                                backgroundColor: '#e3f2fd',
+                                '&:hover': {
+                                  backgroundColor: '#bbdefb',
+                                },
                               },
                             },
                           },
-                        },
+                        }
                       },
                     }}
                   >
@@ -1068,7 +1098,11 @@ const Rooms = ({ _sidebarOpen }) => {
                   </Select>
                 </FormControl>
               </Grid>
-              <Grid item xs={12} sm={2}>
+              <Grid
+                size={{
+                  xs: 12,
+                  sm: 2
+                }}>
                 <Button
                   fullWidth
                   variant="text"
@@ -1117,20 +1151,20 @@ const Rooms = ({ _sidebarOpen }) => {
           // container wrapping every glass card just re-rasterized their blur
           // each frame (compounding the navigation flicker). Filtering now
           // updates instantly.
-          <Grid container spacing={3}>
+          (<Grid container spacing={3}>
             {filteredRooms.map((room) => (
               <Grid
-                item
-                xs={12}
-                sm={6}
-                md={4}
-                lg={3}
                 key={room._id || room.id}
-              >
+                size={{
+                  xs: 12,
+                  sm: 6,
+                  md: 4,
+                  lg: 3
+                }}>
                 <RoomCard room={room} />
               </Grid>
             ))}
-          </Grid>
+          </Grid>)
         )}
 
         {/* Empty State */}
@@ -1172,7 +1206,6 @@ const Rooms = ({ _sidebarOpen }) => {
           </motion.div>
         )}
       </Box>
-
       {/* Room Details Dialog */}
       <FormDialog
         open={detailsOpen}
@@ -1184,7 +1217,13 @@ const Rooms = ({ _sidebarOpen }) => {
         hideCancel
         submitLabel="Close"
         extraActions={(
-          <Typography variant="caption" color="text.secondary" sx={{ mr: 'auto', pl: 0.5 }}>
+          <Typography
+            variant="caption"
+            sx={{
+              color: "text.secondary",
+              mr: 'auto',
+              pl: 0.5
+            }}>
             Rooms are created &amp; edited in Settings → Room categories.
           </Typography>
         )}
@@ -1192,7 +1231,11 @@ const Rooms = ({ _sidebarOpen }) => {
           {selectedRoom ? (
             <FormSection>
               <Grid container spacing={2}>
-                <Grid item xs={12} sm={6}>
+                <Grid
+                  size={{
+                    xs: 12,
+                    sm: 6
+                  }}>
                   <Typography variant="h5" sx={{ fontWeight: 'bold', mb: 2 }}>
                     Room {selectedRoom.roomNumber}
                   </Typography>
@@ -1205,7 +1248,12 @@ const Rooms = ({ _sidebarOpen }) => {
                     }}
                   />
                 </Grid>
-                <Grid item xs={12} sm={6} sx={{ textAlign: { sm: 'right' } }}>
+                <Grid
+                  sx={{ textAlign: { sm: 'right' } }}
+                  size={{
+                    xs: 12,
+                    sm: 6
+                  }}>
                   <Typography
                     variant="h6"
                     color="primary"
@@ -1220,7 +1268,9 @@ const Rooms = ({ _sidebarOpen }) => {
                     <Typography
                       variant="body2"
                       component="span"
-                      color="text.secondary"
+                      sx={{
+                        color: "text.secondary"
+                      }}
                     >
                       {' '}
                       /night
@@ -1228,7 +1278,7 @@ const Rooms = ({ _sidebarOpen }) => {
                   </Typography>
                 </Grid>
 
-                <Grid item xs={12}>
+                <Grid size={12}>
                   <Typography
                     variant="subtitle1"
                     gutterBottom
@@ -1236,12 +1286,14 @@ const Rooms = ({ _sidebarOpen }) => {
                   >
                     {getRoomTypeLabel(selectedRoom.type)}
                   </Typography>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" sx={{
+                    color: "text.secondary"
+                  }}>
                     {selectedRoom.description}
                   </Typography>
                 </Grid>
 
-                <Grid item xs={6}>
+                <Grid size={6}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <PeopleIcon />
                     <Typography>
@@ -1257,14 +1309,14 @@ const Rooms = ({ _sidebarOpen }) => {
                     </Typography>
                   </Box>
                 </Grid>
-                <Grid item xs={6}>
+                <Grid size={6}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <LocationOnIcon />
                     <Typography>Floor {selectedRoom.floor}</Typography>
                   </Box>
                 </Grid>
 
-                <Grid item xs={12}>
+                <Grid size={12}>
                   <Typography
                     variant="subtitle1"
                     sx={{ mt: 2, mb: 1, fontWeight: 'medium' }}
@@ -1292,7 +1344,6 @@ const Rooms = ({ _sidebarOpen }) => {
             <Typography>No room selected.</Typography>
           )}
       </FormDialog>
-
       <Snackbar
         open={snackbar.open}
         autoHideDuration={4000}

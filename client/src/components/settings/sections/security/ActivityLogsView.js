@@ -24,10 +24,19 @@ export const fmtDateTime = (d) => {
 };
 
 const Stat = ({ label, value, color }) => (
-  <Grid item xs={6} md={3}>
+  <Grid
+    size={{
+      xs: 6,
+      md: 3
+    }}>
     <Box sx={{ ...cardSx, textAlign: 'center' }}>
       <Typography variant="caption" sx={{ textTransform: 'uppercase', letterSpacing: '0.08em', color: 'text.secondary' }}>{label}</Typography>
-      <Typography variant="h5" fontWeight={800} sx={{ color: color || 'text.primary' }}>{value}</Typography>
+      <Typography
+        variant="h5"
+        sx={{
+          fontWeight: 800,
+          color: color || 'text.primary'
+        }}>{value}</Typography>
     </Box>
   </Grid>
 );
@@ -69,10 +78,20 @@ const ActivityLogsView = ({ onNotify }) => {
         <Stat label="Audit events" value={stats?.auditCount ?? '—'} color="#8B5CF6" />
         <Stat label="Critical" value={stats?.bySeverity?.find((s) => s.severity === 'critical')?.count ?? 0} color="#EF4444" />
       </Grid>
-
       <Box sx={cardSx}>
-        <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} alignItems={{ md: 'center' }} sx={{ mb: 2 }}>
-          <Typography variant="h6" fontWeight={800} sx={{ flexGrow: 1 }}>Activity Logs</Typography>
+        <Stack
+          direction={{ xs: 'column', md: 'row' }}
+          spacing={1.5}
+          sx={{
+            alignItems: { md: 'center' },
+            mb: 2
+          }}>
+          <Typography
+            variant="h6"
+            sx={{
+              fontWeight: 800,
+              flexGrow: 1
+            }}>Activity Logs</Typography>
           <TextField size="small" placeholder="Search…" value={search} onChange={(e) => setSearch(e.target.value)} sx={{ minWidth: 180 }} />
           <TextField select size="small" label="Category" value={category} onChange={(e) => setCategory(e.target.value)} sx={{ minWidth: 130 }}>
             {['all', 'auth', 'role', 'user', 'data', 'security', 'system'].map((c) => (

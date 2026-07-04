@@ -18,7 +18,11 @@ const TableDialog = ({ open, onClose, onSubmit, selectedTable, tableForm, setTab
   >
     <FormSection title="Table Details" icon={<TableRestaurantIcon fontSize="small" />} iconColor="#f43f5e">
       <Grid container spacing={3}>
-        <Grid item xs={12} sm={6}>
+        <Grid
+          size={{
+            xs: 12,
+            sm: 6
+          }}>
           <TextField
             label="Table Number"
             fullWidth
@@ -26,30 +30,43 @@ const TableDialog = ({ open, onClose, onSubmit, selectedTable, tableForm, setTab
             onChange={(e) => setTableForm({ ...tableForm, number: e.target.value })}
             required
             variant="filled"
-            InputProps={FILLED}
+            slotProps={{
+              input: FILLED
+            }}
           />
         </Grid>
-        <Grid item xs={12} sm={6}>
+        <Grid
+          size={{
+            xs: 12,
+            sm: 6
+          }}>
           <TextField
             label="Capacity"
             fullWidth
             type="number"
             value={tableForm.capacity}
             onChange={(e) => setTableForm({ ...tableForm, capacity: e.target.value })}
-            inputProps={{ min: 1 }}
             required
             variant="filled"
-            InputProps={FILLED}
-          />
+            slotProps={{
+              input: FILLED,
+              htmlInput: { min: 1 }
+            }} />
         </Grid>
-        <Grid item xs={12} sm={6}>
+        <Grid
+          size={{
+            xs: 12,
+            sm: 6
+          }}>
           <FormControl fullWidth variant="filled" sx={{ borderRadius: 2, background: 'rgba(255,255,255,0.7)' }}>
             <InputLabel>Floor</InputLabel>
             <Select
               value={tableForm.floor}
               onChange={(e) => setTableForm({ ...tableForm, floor: e.target.value })}
               label="Floor"
-              MenuProps={{ PaperProps: { sx: { backgroundColor: '#fff' } } }}
+              MenuProps={{ slotProps: {
+                paper: { sx: { backgroundColor: '#fff' } }
+              } }}
             >
               <MenuItem value="Ground Floor">Ground Floor</MenuItem>
               <MenuItem value="First Floor">First Floor</MenuItem>
@@ -58,14 +75,20 @@ const TableDialog = ({ open, onClose, onSubmit, selectedTable, tableForm, setTab
             </Select>
           </FormControl>
         </Grid>
-        <Grid item xs={12} sm={6}>
+        <Grid
+          size={{
+            xs: 12,
+            sm: 6
+          }}>
           <FormControl fullWidth variant="filled" sx={{ borderRadius: 2, background: 'rgba(255,255,255,0.7)' }}>
             <InputLabel>Status</InputLabel>
             <Select
               value={tableForm.status}
               onChange={(e) => setTableForm({ ...tableForm, status: e.target.value })}
               label="Status"
-              MenuProps={{ PaperProps: { sx: { backgroundColor: '#fff' } } }}
+              MenuProps={{ slotProps: {
+                paper: { sx: { backgroundColor: '#fff' } }
+              } }}
             >
               <MenuItem value="Available">Available</MenuItem>
               <MenuItem value="Occupied">Occupied</MenuItem>
@@ -74,14 +97,16 @@ const TableDialog = ({ open, onClose, onSubmit, selectedTable, tableForm, setTab
             </Select>
           </FormControl>
         </Grid>
-        <Grid item xs={12}>
+        <Grid size={12}>
           <FormControl fullWidth variant="filled" sx={{ borderRadius: 2, background: 'rgba(255,255,255,0.7)' }}>
             <InputLabel>Section</InputLabel>
             <Select
               value={tableForm.section}
               onChange={(e) => setTableForm({ ...tableForm, section: e.target.value })}
               label="Section"
-              MenuProps={{ PaperProps: { sx: { backgroundColor: '#fff' } } }}
+              MenuProps={{ slotProps: {
+                paper: { sx: { backgroundColor: '#fff' } }
+              } }}
             >
               <MenuItem value="Main">Main</MenuItem>
               <MenuItem value="Outdoor">Outdoor</MenuItem>
@@ -90,7 +115,7 @@ const TableDialog = ({ open, onClose, onSubmit, selectedTable, tableForm, setTab
             </Select>
           </FormControl>
         </Grid>
-        <Grid item xs={12}>
+        <Grid size={12}>
           <TextField
             label="Notes"
             fullWidth
@@ -99,7 +124,9 @@ const TableDialog = ({ open, onClose, onSubmit, selectedTable, tableForm, setTab
             value={tableForm.notes}
             onChange={(e) => setTableForm({ ...tableForm, notes: e.target.value })}
             variant="filled"
-            InputProps={FILLED}
+            slotProps={{
+              input: FILLED
+            }}
           />
         </Grid>
       </Grid>

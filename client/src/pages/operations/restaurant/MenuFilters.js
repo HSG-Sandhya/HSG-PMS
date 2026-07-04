@@ -2,13 +2,15 @@ import { Box, Grid, TextField, FormControl, InputLabel, Select, MenuItem, Button
 import { Search as SearchIcon, Clear as ClearIcon, LocalFlorist as EcoIcon } from '@mui/icons-material';
 
 const MENU_PAPER = {
-  PaperProps: {
-    sx: {
-      backgroundColor: '#fff',
-      boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
-      borderRadius: '8px',
-      border: '1px solid rgba(0,0,0,0.1)',
-    },
+  slotProps: {
+    paper: {
+      sx: {
+        backgroundColor: '#fff',
+        boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+        borderRadius: '8px',
+        border: '1px solid rgba(0,0,0,0.1)',
+      },
+    }
   },
 };
 
@@ -39,24 +41,36 @@ const MenuFilters = ({
     border: '1px solid rgba(255, 255, 255, 0.3)',
     boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
   }}>
-    <Grid container spacing={2} alignItems="center">
-      <Grid item xs={12} sm={4}>
+    <Grid container spacing={2} sx={{
+      alignItems: "center"
+    }}>
+      <Grid
+        size={{
+          xs: 12,
+          sm: 4
+        }}>
         <TextField
           fullWidth
           size="small"
           placeholder="Search menu items..."
           value={menuSearchTerm}
           onChange={(e) => setMenuSearchTerm(e.target.value)}
-          InputProps={{
-            startAdornment: <SearchIcon sx={{ mr: 1, color: 'text.secondary' }} />,
-            endAdornment: menuSearchTerm && (
-              <ClearIcon sx={{ cursor: 'pointer', color: 'text.secondary' }} onClick={() => setMenuSearchTerm('')} />
-            ),
+          slotProps={{
+            input: {
+              startAdornment: <SearchIcon sx={{ mr: 1, color: 'text.secondary' }} />,
+              endAdornment: menuSearchTerm && (
+                <ClearIcon sx={{ cursor: 'pointer', color: 'text.secondary' }} onClick={() => setMenuSearchTerm('')} />
+              ),
+            }
           }}
         />
       </Grid>
 
-      <Grid item xs={12} sm={2}>
+      <Grid
+        size={{
+          xs: 12,
+          sm: 2
+        }}>
         <FormControl fullWidth size="small">
           <InputLabel>Category</InputLabel>
           <Select value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value)} label="Category" MenuProps={MENU_PAPER}>
@@ -68,7 +82,11 @@ const MenuFilters = ({
         </FormControl>
       </Grid>
 
-      <Grid item xs={12} sm={2}>
+      <Grid
+        size={{
+          xs: 12,
+          sm: 2
+        }}>
         <FormControl fullWidth size="small">
           <InputLabel>Sort</InputLabel>
           <Select value={sortBy} onChange={(e) => setSortBy(e.target.value)} label="Sort" MenuProps={MENU_PAPER}>
@@ -79,7 +97,11 @@ const MenuFilters = ({
         </FormControl>
       </Grid>
 
-      <Grid item xs={12} sm={4}>
+      <Grid
+        size={{
+          xs: 12,
+          sm: 4
+        }}>
         <Box sx={{ display: 'flex', gap: 1 }}>
           <Button size="small" variant={showVegOnly ? 'contained' : 'outlined'} onClick={() => setShowVegOnly(!showVegOnly)} startIcon={<EcoIcon />} color="success">
             Veg
@@ -94,7 +116,12 @@ const MenuFilters = ({
       </Grid>
     </Grid>
 
-    <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+    <Typography
+      variant="body2"
+      sx={{
+        color: "text.secondary",
+        mt: 1
+      }}>
       {filteredCount} of {totalCount} items
     </Typography>
   </Box>

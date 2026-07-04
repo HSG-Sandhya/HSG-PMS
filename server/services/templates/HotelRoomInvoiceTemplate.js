@@ -459,8 +459,12 @@ class HotelRoomInvoiceTemplate extends BaseInvoiceTemplate {
       @media print {
         body { font-size: 10.5px; }
         .invoice-container { padding: 0; }
-        .section { page-break-inside: avoid; }
-        .signatures, .closing { page-break-inside: avoid; }
+        /* Keep small blocks together, but let long item tables flow across pages
+           (breaking only between rows) instead of shoving the whole section onto a
+           fresh sheet and leaving a big blank gap on the previous one. */
+        .section.split, .signatures, .closing { page-break-inside: avoid; }
+        thead { display: table-header-group; }
+        tr { page-break-inside: avoid; }
         * { -webkit-print-color-adjust: exact; print-color-adjust: exact; color-adjust: exact; }
       }
     `;

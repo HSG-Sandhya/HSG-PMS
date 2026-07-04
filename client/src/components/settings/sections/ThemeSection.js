@@ -141,7 +141,13 @@ const sectionPaper = (isDarkMode) => ({
 });
 
 const SectionHeader = ({ icon: Icon, title, subtitle }) => (
-  <Stack direction="row" alignItems="center" spacing={1.75} mb={2.75}>
+  <Stack
+    direction="row"
+    spacing={1.75}
+    sx={{
+      alignItems: "center",
+      mb: 2.75
+    }}>
     <Box
       sx={{
         width: 42,
@@ -245,7 +251,13 @@ const glassSliderSx = {
 
 const SliderRow = ({ label, valueLabel, hint, sx, ...sliderProps }) => (
   <Box>
-    <Stack direction="row" justifyContent="space-between" alignItems="baseline" mb={1.25}>
+    <Stack
+      direction="row"
+      sx={{
+        justifyContent: "space-between",
+        alignItems: "baseline",
+        mb: 1.25
+      }}>
       <Typography sx={{ fontSize: 13, fontWeight: 600, color: 'text.primary' }}>
         {label}
       </Typography>
@@ -257,7 +269,13 @@ const SliderRow = ({ label, valueLabel, hint, sx, ...sliderProps }) => (
       sx={{ ...glassSliderSx, ...(sx || {}) }}
     />
     {hint && (
-      <Typography variant="caption" color="text.secondary" sx={{ mt: 3, display: 'block' }}>
+      <Typography
+        variant="caption"
+        sx={{
+          color: "text.secondary",
+          mt: 3,
+          display: 'block'
+        }}>
         {hint}
       </Typography>
     )}
@@ -269,7 +287,13 @@ const ColorRow = ({ label, value, onChange, hint }) => (
     <Typography variant="caption" sx={{ textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, color: 'text.secondary' }}>
       {label}
     </Typography>
-    <Stack direction="row" spacing={1.5} alignItems="center" mt={0.75}>
+    <Stack
+      direction="row"
+      spacing={1.5}
+      sx={{
+        alignItems: "center",
+        mt: 0.75
+      }}>
       <Box
         component="input"
         type="color"
@@ -290,10 +314,14 @@ const ColorRow = ({ label, value, onChange, hint }) => (
         value={value}
         onChange={(e) => onChange(e.target.value)}
         sx={{ width: 140, '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
-        inputProps={{ style: { fontFamily: 'monospace', fontSize: 13 } }}
+        slotProps={{
+          htmlInput: { style: { fontFamily: 'monospace', fontSize: 13 } }
+        }}
       />
       {hint && (
-        <Typography variant="caption" color="text.secondary">{hint}</Typography>
+        <Typography variant="caption" sx={{
+          color: "text.secondary"
+        }}>{hint}</Typography>
       )}
     </Stack>
   </Box>
@@ -304,11 +332,16 @@ const ColorRow = ({ label, value, onChange, hint }) => (
 const ToggleRow = ({ icon: Icon, label, hint, checked, onChange, disabled }) => (
   <Stack
     direction="row"
-    alignItems="center"
-    justifyContent="space-between"
-    sx={{ py: 1, opacity: disabled ? 0.5 : 1, transition: 'opacity .2s ease' }}
-  >
-    <Stack direction="row" spacing={1.5} alignItems="center">
+    sx={{
+      alignItems: "center",
+      justifyContent: "space-between",
+      py: 1,
+      opacity: disabled ? 0.5 : 1,
+      transition: 'opacity .2s ease'
+    }}>
+    <Stack direction="row" spacing={1.5} sx={{
+      alignItems: "center"
+    }}>
       {Icon && (
         <Box
           sx={{
@@ -323,7 +356,9 @@ const ToggleRow = ({ icon: Icon, label, hint, checked, onChange, disabled }) => 
       )}
       <Box>
         <Typography sx={{ fontSize: 13.5, fontWeight: 600, color: 'text.primary' }}>{label}</Typography>
-        {hint && <Typography variant="caption" color="text.secondary">{hint}</Typography>}
+        {hint && <Typography variant="caption" sx={{
+          color: "text.secondary"
+        }}>{hint}</Typography>}
       </Box>
     </Stack>
     <Switch
@@ -537,7 +572,12 @@ const ThemeSection = ({ onNotify }) => {
 
   if (loading) {
     return (
-      <Box display="flex" justifyContent="center" py={6}>
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "center",
+          py: 6
+        }}>
         <CircularProgress />
       </Box>
     );
@@ -591,7 +631,13 @@ const ThemeSection = ({ onNotify }) => {
               background: isDarkMode ? 'rgba(15,23,42,0.4)' : 'rgba(248,250,252,0.8)',
             }}
           >
-            <Stack direction="row" alignItems="center" spacing={1.25} mb={1.5}>
+            <Stack
+              direction="row"
+              spacing={1.25}
+              sx={{
+                alignItems: "center",
+                mb: 1.5
+              }}>
               <Box
                 sx={{
                   width: 34, height: 34, borderRadius: '50%', display: 'grid', placeItems: 'center',
@@ -605,21 +651,27 @@ const ThemeSection = ({ onNotify }) => {
                 <Typography sx={{ fontSize: 14, fontWeight: 700, color: 'text.primary' }}>
                   {currentlyDark ? 'Currently dark — night' : 'Currently light — day'}
                 </Typography>
-                <Typography variant="caption" color="text.secondary">
+                <Typography variant="caption" sx={{
+                  color: "text.secondary"
+                }}>
                   Follows the system clock: dark from sunset to sunrise.
                 </Typography>
               </Box>
             </Stack>
             <Stack direction="row" spacing={1}>
               <Box sx={{ flex: 1, p: 1.25, borderRadius: 1.5, background: isDarkMode ? 'rgba(30,41,59,0.5)' : '#fff', border: '1px solid', borderColor: isDarkMode ? 'rgba(148,163,184,0.15)' : 'rgba(226,232,240,0.8)' }}>
-                <Stack direction="row" alignItems="center" spacing={0.75}>
+                <Stack direction="row" spacing={0.75} sx={{
+                  alignItems: "center"
+                }}>
                   <SunriseIcon sx={{ fontSize: 15, color: '#f59e0b' }} />
                   <Typography variant="caption" sx={{ fontWeight: 700, letterSpacing: '0.04em', color: 'text.secondary' }}>SUNRISE</Typography>
                 </Stack>
                 <Typography sx={{ fontSize: 16, fontWeight: 700, mt: 0.25 }}>{formatClock(sunToday.sunrise)}</Typography>
               </Box>
               <Box sx={{ flex: 1, p: 1.25, borderRadius: 1.5, background: isDarkMode ? 'rgba(30,41,59,0.5)' : '#fff', border: '1px solid', borderColor: isDarkMode ? 'rgba(148,163,184,0.15)' : 'rgba(226,232,240,0.8)' }}>
-                <Stack direction="row" alignItems="center" spacing={0.75}>
+                <Stack direction="row" spacing={0.75} sx={{
+                  alignItems: "center"
+                }}>
                   <SunsetIcon sx={{ fontSize: 15, color: '#6366f1' }} />
                   <Typography variant="caption" sx={{ fontWeight: 700, letterSpacing: '0.04em', color: 'text.secondary' }}>SUNSET</Typography>
                 </Stack>
@@ -641,7 +693,9 @@ const ThemeSection = ({ onNotify }) => {
                   ? `${DARKNESS_PHASES[darknessValue] || 'Night'} — ${darknessValue}% darkness`
                   : 'Light mode — Day'}
               </Typography>
-              <Typography variant="caption" color="text.secondary">
+              <Typography variant="caption" sx={{
+                color: "text.secondary"
+              }}>
                 {themeData.darkMode
                   ? 'Each click steps 20% deeper into the night (midnight wraps back to day) — the torch follows'
                   : 'Click to step into dusk, or drag the knob toward night'}
@@ -668,7 +722,6 @@ const ThemeSection = ({ onNotify }) => {
           </Box>
         )}
       </Box>
-
       {/* Presets */}
       <Box sx={sectionPaper(isDarkMode)}>
         <SectionHeader
@@ -746,7 +799,6 @@ const ThemeSection = ({ onNotify }) => {
           })}
         </Box>
       </Box>
-
       {/* Brand colours */}
       <Box sx={sectionPaper(isDarkMode)}>
         <SectionHeader
@@ -776,7 +828,13 @@ const ThemeSection = ({ onNotify }) => {
                 background: isDarkMode ? 'rgba(15,23,42,0.35)' : 'rgba(248,250,252,0.7)',
               }}
             >
-              <Stack direction="row" alignItems="center" spacing={1.5} mb={1.25}>
+              <Stack
+                direction="row"
+                spacing={1.5}
+                sx={{
+                  alignItems: "center",
+                  mb: 1.25
+                }}>
                 <Box
                   sx={{
                     width: 48,
@@ -797,7 +855,9 @@ const ThemeSection = ({ onNotify }) => {
                   </Typography>
                 </Box>
               </Stack>
-              <Stack direction="row" spacing={1} alignItems="center">
+              <Stack direction="row" spacing={1} sx={{
+                alignItems: "center"
+              }}>
                 <Box
                   component="input"
                   type="color"
@@ -822,14 +882,19 @@ const ThemeSection = ({ onNotify }) => {
                   sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.25, fontFamily: 'monospace', fontSize: 13 } }}
                 />
               </Stack>
-              <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+              <Typography
+                variant="caption"
+                sx={{
+                  color: "text.secondary",
+                  mt: 1,
+                  display: 'block'
+                }}>
                 {hint}
               </Typography>
             </Box>
           ))}
         </Box>
       </Box>
-
       {/* Glass effect — transparency + blur */}
       <Box sx={sectionPaper(isDarkMode)}>
         <SectionHeader
@@ -873,7 +938,6 @@ const ThemeSection = ({ onNotify }) => {
           />
         </Stack>
       </Box>
-
       {/* Motion & ambience — night torch + reduce motion */}
       <Box sx={sectionPaper(isDarkMode)}>
         <SectionHeader
@@ -899,7 +963,6 @@ const ThemeSection = ({ onNotify }) => {
           />
         </Stack>
       </Box>
-
       {/* Background — style + image picker */}
       <Box sx={sectionPaper(isDarkMode)}>
         <SectionHeader
@@ -914,7 +977,11 @@ const ThemeSection = ({ onNotify }) => {
             value={themeData.backgroundStyle || 'none'}
             onChange={(e) => setField('backgroundStyle', e.target.value)}
             sx={{ maxWidth: 360, '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
-            SelectProps={{ MenuProps: { PaperProps: { sx: { backgroundColor: isDarkMode ? '#1e293b' : '#fff' } } } }}
+            slotProps={{
+              select: { MenuProps: { slotProps: {
+                paper: { sx: { backgroundColor: isDarkMode ? '#1e293b' : '#fff' } }
+              } } }
+            }}
           >
             {BACKGROUND_STYLES.map((opt) => (
               <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
@@ -927,7 +994,14 @@ const ThemeSection = ({ onNotify }) => {
                 <Typography variant="caption" sx={{ textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, color: 'text.secondary', mb: 1.25, display: 'block' }}>
                   Pick a colour
                 </Typography>
-                <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap" useFlexGap>
+                <Stack
+                  direction="row"
+                  spacing={1.5}
+                  useFlexGap
+                  sx={{
+                    alignItems: "center",
+                    flexWrap: "wrap"
+                  }}>
                   <Box
                     component="input"
                     type="color"
@@ -948,9 +1022,13 @@ const ThemeSection = ({ onNotify }) => {
                     value={themeData.solidColor || '#f8fafc'}
                     onChange={(e) => setField('solidColor', e.target.value)}
                     sx={{ width: 140, '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
-                    inputProps={{ style: { fontFamily: 'monospace', fontSize: 13 } }}
+                    slotProps={{
+                      htmlInput: { style: { fontFamily: 'monospace', fontSize: 13 } }
+                    }}
                   />
-                  <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
+                  <Stack direction="row" spacing={0.75} useFlexGap sx={{
+                    flexWrap: "wrap"
+                  }}>
                     {SOLID_SWATCHES.map((c) => {
                       const selected = (themeData.solidColor || '').toLowerCase() === c.toLowerCase();
                       return (
@@ -1169,7 +1247,13 @@ const ThemeSection = ({ onNotify }) => {
                   })}
                 </Box>
                 {userBackgrounds.length > 0 && (
-                  <Typography variant="caption" color="text.secondary" sx={{ mt: 1.25, display: 'block' }}>
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      color: "text.secondary",
+                      mt: 1.25,
+                      display: 'block'
+                    }}>
                     Your uploaded backgrounds appear here — hover any to delete.
                   </Typography>
                 )}
@@ -1178,7 +1262,9 @@ const ThemeSection = ({ onNotify }) => {
               <Stack
                 direction={{ xs: 'column', sm: 'row' }}
                 spacing={2}
-                alignItems={{ xs: 'stretch', sm: 'center' }}
+                sx={{
+                  alignItems: { xs: 'stretch', sm: 'center' }
+                }}
               >
                 <Button
                   component="label"
@@ -1215,7 +1301,9 @@ const ThemeSection = ({ onNotify }) => {
                   sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
                 />
               </Stack>
-              <Typography variant="caption" color="text.secondary">
+              <Typography variant="caption" sx={{
+                color: "text.secondary"
+              }}>
                 Uploads are stored on the server (in the cloud database) and load
                 instantly on any machine — JPG / PNG / WebP / GIF, up to 8 MB.
               </Typography>
@@ -1223,7 +1311,6 @@ const ThemeSection = ({ onNotify }) => {
           )}
         </Stack>
       </Box>
-
       {/* Shape + typography */}
       <Box sx={sectionPaper(isDarkMode)}>
         <SectionHeader
@@ -1254,7 +1341,11 @@ const ThemeSection = ({ onNotify }) => {
             value={themeData.fontFamily || 'Nunito'}
             onChange={(e) => setField('fontFamily', e.target.value)}
             sx={{ maxWidth: 320, '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
-            SelectProps={{ MenuProps: { PaperProps: { sx: { backgroundColor: isDarkMode ? '#1e293b' : '#fff' } } } }}
+            slotProps={{
+              select: { MenuProps: { slotProps: {
+                paper: { sx: { backgroundColor: isDarkMode ? '#1e293b' : '#fff' } }
+              } } }
+            }}
           >
             {FONT_OPTIONS.map((font) => (
               <MenuItem key={font} value={font} sx={{ fontFamily: `"${font}", sans-serif` }}>
@@ -1264,7 +1355,6 @@ const ThemeSection = ({ onNotify }) => {
           </TextField>
         </Stack>
       </Box>
-
       {/* Live preview */}
       <Box sx={sectionPaper(isDarkMode)}>
         <SectionHeader
@@ -1341,7 +1431,6 @@ const ThemeSection = ({ onNotify }) => {
           </Stack>
         </Box>
       </Box>
-
       {/* Sticky action bar — always visible while scrolling the section */}
       <Box
         sx={{
@@ -1362,9 +1451,10 @@ const ThemeSection = ({ onNotify }) => {
         <Stack
           direction={{ xs: 'column', sm: 'row' }}
           spacing={1.5}
-          alignItems={{ xs: 'stretch', sm: 'center' }}
-          justifyContent="space-between"
-        >
+          sx={{
+            alignItems: { xs: 'stretch', sm: 'center' },
+            justifyContent: "space-between"
+          }}>
           <Typography variant="caption" sx={{ color: 'text.secondary', pl: { sm: 1 } }}>
             Changes preview live above — click Save & apply to push them to every screen.
           </Typography>

@@ -131,30 +131,42 @@ const SettleBalanceDialog = ({ open, onClose, booking, onSettled }) => {
       onClose={onClose}
       maxWidth="sm"
       fullWidth
-      PaperProps={{ sx: dialogPaperSx(isDarkMode) }}
-      slotProps={{ backdrop: { sx: dialogBackdropSx } }}
-    >
+      slotProps={{
+        backdrop: { sx: dialogBackdropSx },
+        paper: { sx: dialogPaperSx(isDarkMode) }
+      }}>
       <Box sx={headerWrapSx(isDarkMode)}>
-        <Stack direction="row" alignItems="center" spacing={1.5}>
+        <Stack direction="row" spacing={1.5} sx={{
+          alignItems: "center"
+        }}>
           <PaymentsOutlinedIcon sx={{ color: 'var(--app-primary)' }} />
           <Box>
             <Typography variant="h6" sx={{ fontWeight: 700, lineHeight: 1.2 }}>
               Settle balance
             </Typography>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" sx={{
+              color: "text.secondary"
+            }}>
               Record an additional payment against this booking.
             </Typography>
           </Box>
         </Stack>
       </Box>
-
       <DialogContent sx={{ px: { xs: 3, sm: 4 }, py: 3 }}>
         <Box sx={sectionCardSx(isDarkMode)}>
           <Typography sx={sectionTitleSx(isDarkMode)}>Bill summary</Typography>
           {loadingOrders ? (
-            <Stack direction="row" alignItems="center" spacing={1.5} sx={{ py: 2 }}>
+            <Stack
+              direction="row"
+              spacing={1.5}
+              sx={{
+                alignItems: "center",
+                py: 2
+              }}>
               <CircularProgress size={18} />
-              <Typography variant="body2" color="text.secondary">Loading food bill…</Typography>
+              <Typography variant="body2" sx={{
+                color: "text.secondary"
+              }}>Loading food bill…</Typography>
             </Stack>
           ) : (
             <>
@@ -196,15 +208,17 @@ const SettleBalanceDialog = ({ open, onClose, booking, onSettled }) => {
                 fullWidth
                 value={paymentAmount}
                 onChange={(e) => setPaymentAmount(e.target.value)}
-                InputProps={{
-                  startAdornment: <InputAdornment position="start">{currencySym()}</InputAdornment>,
-                }}
                 helperText={
                   amountNum > balance
                     ? `Cannot exceed balance of ${currencySym()}${balance.toFixed(2)}`
                     : `Default: full balance ${currencySym()}${balance.toFixed(2)}`
                 }
                 error={amountNum > balance}
+                slotProps={{
+                  input: {
+                    startAdornment: <InputAdornment position="start">{currencySym()}</InputAdornment>,
+                  }
+                }}
               />
               <TextField
                 label="Method"
@@ -232,7 +246,6 @@ const SettleBalanceDialog = ({ open, onClose, booking, onSettled }) => {
           </Box>
         )}
       </DialogContent>
-
       <DialogActions sx={actionsBarSx(isDarkMode)}>
         <Button onClick={onClose} variant="outlined" sx={secondaryButtonSx(isDarkMode)}>
           Close

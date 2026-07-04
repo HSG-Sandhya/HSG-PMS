@@ -87,8 +87,19 @@ const UtensilsManager = ({ onNotify }) => {
 
   return (
     <Box>
-      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
-        <Typography variant="h6" fontWeight={800} sx={{ color: 'var(--app-primary)' }}>
+      <Stack
+        direction="row"
+        sx={{
+          justifyContent: "space-between",
+          alignItems: "center",
+          mb: 3
+        }}>
+        <Typography
+          variant="h6"
+          sx={{
+            fontWeight: 800,
+            color: 'var(--app-primary)'
+          }}>
           Utensils & Cookware
         </Typography>
         <Button variant="contained" startIcon={<AddIcon />} onClick={openNew}
@@ -97,11 +108,12 @@ const UtensilsManager = ({ onNotify }) => {
           New Utensil
         </Button>
       </Stack>
-
       {items.length === 0 ? (
         <Box sx={{ textAlign: 'center', py: 8, border: '1px dashed', borderColor: 'divider', borderRadius: 3 }}>
           <BlenderIcon sx={{ fontSize: 56, color: 'text.disabled', mb: 1 }} />
-          <Typography color="text.secondary">
+          <Typography sx={{
+            color: "text.secondary"
+          }}>
             No utensils yet. Add cookware, water jars, gas cylinders etc. to rent to self-cooking guests.
           </Typography>
         </Box>
@@ -113,31 +125,65 @@ const UtensilsManager = ({ onNotify }) => {
             const used = Number(it.reserved ?? Math.max(0, total - available));
             const pct = total > 0 ? Math.round((available / total) * 100) : 0;
             return (
-              <Grid item xs={12} sm={6} md={4} key={it._id}>
+              <Grid
+                key={it._id}
+                size={{
+                  xs: 12,
+                  sm: 6,
+                  md: 4
+                }}>
                 <Card sx={{ borderRadius: 3, height: '100%', position: 'relative', overflow: 'hidden' }}>
                   <Box sx={{ height: 4, background: CATEGORY_COLOR[it.category] || 'var(--app-primary)' }} />
                   <CardContent>
-                    <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
-                      <Typography variant="h6" fontWeight={800}>{it.name}</Typography>
+                    <Stack
+                      direction="row"
+                      sx={{
+                        justifyContent: "space-between",
+                        alignItems: "flex-start"
+                      }}>
+                      <Typography variant="h6" sx={{
+                        fontWeight: 800
+                      }}>{it.name}</Typography>
                       {!it.isActive && <Chip size="small" label="Inactive" sx={{ height: 20 }} />}
                     </Stack>
                     <Stack direction="row" spacing={1} sx={{ mt: 0.75, alignItems: 'center' }}>
                       <Chip size="small" label={it.category}
                         sx={{ height: 22, fontSize: 11, fontWeight: 700, color: '#fff', bgcolor: CATEGORY_COLOR[it.category] || 'var(--app-primary)' }} />
-                      <Typography variant="h6" fontWeight={800} sx={{ color: 'var(--app-primary)' }}>
+                      <Typography
+                        variant="h6"
+                        sx={{
+                          fontWeight: 800,
+                          color: 'var(--app-primary)'
+                        }}>
                         {currencySym()}{(it.cost || 0).toLocaleString('en-IN')}
-                        <Typography component="span" variant="caption" color="text.secondary"> /{it.unit || 'unit'}</Typography>
+                        <Typography component="span" variant="caption" sx={{
+                          color: "text.secondary"
+                        }}> /{it.unit || 'unit'}</Typography>
                       </Typography>
                     </Stack>
                     {it.description && (
-                      <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>{it.description}</Typography>
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          color: "text.secondary",
+                          mt: 1
+                        }}>{it.description}</Typography>
                     )}
                     <Box sx={{ mt: 1.5 }}>
-                      <Stack direction="row" justifyContent="space-between" sx={{ mb: 0.5 }}>
-                        <Typography variant="caption" color="text.secondary">
+                      <Stack
+                        direction="row"
+                        sx={{
+                          justifyContent: "space-between",
+                          mb: 0.5
+                        }}>
+                        <Typography variant="caption" sx={{
+                          color: "text.secondary"
+                        }}>
                           {available} of {total} available
                         </Typography>
-                        {used > 0 && <Typography variant="caption" color="text.secondary">{used} out</Typography>}
+                        {used > 0 && <Typography variant="caption" sx={{
+                          color: "text.secondary"
+                        }}>{used} out</Typography>}
                       </Stack>
                       <LinearProgress
                         variant="determinate"
@@ -146,7 +192,13 @@ const UtensilsManager = ({ onNotify }) => {
                           '& .MuiLinearProgress-bar': { background: pct < 20 ? '#EF4444' : CATEGORY_COLOR[it.category] || 'var(--app-primary)' } }}
                       />
                     </Box>
-                    <Stack direction="row" justifyContent="flex-end" spacing={0.5} sx={{ mt: 1 }}>
+                    <Stack
+                      direction="row"
+                      spacing={0.5}
+                      sx={{
+                        justifyContent: "flex-end",
+                        mt: 1
+                      }}>
                       <Tooltip title="Edit"><IconButton size="small" onClick={() => openEdit(it)} sx={{ color: 'var(--app-primary)' }}><EditIcon fontSize="small" /></IconButton></Tooltip>
                       <Tooltip title="Delete"><IconButton size="small" onClick={() => handleDelete(it)} sx={{ color: '#ef4444' }}><DeleteIcon fontSize="small" /></IconButton></Tooltip>
                     </Stack>
@@ -157,7 +209,6 @@ const UtensilsManager = ({ onNotify }) => {
           })}
         </Grid>
       )}
-
       <FormDialog
         open={dialogOpen}
         onClose={saving ? undefined : () => setDialogOpen(false)}
@@ -171,27 +222,31 @@ const UtensilsManager = ({ onNotify }) => {
       >
         <FormSection title="Utensil Details" icon={<BlenderIcon fontSize="small" />} iconColor="#6366F1">
           <Grid container spacing={2} sx={{ mt: 0 }}>
-            <Grid item xs={12}><TextField fullWidth label="Utensil name" placeholder="Cooking Pot (big) / Water Jar / Gas Cylinder" value={form.name} onChange={(e) => set('name', e.target.value)} required /></Grid>
-            <Grid item xs={12}><TextField fullWidth label="Description" value={form.description} onChange={(e) => set('description', e.target.value)} multiline rows={2} /></Grid>
-            <Grid item xs={6}>
+            <Grid size={12}><TextField fullWidth label="Utensil name" placeholder="Cooking Pot (big) / Water Jar / Gas Cylinder" value={form.name} onChange={(e) => set('name', e.target.value)} required /></Grid>
+            <Grid size={12}><TextField fullWidth label="Description" value={form.description} onChange={(e) => set('description', e.target.value)} multiline rows={2} /></Grid>
+            <Grid size={6}>
               <TextField select fullWidth label="Category" value={form.category} onChange={(e) => set('category', e.target.value)}>
                 {CATEGORIES.map((c) => <MenuItem key={c} value={c}>{c}</MenuItem>)}
               </TextField>
             </Grid>
-            <Grid item xs={6}>
+            <Grid size={6}>
               <TextField fullWidth label="Unit" placeholder="piece / set / litre" value={form.unit} onChange={(e) => set('unit', e.target.value)} />
             </Grid>
-            <Grid item xs={6}>
+            <Grid size={6}>
               <TextField fullWidth type="number" label="Rental cost (per unit)" value={form.cost}
                 onChange={(e) => set('cost', e.target.value)}
-                InputProps={{ startAdornment: <InputAdornment position="start">{currencySym()}</InputAdornment> }} />
+                slotProps={{
+                  input: { startAdornment: <InputAdornment position="start">{currencySym()}</InputAdornment> }
+                }} />
             </Grid>
-            <Grid item xs={6}>
+            <Grid size={6}>
               <TextField fullWidth type="number" label="Total quantity owned" value={form.quantityTotal}
                 onChange={(e) => set('quantityTotal', e.target.value)}
-                inputProps={{ min: 0 }} helperText="Stock ceiling" />
+                helperText="Stock ceiling" slotProps={{
+                htmlInput: { min: 0 }
+              }} />
             </Grid>
-            <Grid item xs={12}>
+            <Grid size={12}>
               <TextField select fullWidth label="Status" value={form.isActive ? 'active' : 'inactive'} onChange={(e) => set('isActive', e.target.value === 'active')}>
                 <MenuItem value="active">Active</MenuItem>
                 <MenuItem value="inactive">Inactive</MenuItem>

@@ -64,7 +64,9 @@ const WebsiteHome = () => {
               color: 'white',
             }}
           >
-            <Typography variant="h5" gutterBottom fontWeight="bold">
+            <Typography variant="h5" gutterBottom sx={{
+              fontWeight: "bold"
+            }}>
               BOOK A ROOM ONLINE
             </Typography>
             
@@ -91,12 +93,14 @@ const WebsiteHome = () => {
                           '&.Mui-focused fieldset': { borderColor: 'white' },
                         },
                       }}
-                      InputProps={{
-                        endAdornment: (
-                          <InputAdornment position="end">
-                            <CalendarTodayIcon sx={{ color: 'white' }} />
-                          </InputAdornment>
-                        ),
+                      slotProps={{
+                        input: {
+                          endAdornment: (
+                            <InputAdornment position="end">
+                              <CalendarTodayIcon sx={{ color: 'white' }} />
+                            </InputAdornment>
+                          ),
+                        }
                       }}
                     />
                   )}
@@ -125,12 +129,14 @@ const WebsiteHome = () => {
                           '&.Mui-focused fieldset': { borderColor: 'white' },
                         },
                       }}
-                      InputProps={{
-                        endAdornment: (
-                          <InputAdornment position="end">
-                            <CalendarTodayIcon sx={{ color: 'white' }} />
-                          </InputAdornment>
-                        ),
+                      slotProps={{
+                        input: {
+                          endAdornment: (
+                            <InputAdornment position="end">
+                              <CalendarTodayIcon sx={{ color: 'white' }} />
+                            </InputAdornment>
+                          ),
+                        }
                       }}
                     />
                   )}
@@ -157,12 +163,19 @@ const WebsiteHome = () => {
           </Box>
         </Box>
       </Box>
-
       {/* About Us Section */}
       <Box sx={{ py: 8 }}>
-        <Box maxWidth="lg">
-          <Grid container spacing={6} alignItems="center">
-            <Grid item xs={12} md={6}>
+        <Box sx={{
+          maxWidth: "lg"
+        }}>
+          <Grid container spacing={6} sx={{
+            alignItems: "center"
+          }}>
+            <Grid
+              size={{
+                xs: 12,
+                md: 6
+              }}>
               <Box sx={{ position: 'relative', mb: 2 }}>
                 <Typography 
                   variant="h4" 
@@ -187,7 +200,9 @@ const WebsiteHome = () => {
                   ABOUT US
                 </Typography>
               </Box>
-              <Typography variant="body1" paragraph>
+              <Typography variant="body1" sx={{
+                marginBottom: "16px"
+              }}>
                 The passage experienced a surge in popularity during the 1960s when Letraset used it on their dry-transfer sheets, and again during the 90s as desktop publishers bundled the text with their software. Today it&apos;s seen all around the web; on templates, websites, and stock designs. Use our generator to get your own, or read on for the authoritative history of lorem ipsum.
               </Typography>
               <Button 
@@ -207,7 +222,11 @@ const WebsiteHome = () => {
                 Read More
               </Button>
             </Grid>
-            <Grid item xs={12} md={6}>
+            <Grid
+              size={{
+                xs: 12,
+                md: 6
+              }}>
               <Box 
                 component="img"
                 src="/images/hotel-pool.jpg"
@@ -222,10 +241,11 @@ const WebsiteHome = () => {
           </Grid>
         </Box>
       </Box>
-
       {/* Our Rooms Section */}
       <Box sx={{ bgcolor: '#f5f5f5', py: 8 }}>
-        <Box maxWidth="lg">
+        <Box sx={{
+          maxWidth: "lg"
+        }}>
           <Box sx={{ textAlign: 'center', mb: 6 }}>
             <Typography 
               variant="h4" 
@@ -272,7 +292,13 @@ const WebsiteHome = () => {
                 description: 'If you are going to use a passage of Lorem Ipsum, you need to be sure there',
               },
             ].map((room, index) => (
-              <Grid item xs={12} sm={6} md={4} key={index}>
+              <Grid
+                key={index}
+                size={{
+                  xs: 12,
+                  sm: 6,
+                  md: 4
+                }}>
                 <Card sx={{
                   height: '100%',
                   boxShadow: 0,
@@ -291,7 +317,9 @@ const WebsiteHome = () => {
                     <Typography gutterBottom variant="h6" component="h3" sx={{ fontWeight: 600 }}>
                       {room.title}
                     </Typography>
-                    <Typography variant="body2" color="text.secondary">
+                    <Typography variant="body2" sx={{
+                      color: "text.secondary"
+                    }}>
                       {room.description}
                     </Typography>
                   </CardContent>
@@ -318,7 +346,13 @@ const WebsiteHome = () => {
                 description: 'If you are going to use a passage of Lorem Ipsum, you need to be sure there',
               },
             ].map((room, index) => (
-              <Grid item xs={12} sm={6} md={4} key={index}>
+              <Grid
+                key={index}
+                size={{
+                  xs: 12,
+                  sm: 6,
+                  md: 4
+                }}>
                 <Card sx={{
                   height: '100%',
                   boxShadow: 0,
@@ -337,7 +371,9 @@ const WebsiteHome = () => {
                     <Typography gutterBottom variant="h6" component="h3" sx={{ fontWeight: 600 }}>
                       {room.title}
                     </Typography>
-                    <Typography variant="body2" color="text.secondary">
+                    <Typography variant="body2" sx={{
+                      color: "text.secondary"
+                    }}>
                       {room.description}
                     </Typography>
                   </CardContent>
@@ -347,7 +383,6 @@ const WebsiteHome = () => {
           </Grid>
         </Box>
       </Box>
-
       {/* Blog Section */}
       <Box sx={{ 
         py: 8, 
@@ -356,7 +391,9 @@ const WebsiteHome = () => {
         backgroundPosition: 'center',
         color: 'white',
       }}>
-        <Box maxWidth="lg">
+        <Box sx={{
+          maxWidth: "lg"
+        }}>
           <Box sx={{ textAlign: 'center', mb: 6 }}>
             <Typography 
               variant="h4" 
@@ -406,7 +443,13 @@ const WebsiteHome = () => {
                 description: 'If you are going to use a passage of Lorem Ipsum, you need to be sure there isn\'t anything embarrassing hidden in the middle of text. All the Lorem Ipsum generatorsIf you are',
               },
             ].map((blog, index) => (
-              <Grid item xs={12} sm={6} md={4} key={index}>
+              <Grid
+                key={index}
+                size={{
+                  xs: 12,
+                  sm: 6,
+                  md: 4
+                }}>
                 <Card sx={{
                   height: '100%',
                   bgcolor: 'transparent',
@@ -427,10 +470,14 @@ const WebsiteHome = () => {
                     <Typography gutterBottom variant="h6" component="h3" sx={{ fontWeight: 600, color: 'white' }}>
                       {blog.title}
                     </Typography>
-                    <Typography variant="body2" color="#ff0000" gutterBottom>
+                    <Typography variant="body2" gutterBottom sx={{
+                      color: "#ff0000"
+                    }}>
                       {blog.subtitle}
                     </Typography>
-                    <Typography variant="body2" color="rgba(255,255,255,0.7)">
+                    <Typography variant="body2" sx={{
+                      color: "rgba(255,255,255,0.7)"
+                    }}>
                       {blog.description}
                     </Typography>
                   </CardContent>
@@ -440,10 +487,11 @@ const WebsiteHome = () => {
           </Grid>
         </Box>
       </Box>
-
       {/* Contact Us Section */}
       <Box sx={{ py: 8 }}>
-        <Box maxWidth="lg">
+        <Box sx={{
+          maxWidth: "lg"
+        }}>
           <Box sx={{ textAlign: 'center', mb: 6 }}>
             <Typography 
               variant="h4" 
@@ -473,10 +521,18 @@ const WebsiteHome = () => {
           </Box>
           
           <Grid container spacing={4}>
-            <Grid item xs={12} md={6}>
+            <Grid
+              size={{
+                xs: 12,
+                md: 6
+              }}>
               <Box component="form">
                 <Grid container spacing={2}>
-                  <Grid item xs={12} sm={6}>
+                  <Grid
+                    size={{
+                      xs: 12,
+                      sm: 6
+                    }}>
                     <TextField 
                       fullWidth 
                       placeholder="Name" 
@@ -484,7 +540,11 @@ const WebsiteHome = () => {
                       sx={{ mb: 2 }}
                     />
                   </Grid>
-                  <Grid item xs={12} sm={6}>
+                  <Grid
+                    size={{
+                      xs: 12,
+                      sm: 6
+                    }}>
                     <TextField 
                       fullWidth 
                       placeholder="Email" 
@@ -492,7 +552,11 @@ const WebsiteHome = () => {
                       sx={{ mb: 2 }}
                     />
                   </Grid>
-                  <Grid item xs={12} sm={6}>
+                  <Grid
+                    size={{
+                      xs: 12,
+                      sm: 6
+                    }}>
                     <TextField 
                       fullWidth 
                       placeholder="Phone" 
@@ -500,7 +564,11 @@ const WebsiteHome = () => {
                       sx={{ mb: 2 }}
                     />
                   </Grid>
-                  <Grid item xs={12} sm={6}>
+                  <Grid
+                    size={{
+                      xs: 12,
+                      sm: 6
+                    }}>
                     <TextField 
                       fullWidth 
                       placeholder="Subject" 
@@ -508,7 +576,7 @@ const WebsiteHome = () => {
                       sx={{ mb: 2 }}
                     />
                   </Grid>
-                  <Grid item xs={12}>
+                  <Grid size={12}>
                     <TextField 
                       fullWidth 
                       placeholder="Message" 
@@ -518,7 +586,7 @@ const WebsiteHome = () => {
                       sx={{ mb: 2 }}
                     />
                   </Grid>
-                  <Grid item xs={12}>
+                  <Grid size={12}>
                     <Button 
                       variant="contained" 
                       sx={{ 
@@ -538,27 +606,37 @@ const WebsiteHome = () => {
                 </Grid>
               </Box>
             </Grid>
-            <Grid item xs={12} md={6}>
-              <Box 
+            <Grid
+              size={{
+                xs: 12,
+                md: 6
+              }}>
+              <Box
                 component="iframe"
                 src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3888.001696423075!2d77.59791287381694!3d12.971598987384476!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3bae1670c9b44e6d%3A0xf8dfc3e8517e4fe0!2sBengaluru%2C%20Karnataka%2C%20India!5e0!3m2!1sen!2sus!4v1686489913219!5m2!1sen!2sus"
-                width="100%"
-                height="450"
                 style={{ border: 0 }}
                 allowFullScreen=""
                 loading="lazy"
                 referrerPolicy="no-referrer-when-downgrade"
-              />
+                sx={{
+                  width: "100%",
+                  height: "450"
+                }} />
             </Grid>
           </Grid>
         </Box>
       </Box>
-
       {/* Footer */}
       <Box sx={{ bgcolor: '#000', color: 'white', py: 6 }}>
-        <Box maxWidth="lg">
+        <Box sx={{
+          maxWidth: "lg"
+        }}>
           <Grid container spacing={4}>
-            <Grid item xs={12} md={4}>
+            <Grid
+              size={{
+                xs: 12,
+                md: 4
+              }}>
               <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, color: '#fff' }}>
                 ABOUT HOTEL
               </Typography>
@@ -580,7 +658,11 @@ const WebsiteHome = () => {
                 </IconButton>
               </Box>
             </Grid>
-            <Grid item xs={12} md={4}>
+            <Grid
+              size={{
+                xs: 12,
+                md: 4
+              }}>
               <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, color: '#fff' }}>
                 USEFUL LINKS
               </Typography>
@@ -657,7 +739,11 @@ const WebsiteHome = () => {
                 </Box>
               </Box>
             </Grid>
-            <Grid item xs={12} md={4}>
+            <Grid
+              size={{
+                xs: 12,
+                md: 4
+              }}>
               <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, color: '#fff' }}>
                 CONTACT INFO
               </Typography>

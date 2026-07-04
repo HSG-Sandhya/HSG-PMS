@@ -5,9 +5,19 @@ import { fmt, cardSx, INCOME_COLOR, EXPENSE_COLOR } from './accountingShared';
 
 const LedgerTable = ({ title, subtitle, rows, showType }) => (
   <Box sx={cardSx}>
-    <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.5 }}>
-      <Typography variant="h6" fontWeight={800}>{title}</Typography>
-      {subtitle ? <Typography variant="caption" color="text.secondary">{subtitle}</Typography> : null}
+    <Stack
+      direction="row"
+      sx={{
+        justifyContent: "space-between",
+        alignItems: "center",
+        mb: 1.5
+      }}>
+      <Typography variant="h6" sx={{
+        fontWeight: 800
+      }}>{title}</Typography>
+      {subtitle ? <Typography variant="caption" sx={{
+        color: "text.secondary"
+      }}>{subtitle}</Typography> : null}
     </Stack>
     {(!rows || rows.length === 0) ? (
       <Box sx={{ textAlign: 'center', py: 4, color: 'text.secondary' }}>No data in this period.</Box>

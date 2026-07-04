@@ -86,7 +86,12 @@ const AdvancePaymentsDialog = ({ open, onClose, booking, onUpdated }) => {
       submitLabel="Close"
     >
       <FormSection>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+        <Typography
+          variant="body2"
+          sx={{
+            color: "text.secondary",
+            mb: 1.5
+          }}>
           {local.customerName} · {local.eventType} · {fmtDate(local.eventDate)}
         </Typography>
 
@@ -97,18 +102,17 @@ const AdvancePaymentsDialog = ({ open, onClose, booking, onUpdated }) => {
           <Summary label="Balance" value={fmt(balance)} color={balance > 0 ? '#dc2626' : '#059669'} />
         </Grid>
       </FormSection>
-
       {/* Add payment */}
       <FormSection title="Record a Payment" icon={<AddIcon fontSize="small" />} iconColor="#10b981">
           <Grid container spacing={1.5}>
-            <Grid item xs={6}><TextField fullWidth size="small" type="number" label={`Amount ${currencySym()}`} value={amount} onChange={(e) => setAmount(e.target.value)} /></Grid>
-            <Grid item xs={6}>
+            <Grid size={6}><TextField fullWidth size="small" type="number" label={`Amount ${currencySym()}`} value={amount} onChange={(e) => setAmount(e.target.value)} /></Grid>
+            <Grid size={6}>
               <TextField select fullWidth size="small" label="Method" value={method} onChange={(e) => setMethod(e.target.value)}>
                 {METHODS.map((m) => <MenuItem key={m} value={m}>{m}</MenuItem>)}
               </TextField>
             </Grid>
-            <Grid item xs={6}><TextField fullWidth size="small" label="Reference / receipt no." value={reference} onChange={(e) => setReference(e.target.value)} /></Grid>
-            <Grid item xs={6}><TextField fullWidth size="small" label="Note" value={note} onChange={(e) => setNote(e.target.value)} /></Grid>
+            <Grid size={6}><TextField fullWidth size="small" label="Reference / receipt no." value={reference} onChange={(e) => setReference(e.target.value)} /></Grid>
+            <Grid size={6}><TextField fullWidth size="small" label="Note" value={note} onChange={(e) => setNote(e.target.value)} /></Grid>
           </Grid>
           {error && <Typography variant="caption" color="error" sx={{ mt: 1, display: 'block' }}>{error}</Typography>}
           <Button onClick={addPayment} disabled={saving} startIcon={saving ? <CircularProgress size={14} /> : <AddIcon />}
@@ -117,18 +121,30 @@ const AdvancePaymentsDialog = ({ open, onClose, booking, onUpdated }) => {
             Add payment
           </Button>
       </FormSection>
-
       {/* Ledger */}
       <FormSection title={`Ledger${payments.length > 0 ? ` · ${payments.length}` : ''}`} icon={<PaymentsIcon fontSize="small" />} iconColor="#6366f1">
         {payments.length === 0 ? (
-          <Typography variant="body2" color="text.secondary">No payments recorded yet.</Typography>
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>No payments recorded yet.</Typography>
         ) : (
           <Stack divider={<Divider />} spacing={0}>
             {payments.map((p, i) => (
-              <Stack key={p._id || i} direction="row" alignItems="center" justifyContent="space-between" sx={{ py: 1 }}>
+              <Stack
+                key={p._id || i}
+                direction="row"
+                sx={{
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  py: 1
+                }}>
                 <Box>
-                  <Typography variant="body2" fontWeight={700}>{fmt(p.amount)} · {p.method}</Typography>
-                  <Typography variant="caption" color="text.secondary">
+                  <Typography variant="body2" sx={{
+                    fontWeight: 700
+                  }}>{fmt(p.amount)} · {p.method}</Typography>
+                  <Typography variant="caption" sx={{
+                    color: "text.secondary"
+                  }}>
                     {fmtDate(p.date)}{p.reference ? ` · ${p.reference}` : ''}{p.note ? ` · ${p.note}` : ''}
                   </Typography>
                 </Box>
@@ -147,10 +163,15 @@ const AdvancePaymentsDialog = ({ open, onClose, booking, onUpdated }) => {
 };
 
 const Summary = ({ label, value, color }) => (
-  <Grid item xs={4}>
+  <Grid size={4}>
     <Box sx={{ p: 1.25, borderRadius: 2, border: '1px solid', borderColor: 'divider', textAlign: 'center' }}>
       <Typography variant="caption" sx={{ textTransform: 'uppercase', letterSpacing: '0.08em', color: 'text.secondary' }}>{label}</Typography>
-      <Typography variant="subtitle2" fontWeight={800} sx={{ color: color || 'text.primary' }}>{value}</Typography>
+      <Typography
+        variant="subtitle2"
+        sx={{
+          fontWeight: 800,
+          color: color || 'text.primary'
+        }}>{value}</Typography>
     </Box>
   </Grid>
 );

@@ -37,10 +37,19 @@ const WorkforceManagement = ({ defaultTab = 'attendance' }) => {
           border: '1px solid rgba(255, 255, 255, var(--app-surface-border-alpha, 0.08))',
           boxShadow: '0 4px 24px rgba(0, 0, 0, 0.05), 0 0 24px rgba(var(--app-primary-rgb), 0.08), inset 0 1px 0 rgba(255, 255, 255, var(--app-surface-border-alpha, 0.08))',
         }}>
-          <Typography variant="h4" fontWeight={800} sx={{ letterSpacing: '-0.02em', color: 'var(--app-primary)' }} gutterBottom>
+          <Typography
+            variant="h4"
+            gutterBottom
+            sx={{
+              fontWeight: 800,
+              letterSpacing: '-0.02em',
+              color: 'var(--app-primary)'
+            }}>
             Staff &amp; Payroll
           </Typography>
-          <Typography variant="body1" color="text.secondary">
+          <Typography variant="body1" sx={{
+            color: "text.secondary"
+          }}>
             Track attendance and run payroll from one place.
           </Typography>
         </Box>

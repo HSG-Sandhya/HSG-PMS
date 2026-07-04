@@ -117,7 +117,7 @@ orderSchema.index({ status: 1 });
 orderSchema.index({ createdAt: -1 });
 
 // Pre-save middleware
-orderSchema.pre('save', async function(next) {
+orderSchema.pre('save', async function() {
   if (!this.orderNumber) {
     const date = new Date();
     const year = date.getFullYear().toString().substr(-2);
@@ -153,8 +153,6 @@ orderSchema.pre('save', async function(next) {
   if (this.cashReceived > 0) {
     this.changeAmount = this.cashReceived - this.totalAmount;
   }
-  
-  next();
 });
 
 // Static method to get orders by status

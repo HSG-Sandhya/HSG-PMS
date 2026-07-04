@@ -445,11 +445,18 @@ const GuestPrintForm = ({ open, onClose, booking, room, restaurantOrders = [] })
       onClose={onClose}
       maxWidth="lg"
       fullWidth
-      PaperProps={{ sx: dialogPaperSx(isDarkMode) }}
-      BackdropProps={{ sx: dialogBackdropSx }}
-    >
+      slotProps={{
+        backdrop: { sx: dialogBackdropSx },
+        paper: { sx: dialogPaperSx(isDarkMode) }
+      }}>
       <Box sx={headerWrapSx(isDarkMode)}>
-        <Stack direction="row" alignItems="flex-end" justifyContent="space-between" spacing={2}>
+        <Stack
+          direction="row"
+          spacing={2}
+          sx={{
+            alignItems: "flex-end",
+            justifyContent: "space-between"
+          }}>
           <Box>
             <Typography sx={{ fontSize: 11, letterSpacing: '0.28em', textTransform: 'uppercase', color: 'text.secondary', fontWeight: 700 }}>
               Guest Registration
@@ -457,7 +464,14 @@ const GuestPrintForm = ({ open, onClose, booking, room, restaurantOrders = [] })
             <Typography sx={{ fontSize: 24, fontWeight: 700, letterSpacing: '-0.01em', mt: 0.5 }}>
               {booking.guestName || 'Guest'}
             </Typography>
-            <Stack direction="row" spacing={1} sx={{ mt: 1 }} flexWrap="wrap" useFlexGap>
+            <Stack
+              direction="row"
+              spacing={1}
+              useFlexGap
+              sx={{
+                flexWrap: "wrap",
+                mt: 1
+              }}>
               <Chip
                 icon={<HotelIcon sx={{ fontSize: 16 }} />}
                 label={`${room?.roomNumber || '—'}${room?.type ? ` · ${room.type}` : ''}`}
@@ -477,17 +491,22 @@ const GuestPrintForm = ({ open, onClose, booking, room, restaurantOrders = [] })
             <Typography sx={{ fontSize: 26, fontWeight: 800, letterSpacing: '-0.02em' }}>
               {currencySym()}{booking.totalAmount?.toLocaleString('en-IN') || '0'}
             </Typography>
-            <Typography variant="caption" color="text.secondary">
+            <Typography variant="caption" sx={{
+              color: "text.secondary"
+            }}>
               {nights === 1 ? '1 night stay' : `${nights} nights stay`}
             </Typography>
           </Box>
         </Stack>
       </Box>
-
       <DialogContent sx={{ px: { xs: 3, sm: 4 }, py: 3 }}>
         <Grid container spacing={2.5}>
           {/* Guest Info */}
-          <Grid item xs={12} md={6}>
+          <Grid
+            size={{
+              xs: 12,
+              md: 6
+            }}>
             <Box sx={sectionCardSx(isDarkMode)}>
               <Typography sx={sectionTitleSx(isDarkMode)}>
                 <PersonIcon fontSize="inherit" />
@@ -510,7 +529,11 @@ const GuestPrintForm = ({ open, onClose, booking, room, restaurantOrders = [] })
           </Grid>
 
           {/* Booking Info */}
-          <Grid item xs={12} md={6}>
+          <Grid
+            size={{
+              xs: 12,
+              md: 6
+            }}>
             <Box sx={sectionCardSx(isDarkMode)}>
               <Typography sx={sectionTitleSx(isDarkMode)}>
                 <HotelIcon fontSize="inherit" />
@@ -534,7 +557,7 @@ const GuestPrintForm = ({ open, onClose, booking, room, restaurantOrders = [] })
           </Grid>
 
           {/* Additional Notes */}
-          <Grid item xs={12}>
+          <Grid size={12}>
             <Box sx={sectionCardSx(isDarkMode)}>
               <Typography sx={sectionTitleSx(isDarkMode)}>
                 <EditNoteIcon fontSize="inherit" />
@@ -554,7 +577,6 @@ const GuestPrintForm = ({ open, onClose, booking, room, restaurantOrders = [] })
 
         </Grid>
       </DialogContent>
-
       <DialogActions sx={actionsBarSx(isDarkMode)}>
         <Button onClick={onClose} variant="outlined" sx={secondaryButtonSx(isDarkMode)}>
           Close

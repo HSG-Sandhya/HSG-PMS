@@ -122,7 +122,6 @@ const ChangePasswordButton = ({ variant = 'icon', isDarkMode = false }) => {
           </IconButton>
         </Tooltip>
       )}
-
       <FormDialog
         open={open}
         onClose={close}
@@ -146,7 +145,9 @@ const ChangePasswordButton = ({ variant = 'icon', isDarkMode = false }) => {
               value={form.currentPassword}
               onChange={setField('currentPassword')}
               autoComplete="current-password"
-              InputProps={{ endAdornment: adornment('current') }}
+              slotProps={{
+                input: { endAdornment: adornment('current') }
+              }}
             />
             <TextField
               fullWidth
@@ -156,7 +157,9 @@ const ChangePasswordButton = ({ variant = 'icon', isDarkMode = false }) => {
               onChange={setField('newPassword')}
               autoComplete="new-password"
               helperText="At least 6 characters."
-              InputProps={{ endAdornment: adornment('next') }}
+              slotProps={{
+                input: { endAdornment: adornment('next') }
+              }}
             />
             <TextField
               fullWidth
@@ -165,7 +168,9 @@ const ChangePasswordButton = ({ variant = 'icon', isDarkMode = false }) => {
               value={form.confirmPassword}
               onChange={setField('confirmPassword')}
               autoComplete="new-password"
-              InputProps={{ endAdornment: adornment('confirm') }}
+              slotProps={{
+                input: { endAdornment: adornment('confirm') }
+              }}
             />
           </Stack>
         </FormSection>

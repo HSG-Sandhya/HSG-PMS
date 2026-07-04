@@ -81,12 +81,24 @@ const StatCard = ({ icon: Icon, label, value, color, isDarkMode }) => (
       },
     }}
   >
-    <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
+    <Stack
+      direction="row"
+      sx={{
+        justifyContent: "space-between",
+        alignItems: "flex-start"
+      }}>
       <Box>
         <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
           {label}
         </Typography>
-        <Typography variant="h4" fontWeight={800} sx={{ mt: 0.5, letterSpacing: '-0.02em', lineHeight: 1.1 }}>
+        <Typography
+          variant="h4"
+          sx={{
+            fontWeight: 800,
+            mt: 0.5,
+            letterSpacing: '-0.02em',
+            lineHeight: 1.1
+          }}>
           {value}
         </Typography>
       </Box>
@@ -300,7 +312,13 @@ const PayrollManagement = () => {
   return (
     <Box>
       {/* Section heading */}
-      <Stack direction="row" alignItems="center" spacing={1.25} sx={{ mb: 2.5 }}>
+      <Stack
+        direction="row"
+        spacing={1.25}
+        sx={{
+          alignItems: "center",
+          mb: 2.5
+        }}>
         <Box
           sx={{
             width: 38,
@@ -316,31 +334,56 @@ const PayrollManagement = () => {
           <AmountIcon />
         </Box>
         <Box>
-          <Typography variant="h6" fontWeight={700} lineHeight={1.15}>
+          <Typography
+            variant="h6"
+            sx={{
+              fontWeight: 700,
+              lineHeight: 1.15
+            }}>
             Payroll Management
           </Typography>
-          <Typography variant="caption" color="text.secondary">
+          <Typography variant="caption" sx={{
+            color: "text.secondary"
+          }}>
             Generate, approve and disburse salaries
           </Typography>
         </Box>
       </Stack>
-
       {/* Summary Cards */}
       <Grid container spacing={2} sx={{ mb: 3 }}>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid
+          size={{
+            xs: 12,
+            sm: 6,
+            md: 3
+          }}>
           <StatCard icon={ReceiptIcon} label="Total Payrolls" value={stats.total} color="var(--app-primary)" isDarkMode={isDarkMode} />
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid
+          size={{
+            xs: 12,
+            sm: 6,
+            md: 3
+          }}>
           <StatCard icon={AmountIcon} label="Total Amount" value={`${currencySym()}${stats.totalAmount.toLocaleString()}`} color="#10B981" isDarkMode={isDarkMode} />
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid
+          size={{
+            xs: 12,
+            sm: 6,
+            md: 3
+          }}>
           <StatCard icon={VerifiedIcon} label="Approved" value={stats.approved || 0} color="#0EA5E9" isDarkMode={isDarkMode} />
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid
+          size={{
+            xs: 12,
+            sm: 6,
+            md: 3
+          }}>
           <StatCard icon={WalletIcon} label="Paid" value={stats.paid || 0} color="#8B5CF6" isDarkMode={isDarkMode} />
         </Grid>
       </Grid>
-
       {/* Filters and Controls */}
       <Box
         sx={{
@@ -354,8 +397,15 @@ const PayrollManagement = () => {
           WebkitBackdropFilter: 'var(--app-blur)',
         }}
       >
-        <Grid container spacing={2} alignItems="center">
-          <Grid item xs={12} sm={6} md={2}>
+        <Grid container spacing={2} sx={{
+          alignItems: "center"
+        }}>
+          <Grid
+            size={{
+              xs: 12,
+              sm: 6,
+              md: 2
+            }}>
             <FormControl fullWidth size="small" sx={fieldSx}>
               <InputLabel>Month</InputLabel>
               <Select
@@ -371,7 +421,12 @@ const PayrollManagement = () => {
               </Select>
             </FormControl>
           </Grid>
-          <Grid item xs={12} sm={6} md={2}>
+          <Grid
+            size={{
+              xs: 12,
+              sm: 6,
+              md: 2
+            }}>
             <FormControl fullWidth size="small" sx={fieldSx}>
               <InputLabel>Year</InputLabel>
               <Select
@@ -390,7 +445,12 @@ const PayrollManagement = () => {
               </Select>
             </FormControl>
           </Grid>
-          <Grid item xs={12} sm={6} md={2}>
+          <Grid
+            size={{
+              xs: 12,
+              sm: 6,
+              md: 2
+            }}>
             <FormControl fullWidth size="small" sx={fieldSx}>
               <InputLabel>Status</InputLabel>
               <Select
@@ -406,7 +466,12 @@ const PayrollManagement = () => {
               </Select>
             </FormControl>
           </Grid>
-          <Grid item xs={12} sm={6} md={2}>
+          <Grid
+            size={{
+              xs: 12,
+              sm: 6,
+              md: 2
+            }}>
             <FormControl fullWidth size="small" sx={fieldSx}>
               <InputLabel>Staff</InputLabel>
               <Select
@@ -423,7 +488,12 @@ const PayrollManagement = () => {
               </Select>
             </FormControl>
           </Grid>
-          <Grid item xs={12} sm={6} md={2}>
+          <Grid
+            size={{
+              xs: 12,
+              sm: 6,
+              md: 2
+            }}>
             <Button
               variant="contained"
               startIcon={<AddIcon />}
@@ -434,7 +504,12 @@ const PayrollManagement = () => {
               Generate
             </Button>
           </Grid>
-          <Grid item xs={12} sm={6} md={2}>
+          <Grid
+            size={{
+              xs: 12,
+              sm: 6,
+              md: 2
+            }}>
             <Button
               variant="outlined"
               startIcon={<RefreshIcon />}
@@ -448,7 +523,6 @@ const PayrollManagement = () => {
           </Grid>
         </Grid>
       </Box>
-
       {/* Payroll Table */}
       <Box
         sx={{
@@ -462,13 +536,20 @@ const PayrollManagement = () => {
         }}
       >
         <Box sx={{ px: 3, py: 2.25, borderBottom: '1px solid', borderColor: 'divider' }}>
-          <Typography variant="subtitle1" fontWeight={700}>
+          <Typography variant="subtitle1" sx={{
+            fontWeight: 700
+          }}>
             Payroll Records · {periodLabel}
           </Typography>
         </Box>
 
         {loading ? (
-          <Box display="flex" justifyContent="center" p={6}>
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "center",
+              p: 6
+            }}>
             <CircularProgress />
           </Box>
         ) : (
@@ -532,7 +613,9 @@ const PayrollManagement = () => {
                         −{currencySym()}{payroll.deductions.totalDeductions.toLocaleString()}
                       </TableCell>
                       <TableCell align="right">
-                        <Typography variant="body2" fontWeight={800}>
+                        <Typography variant="body2" sx={{
+                          fontWeight: 800
+                        }}>
                           {currencySym()}{payroll.netSalary.toLocaleString()}
                         </Typography>
                       </TableCell>
@@ -551,7 +634,9 @@ const PayrollManagement = () => {
                         />
                       </TableCell>
                       <TableCell align="center">
-                        <Stack direction="row" spacing={0.5} justifyContent="center">
+                        <Stack direction="row" spacing={0.5} sx={{
+                          justifyContent: "center"
+                        }}>
                           <Tooltip title="Download PDF">
                             <IconButton
                               size="small"
@@ -598,7 +683,9 @@ const PayrollManagement = () => {
                     <TableCell colSpan={9} sx={{ borderBottom: 'none' }}>
                       <Box sx={{ textAlign: 'center', py: 6 }}>
                         <ReceiptIcon sx={{ fontSize: 44, color: 'text.disabled', mb: 1 }} />
-                        <Typography color="text.secondary">No payroll records for {periodLabel}.</Typography>
+                        <Typography sx={{
+                          color: "text.secondary"
+                        }}>No payroll records for {periodLabel}.</Typography>
                       </Box>
                     </TableCell>
                   </TableRow>
@@ -608,22 +695,22 @@ const PayrollManagement = () => {
           </Box>
         )}
       </Box>
-
       {/* Generate Payroll Dialog */}
       <Dialog
         open={generateDialog}
         onClose={() => setGenerateDialog(false)}
         maxWidth="sm"
         fullWidth
-        PaperProps={{ sx: dialogPaperSx(isDarkMode) }}
-        BackdropProps={{ sx: dialogBackdropSx }}
-      >
+        slotProps={{
+          backdrop: { sx: dialogBackdropSx },
+          paper: { sx: dialogPaperSx(isDarkMode) }
+        }}>
         <DialogTitle sx={{ fontWeight: 700, pb: 1 }}>
           Generate Payroll
         </DialogTitle>
         <DialogContent sx={{ pt: 1 }}>
           <Grid container spacing={2} sx={{ mt: 0.5 }}>
-            <Grid item xs={12}>
+            <Grid size={12}>
               <FormControl fullWidth>
                 <InputLabel>Staff Member</InputLabel>
                 <Select
@@ -639,7 +726,7 @@ const PayrollManagement = () => {
                 </Select>
               </FormControl>
             </Grid>
-            <Grid item xs={6}>
+            <Grid size={6}>
               <FormControl fullWidth>
                 <InputLabel>Month</InputLabel>
                 <Select
@@ -655,7 +742,7 @@ const PayrollManagement = () => {
                 </Select>
               </FormControl>
             </Grid>
-            <Grid item xs={6}>
+            <Grid size={6}>
               <FormControl fullWidth>
                 <InputLabel>Year</InputLabel>
                 <Select
@@ -685,16 +772,16 @@ const PayrollManagement = () => {
           </Button>
         </DialogActions>
       </Dialog>
-
       {/* Payment Dialog */}
       <Dialog
         open={paymentDialog}
         onClose={() => setPaymentDialog(false)}
         maxWidth="sm"
         fullWidth
-        PaperProps={{ sx: dialogPaperSx(isDarkMode) }}
-        BackdropProps={{ sx: dialogBackdropSx }}
-      >
+        slotProps={{
+          backdrop: { sx: dialogBackdropSx },
+          paper: { sx: dialogPaperSx(isDarkMode) }
+        }}>
         <DialogTitle sx={{ fontWeight: 700, pb: 1 }}>
           Mark Payroll as Paid
         </DialogTitle>
@@ -711,17 +798,21 @@ const PayrollManagement = () => {
                 borderColor: isDarkMode ? 'rgba(148,163,184,0.18)' : 'rgba(226,232,240,0.9)',
               }}
             >
-              <Typography variant="subtitle1" fontWeight={700}>
+              <Typography variant="subtitle1" sx={{
+                fontWeight: 700
+              }}>
                 {selectedPayroll.staff?.firstName} {selectedPayroll.staff?.lastName}
               </Typography>
-              <Typography color="text.secondary">
+              <Typography sx={{
+                color: "text.secondary"
+              }}>
                 Net Salary: <strong>{currencySym()}{selectedPayroll.netSalary.toLocaleString()}</strong>
               </Typography>
             </Box>
           )}
 
           <Grid container spacing={2}>
-            <Grid item xs={12}>
+            <Grid size={12}>
               <FormControl fullWidth>
                 <InputLabel>Payment Method</InputLabel>
                 <Select
@@ -737,7 +828,7 @@ const PayrollManagement = () => {
               </FormControl>
             </Grid>
 
-            <Grid item xs={12}>
+            <Grid size={12}>
               <TextField
                 fullWidth
                 label="Transaction ID"
@@ -748,7 +839,7 @@ const PayrollManagement = () => {
 
             {paymentForm.paymentMethod === 'bank_transfer' && (
               <>
-                <Grid item xs={12}>
+                <Grid size={12}>
                   <TextField
                     fullWidth
                     label="Account Number"
@@ -759,7 +850,7 @@ const PayrollManagement = () => {
                     })}
                   />
                 </Grid>
-                <Grid item xs={12}>
+                <Grid size={12}>
                   <TextField
                     fullWidth
                     label="IFSC Code"
@@ -770,7 +861,7 @@ const PayrollManagement = () => {
                     })}
                   />
                 </Grid>
-                <Grid item xs={12}>
+                <Grid size={12}>
                   <TextField
                     fullWidth
                     label="Bank Name"
@@ -781,7 +872,7 @@ const PayrollManagement = () => {
                     })}
                   />
                 </Grid>
-                <Grid item xs={12}>
+                <Grid size={12}>
                   <TextField
                     fullWidth
                     label="Account Holder Name"
@@ -805,7 +896,6 @@ const PayrollManagement = () => {
           </Button>
         </DialogActions>
       </Dialog>
-
       {/* Snackbar */}
       <Snackbar
         open={snackbar.open}

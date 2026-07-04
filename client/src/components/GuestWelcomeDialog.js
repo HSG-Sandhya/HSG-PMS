@@ -64,14 +64,24 @@ const GuestWelcomeDialog = ({ open, onClose, booking, room, settings, onNotify }
       hideCancel
     >
       <FormSection title="Guest" icon={<PersonIcon fontSize="small" />} iconColor="#6366f1">
-        <Stack direction="row" justifyContent="space-between" alignItems="center" flexWrap="wrap" useFlexGap>
-          <Typography variant="body1" fontWeight={700}>{booking.guestName}</Typography>
-          <Typography variant="body2" color="text.secondary">
+        <Stack
+          direction="row"
+          useFlexGap
+          sx={{
+            justifyContent: "space-between",
+            alignItems: "center",
+            flexWrap: "wrap"
+          }}>
+          <Typography variant="body1" sx={{
+            fontWeight: 700
+          }}>{booking.guestName}</Typography>
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>
             Room {welcome.roomNumber || '—'}
           </Typography>
         </Stack>
       </FormSection>
-
       {welcome.wifiConfigured ? (
         <FormSection title="WiFi" icon={<WifiIcon fontSize="small" />} iconColor="#0ea5e9">
           <Stack spacing={1}>
@@ -81,16 +91,38 @@ const GuestWelcomeDialog = ({ open, onClose, booking, room, settings, onNotify }
               </Typography>
             )}
             {welcome.wifiSsid && (
-              <Stack direction="row" alignItems="center" justifyContent="space-between">
-                <Box><Typography variant="caption" color="text.secondary">Network</Typography>
-                  <Typography fontWeight={700} sx={{ fontFamily: 'monospace' }}>{welcome.wifiSsid}</Typography></Box>
+              <Stack
+                direction="row"
+                sx={{
+                  alignItems: "center",
+                  justifyContent: "space-between"
+                }}>
+                <Box><Typography variant="caption" sx={{
+                  color: "text.secondary"
+                }}>Network</Typography>
+                  <Typography
+                    sx={{
+                      fontWeight: 700,
+                      fontFamily: 'monospace'
+                    }}>{welcome.wifiSsid}</Typography></Box>
                 <CopyBtn value={welcome.wifiSsid} label="Network" />
               </Stack>
             )}
             {welcome.wifiPassword && (
-              <Stack direction="row" alignItems="center" justifyContent="space-between">
-                <Box><Typography variant="caption" color="text.secondary">Password</Typography>
-                  <Typography fontWeight={700} sx={{ fontFamily: 'monospace' }}>{welcome.wifiPassword}</Typography></Box>
+              <Stack
+                direction="row"
+                sx={{
+                  alignItems: "center",
+                  justifyContent: "space-between"
+                }}>
+                <Box><Typography variant="caption" sx={{
+                  color: "text.secondary"
+                }}>Password</Typography>
+                  <Typography
+                    sx={{
+                      fontWeight: 700,
+                      fontFamily: 'monospace'
+                    }}>{welcome.wifiPassword}</Typography></Box>
                 <CopyBtn value={welcome.wifiPassword} label="Password" />
               </Stack>
             )}
@@ -101,9 +133,10 @@ const GuestWelcomeDialog = ({ open, onClose, booking, room, settings, onNotify }
           No WiFi set yet — add it in <strong>Settings → Guest Welcome</strong> and it'll be included automatically.
         </Alert>
       )}
-
       <FormSection title="Food menu / room service" icon={<RestaurantMenuIcon fontSize="small" />} iconColor="#10b981">
-        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems="center">
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{
+          alignItems: "center"
+        }}>
           {qr ? (
             <Box component="img" src={qr} alt="Menu QR code"
               sx={{ width: 132, height: 132, borderRadius: 2, border: '1px solid', borderColor: 'divider', flexShrink: 0 }} />
@@ -111,29 +144,35 @@ const GuestWelcomeDialog = ({ open, onClose, booking, room, settings, onNotify }
             <Box sx={{ width: 132, height: 132, borderRadius: 2, border: '1px dashed', borderColor: 'divider', flexShrink: 0 }} />
           )}
           <Stack spacing={1} sx={{ minWidth: 0, flex: 1 }}>
-            <Typography variant="caption" color="text.secondary">Scan to open, or send the link below.</Typography>
-            <Stack direction="row" alignItems="center" spacing={0.5}>
+            <Typography variant="caption" sx={{
+              color: "text.secondary"
+            }}>Scan to open, or send the link below.</Typography>
+            <Stack direction="row" spacing={0.5} sx={{
+              alignItems: "center"
+            }}>
               <Typography variant="body2" sx={{ wordBreak: 'break-all', fontFamily: 'monospace' }}>{welcome.menuUrl}</Typography>
               <CopyBtn value={welcome.menuUrl} label="Menu link" />
             </Stack>
             {!welcome.websiteConfigured && (
-              <Typography variant="caption" color="warning.main">
+              <Typography variant="caption" sx={{
+                color: "warning.main"
+              }}>
                 Set your website address in Settings → Guest Welcome so this link works for guests.
               </Typography>
             )}
           </Stack>
         </Stack>
       </FormSection>
-
       <Divider />
-
       <Stack spacing={1.5}>
         <TextField
           label="Guest WhatsApp number" value={phone}
           onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
           helperText="Include country code (e.g. 91 for India). Pulled from the booking."
-          InputProps={{ startAdornment: <InputAdornment position="start">+</InputAdornment> }}
           fullWidth
+          slotProps={{
+            input: { startAdornment: <InputAdornment position="start">+</InputAdornment> }
+          }}
         />
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
           <Button
@@ -155,7 +194,9 @@ const GuestWelcomeDialog = ({ open, onClose, booking, room, settings, onNotify }
           </Button>
         </Stack>
         {!phone && (
-          <Typography variant="caption" color="warning.main">
+          <Typography variant="caption" sx={{
+            color: "warning.main"
+          }}>
             No phone number on this booking — enter one above to send.
           </Typography>
         )}
