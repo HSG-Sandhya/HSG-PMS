@@ -69,6 +69,12 @@ export const getImage = async (req, res) => {
     // which makes Node reject the header. Mongoose conversion gives a real
     // Node Buffer.
     const image = await Image.findById(req.params.id).select('data contentType');
+
+    // The global request-timeout middleware may have already answered with 503
+    // while this query was queued/running. Writing now throws ERR_HTTP_HEADERS_SENT
+    // ("Cannot set headers after they are sent"), so bail out quietly.
+    if (res.headersSent || req.timedout) return;
+
     if (!image || !image.data) {
       return res.status(404).end();
     }
@@ -83,6 +89,7 @@ export const getImage = async (req, res) => {
     res.send(buffer);
   } catch (error) {
     console.error('Image fetch error:', error.message);
+    if (res.headersSent || req.timedout) return;
     res.status(404).end();
   }
 };

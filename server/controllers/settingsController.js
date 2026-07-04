@@ -4,6 +4,7 @@ import Department from '../models/Department.js';
 import Role from '../models/Role.js';
 import User from '../models/User.js';
 import Image from '../models/Image.js';
+import { optimizeImage } from '../utils/imageOptimizer.js';
 import { PERMISSION_CATALOG } from '../config/permissions.js';
 import mongoose from 'mongoose';
 import fs from 'fs';
@@ -270,13 +271,25 @@ const uploadLogo = async (req, res) => {
       return res.status(400).json({ success: false, message: 'No file uploaded' });
     }
 
+    // Compress before storing — logos are shown small, so cap at 800px and use a
+    // high-quality WebP (near-lossless for graphics/text) to keep the served
+    // /api/images payload tiny. Falls back to the raw bytes on any sharp failure.
+    const isImage = req.file.mimetype?.startsWith('image/');
+    const optimized = isImage
+      ? await optimizeImage(req.file.buffer, {
+          maxWidth: 800,
+          quality: 90,
+          contentType: req.file.mimetype,
+        })
+      : { buffer: req.file.buffer, contentType: req.file.mimetype, size: req.file.size };
+
     // Store the binary in the Image collection (NOT inline as base64) and
     // persist a small URL reference on the Settings document.
     const image = await Image.create({
-      data: req.file.buffer,
-      contentType: req.file.mimetype,
+      data: optimized.buffer,
+      contentType: optimized.contentType,
       filename: req.file.originalname,
-      size: req.file.size,
+      size: optimized.size,
       category: 'logo',
       uploadedBy: req.user?.id || null,
     });

@@ -137,15 +137,17 @@ const CheckoutDialog = ({ open, onClose, booking, room, onPaymentComplete }) => 
     }
   }, [actualNights, booking, room, roomGstFrac]);
 
-  // Food bill — order.totalAmount is the GST-exclusive base. We add the
-  // configured POS GST on top so the checkout total matches the printed invoice
-  // (which also applies GST via RestaurantCalculationUtils).
-  const restaurantSubtotal = restaurantOrders.reduce(
+  // Food bill — order.totalAmount is already GST-INCLUSIVE (base + POS GST) and
+  // equals the printed invoice's F&B total, so the charge is the sum as-is. We do
+  // NOT re-add GST; we only split the base/GST back out for the on-screen breakdown.
+  const restaurantCharges = restaurantOrders.reduce(
     (total, order) => total + (order.totalAmount || 0),
     0,
   );
-  const restaurantGst = Math.round(restaurantSubtotal * (billing.posGstRate / 100) * 100) / 100;
-  const restaurantCharges = restaurantSubtotal + restaurantGst;
+  const restaurantSubtotal = billing.posGstRate > 0
+    ? Math.round((restaurantCharges / (1 + billing.posGstRate / 100)) * 100) / 100
+    : restaurantCharges;
+  const restaurantGst = Math.round((restaurantCharges - restaurantSubtotal) * 100) / 100;
   const totalWithRestaurant = (adjustedAmount || booking?.totalAmount || 0) + restaurantCharges;
   const remainingWithRestaurant = totalWithRestaurant - (booking?.paidAmount || 0);
 

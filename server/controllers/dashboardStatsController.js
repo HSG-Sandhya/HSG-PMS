@@ -39,6 +39,17 @@ const sumTotalAmount = async (model, match = {}) => {
   return result?.total || 0;
 };
 
+// Pull a scalar out of a $facet sub-pipeline result. A $count facet yields
+// [{ n }] (or [] when nothing matched); a $group sum/avg facet yields [{ v }].
+const facetNum = (arr, key = 'n') => arr?.[0]?.[key] || 0;
+
+// Build MONTH_NAMES-shaped [{ month, <field> }] from a $group-by-$month result.
+const byMonth = (rows, field, valueKey = 'value') =>
+  MONTH_NAMES.map((month, i) => ({
+    month,
+    [field]: rows.find((d) => d._id === i + 1)?.[valueKey] || 0,
+  }));
+
 const monthlyAggregate = async (model, dateField, valueField, year, op = '$sum') => {
   const data = await model.aggregate([
     { $match: { [dateField]: yearRange(year) } },
@@ -142,8 +153,18 @@ export const getRecentActivities = async (req, res) => {
 // 3. Occupancy rate
 export const getOccupancyRate = async (_req, res) => {
   try {
-    const totalRooms = await Room.countDocuments();
-    const occupiedRooms = await Room.countDocuments({ status: 'occupied' });
+    // One pass over rooms: total + occupied in a single group.
+    const [agg] = await Room.aggregate([
+      {
+        $group: {
+          _id: null,
+          totalRooms: { $sum: 1 },
+          occupiedRooms: { $sum: { $cond: [{ $eq: ['$status', 'occupied'] }, 1, 0] } },
+        },
+      },
+    ]);
+    const totalRooms = agg?.totalRooms || 0;
+    const occupiedRooms = agg?.occupiedRooms || 0;
     const occupancyRate = totalRooms > 0 ? (occupiedRooms / totalRooms) * 100 : 0;
 
     res.json({
@@ -255,18 +276,53 @@ export const getSummary = async (_req, res) => {
     const today = startOfToday();
     const tomorrow = endOfToday(today);
 
-    const rooms = await Room.find();
+    // Everything below is independent — fire it all in one parallel batch so the
+    // request pays a single Atlas round-trip window instead of stacking several
+    // sequential ~150ms hops. Only the light fields we actually use are pulled.
+    const [
+      rooms,
+      bookings,
+      totalGuests,
+      banquetRev,
+      banquetPending,
+      restaurantRev,
+      roomServiceFood,
+      todayCheckIns,
+      todayCheckOuts,
+      todayBookings,
+    ] = await Promise.all([
+      Room.find().select('status').lean(),
+      Booking.find().select('bookingStatus paidAmount totalAmount').lean(),
+      Guest.countDocuments(),
+      sumTotalAmount(BanquetBooking),
+      BanquetBooking.aggregate([
+        { $match: { status: { $in: ['Pending', 'Confirmed'] } } },
+        {
+          $group: {
+            _id: null,
+            total: { $sum: { $subtract: ['$totalAmount', '$advanceAmount'] } },
+          },
+        },
+      ]).then((r) => r[0]?.total || 0),
+      // All completed orders (table + POS + room-service) count as F&B revenue.
+      sumTotalAmount(Order, { status: 'Completed' }),
+      // Room-service food is folded into booking.paidAmount at checkout; subtract
+      // it from room revenue so it is counted once, under Restaurant (F&B).
+      sumTotalAmount(Order, { status: 'Completed', orderType: 'room' }),
+      Booking.countDocuments({ checkIn: { $gte: today, $lt: tomorrow } }),
+      Booking.countDocuments({ checkOut: { $gte: today, $lt: tomorrow } }),
+      Booking.countDocuments({ createdAt: { $gte: today, $lt: tomorrow } }),
+    ]);
+
     const totalRooms = rooms.length;
     const occupiedRooms = rooms.filter((r) => r.status === 'occupied').length;
     const availableRooms = totalRooms - occupiedRooms;
 
-    const bookings = await Booking.find();
     const totalBookings = bookings.length;
     const pendingBookings = bookings.filter((b) => b.bookingStatus === 'Pending').length;
     const confirmedBookings = bookings.filter((b) => b.bookingStatus === 'Confirmed').length;
     const completedBookings = bookings.filter((b) => b.bookingStatus === 'Completed').length;
 
-    const totalGuests = await Guest.countDocuments();
     const totalRoomRevenue = bookings.reduce((sum, b) => sum + (b.paidAmount || 0), 0);
     const pendingPayments = bookings.reduce((sum, b) => {
       if (b.bookingStatus !== 'Cancelled') {
@@ -274,28 +330,6 @@ export const getSummary = async (_req, res) => {
       }
       return sum;
     }, 0);
-
-    const [banquetRev, banquetPending, restaurantRev, roomServiceFood, todayCheckIns, todayCheckOuts, todayBookings] =
-      await Promise.all([
-        sumTotalAmount(BanquetBooking),
-        BanquetBooking.aggregate([
-          { $match: { status: { $in: ['Pending', 'Confirmed'] } } },
-          {
-            $group: {
-              _id: null,
-              total: { $sum: { $subtract: ['$totalAmount', '$advanceAmount'] } },
-            },
-          },
-        ]).then((r) => r[0]?.total || 0),
-        // All completed orders (table + POS + room-service) count as F&B revenue.
-        sumTotalAmount(Order, { status: 'Completed' }),
-        // Room-service food is folded into booking.paidAmount at checkout; subtract
-        // it from room revenue so it is counted once, under Restaurant (F&B).
-        sumTotalAmount(Order, { status: 'Completed', orderType: 'room' }),
-        Booking.countDocuments({ checkIn: { $gte: today, $lt: tomorrow } }),
-        Booking.countDocuments({ checkOut: { $gte: today, $lt: tomorrow } }),
-        Booking.countDocuments({ createdAt: { $gte: today, $lt: tomorrow } }),
-      ]);
 
     const netRoomRevenue = Math.max(0, totalRoomRevenue - roomServiceFood);
 
@@ -338,43 +372,37 @@ export const getBookingStats = async (_req, res) => {
     const monthStart = startOfMonth();
     const yearStart = startOfYear();
 
-    const [
-      totalBookings,
-      todayBookings,
-      monthlyBookings,
-      yearlyBookings,
-      pendingBookings,
-      confirmedBookings,
-      completedBookings,
-      cancelledBookings,
-      todayCheckIns,
-      todayCheckOuts,
-    ] = await Promise.all([
-      Booking.countDocuments(),
-      Booking.countDocuments({ createdAt: { $gte: today, $lt: tomorrow } }),
-      Booking.countDocuments({ createdAt: { $gte: monthStart } }),
-      Booking.countDocuments({ createdAt: { $gte: yearStart } }),
-      Booking.countDocuments({ bookingStatus: 'Pending' }),
-      Booking.countDocuments({ bookingStatus: 'Confirmed' }),
-      Booking.countDocuments({ bookingStatus: 'Completed' }),
-      Booking.countDocuments({ bookingStatus: 'Cancelled' }),
-      Booking.countDocuments({ checkIn: { $gte: today, $lt: tomorrow } }),
-      Booking.countDocuments({ checkOut: { $gte: today, $lt: tomorrow } }),
+    // Ten separate countDocuments collapsed into one $facet aggregation — a
+    // single round-trip instead of ten (see atlas-shared-tier-throttling).
+    const [f] = await Booking.aggregate([
+      {
+        $facet: {
+          total: [{ $count: 'n' }],
+          today: [{ $match: { createdAt: { $gte: today, $lt: tomorrow } } }, { $count: 'n' }],
+          month: [{ $match: { createdAt: { $gte: monthStart } } }, { $count: 'n' }],
+          year: [{ $match: { createdAt: { $gte: yearStart } } }, { $count: 'n' }],
+          byStatus: [{ $group: { _id: '$bookingStatus', n: { $sum: 1 } } }],
+          todayCheckIns: [{ $match: { checkIn: { $gte: today, $lt: tomorrow } } }, { $count: 'n' }],
+          todayCheckOuts: [{ $match: { checkOut: { $gte: today, $lt: tomorrow } } }, { $count: 'n' }],
+        },
+      },
     ]);
 
+    const status = Object.fromEntries((f?.byStatus || []).map((s) => [s._id, s.n]));
+
     res.json({
-      total: totalBookings,
-      today: todayBookings,
-      month: monthlyBookings,
-      year: yearlyBookings,
+      total: facetNum(f?.total),
+      today: facetNum(f?.today),
+      month: facetNum(f?.month),
+      year: facetNum(f?.year),
       byStatus: {
-        pending: pendingBookings,
-        confirmed: confirmedBookings,
-        completed: completedBookings,
-        cancelled: cancelledBookings,
+        pending: status.Pending || 0,
+        confirmed: status.Confirmed || 0,
+        completed: status.Completed || 0,
+        cancelled: status.Cancelled || 0,
       },
-      todayCheckIns,
-      todayCheckOuts,
+      todayCheckIns: facetNum(f?.todayCheckIns),
+      todayCheckOuts: facetNum(f?.todayCheckOuts),
     });
   } catch (error) {
     console.error('Error fetching booking stats:', error);
@@ -390,27 +418,34 @@ export const getRevenueStats = async (_req, res) => {
     const monthStart = startOfMonth();
     const yearStart = startOfYear();
 
-    const [total, todayRev, monthRev, yearRev, pending, avgBooking] = await Promise.all([
-      sumPaidAmount(Booking),
-      sumPaidAmount(Booking, { createdAt: { $gte: today, $lt: tomorrow } }),
-      sumPaidAmount(Booking, { createdAt: { $gte: monthStart } }),
-      sumPaidAmount(Booking, { createdAt: { $gte: yearStart } }),
-      Booking.aggregate([
-        { $match: { paymentStatus: { $in: ['Pending', 'Partial'] } } },
-        { $group: { _id: null, total: { $sum: { $subtract: ['$totalAmount', '$paidAmount'] } } } },
-      ]).then((r) => r[0]?.total || 0),
-      Booking.aggregate([
-        { $group: { _id: null, average: { $avg: '$totalAmount' } } },
-      ]).then((r) => r[0]?.average || 0),
+    // Six aggregations collapsed into one $facet round-trip.
+    const paidSum = (match) => [
+      ...(match ? [{ $match: match }] : []),
+      { $group: { _id: null, v: { $sum: '$paidAmount' } } },
+    ];
+    const [f] = await Booking.aggregate([
+      {
+        $facet: {
+          total: paidSum(),
+          today: paidSum({ createdAt: { $gte: today, $lt: tomorrow } }),
+          month: paidSum({ createdAt: { $gte: monthStart } }),
+          year: paidSum({ createdAt: { $gte: yearStart } }),
+          pending: [
+            { $match: { paymentStatus: { $in: ['Pending', 'Partial'] } } },
+            { $group: { _id: null, v: { $sum: { $subtract: ['$totalAmount', '$paidAmount'] } } } },
+          ],
+          avg: [{ $group: { _id: null, v: { $avg: '$totalAmount' } } }],
+        },
+      },
     ]);
 
     res.json({
-      total,
-      today: todayRev,
-      month: monthRev,
-      year: yearRev,
-      pending,
-      averageBookingValue: avgBooking,
+      total: facetNum(f?.total, 'v'),
+      today: facetNum(f?.today, 'v'),
+      month: facetNum(f?.month, 'v'),
+      year: facetNum(f?.year, 'v'),
+      pending: facetNum(f?.pending, 'v'),
+      averageBookingValue: facetNum(f?.avg, 'v'),
     });
   } catch (error) {
     console.error('Error fetching revenue stats:', error);
@@ -426,44 +461,48 @@ export const getBanquetBookingsStats = async (_req, res) => {
     const monthStart = startOfMonth();
     const yearStart = startOfYear();
 
-    const [
-      total,
-      todayCount,
-      monthlyCount,
-      yearlyCount,
-      pending,
-      confirmed,
-      completed,
-      cancelled,
-      totalRev,
-      todayRev,
-      monthRev,
-      eventTypeStats,
-    ] = await Promise.all([
-      BanquetBooking.countDocuments(),
-      BanquetBooking.countDocuments({ eventDate: { $gte: today, $lt: tomorrow } }),
-      BanquetBooking.countDocuments({ eventDate: { $gte: monthStart } }),
-      BanquetBooking.countDocuments({ eventDate: { $gte: yearStart } }),
-      BanquetBooking.countDocuments({ status: 'Pending' }),
-      BanquetBooking.countDocuments({ status: 'Confirmed' }),
-      BanquetBooking.countDocuments({ status: 'Completed' }),
-      BanquetBooking.countDocuments({ status: 'Cancelled' }),
-      sumTotalAmount(BanquetBooking),
-      sumTotalAmount(BanquetBooking, { eventDate: { $gte: today, $lt: tomorrow } }),
-      sumTotalAmount(BanquetBooking, { eventDate: { $gte: monthStart } }),
-      BanquetBooking.aggregate([
-        { $group: { _id: '$eventType', count: { $sum: 1 }, revenue: { $sum: '$totalAmount' } } },
-      ]),
+    // Twelve queries (8 counts + 3 sums + 1 group) collapsed into one $facet.
+    const totalSum = (match) => [
+      ...(match ? [{ $match: match }] : []),
+      { $group: { _id: null, v: { $sum: '$totalAmount' } } },
+    ];
+    const [f] = await BanquetBooking.aggregate([
+      {
+        $facet: {
+          total: [{ $count: 'n' }],
+          today: [{ $match: { eventDate: { $gte: today, $lt: tomorrow } } }, { $count: 'n' }],
+          month: [{ $match: { eventDate: { $gte: monthStart } } }, { $count: 'n' }],
+          year: [{ $match: { eventDate: { $gte: yearStart } } }, { $count: 'n' }],
+          byStatus: [{ $group: { _id: '$status', n: { $sum: 1 } } }],
+          revTotal: totalSum(),
+          revToday: totalSum({ eventDate: { $gte: today, $lt: tomorrow } }),
+          revMonth: totalSum({ eventDate: { $gte: monthStart } }),
+          eventTypes: [
+            { $group: { _id: '$eventType', count: { $sum: 1 }, revenue: { $sum: '$totalAmount' } } },
+          ],
+        },
+      },
     ]);
 
+    const status = Object.fromEntries((f?.byStatus || []).map((s) => [s._id, s.n]));
+
     res.json({
-      total,
-      today: todayCount,
-      month: monthlyCount,
-      year: yearlyCount,
-      byStatus: { pending, confirmed, completed, cancelled },
-      revenue: { total: totalRev, today: todayRev, month: monthRev },
-      eventTypes: eventTypeStats,
+      total: facetNum(f?.total),
+      today: facetNum(f?.today),
+      month: facetNum(f?.month),
+      year: facetNum(f?.year),
+      byStatus: {
+        pending: status.Pending || 0,
+        confirmed: status.Confirmed || 0,
+        completed: status.Completed || 0,
+        cancelled: status.Cancelled || 0,
+      },
+      revenue: {
+        total: facetNum(f?.revTotal, 'v'),
+        today: facetNum(f?.revToday, 'v'),
+        month: facetNum(f?.revMonth, 'v'),
+      },
+      eventTypes: f?.eventTypes || [],
     });
   } catch (error) {
     console.error('Error fetching banquet bookings data:', error);
@@ -480,35 +519,39 @@ export const getRestaurantSales = async (_req, res) => {
     const yearStart = startOfYear();
     const year = new Date().getFullYear();
 
-    const [total, todaySales, monthlySales, yearlySales, salesByType, monthlyChart] =
-      await Promise.all([
-        sumTotalAmount(Order, { status: 'Completed' }),
-        sumTotalAmount(Order, { status: 'Completed', createdAt: { $gte: today, $lt: tomorrow } }),
-        sumTotalAmount(Order, { status: 'Completed', createdAt: { $gte: monthStart } }),
-        sumTotalAmount(Order, { status: 'Completed', createdAt: { $gte: yearStart } }),
-        Order.aggregate([
-          { $match: { status: 'Completed' } },
-          { $group: { _id: '$orderType', count: { $sum: 1 }, revenue: { $sum: '$totalAmount' } } },
-        ]),
-        Order.aggregate([
-          { $match: { status: 'Completed', createdAt: yearRange(year) } },
-          { $group: { _id: { $month: '$createdAt' }, sales: { $sum: '$totalAmount' } } },
-          { $sort: { _id: 1 } },
-        ]).then((data) =>
-          MONTH_NAMES.map((month, i) => ({
-            month,
-            sales: data.find((d) => d._id === i + 1)?.sales || 0,
-          }))
-        ),
-      ]);
+    // Six aggregations collapsed into one $facet. Every sub-pipeline scopes to
+    // completed orders itself (a $facet fans the same input docs out per branch).
+    const completedSum = (extra = {}) => [
+      { $match: { status: 'Completed', ...extra } },
+      { $group: { _id: null, v: { $sum: '$totalAmount' } } },
+    ];
+    const [f] = await Order.aggregate([
+      {
+        $facet: {
+          total: completedSum(),
+          today: completedSum({ createdAt: { $gte: today, $lt: tomorrow } }),
+          month: completedSum({ createdAt: { $gte: monthStart } }),
+          year: completedSum({ createdAt: { $gte: yearStart } }),
+          byType: [
+            { $match: { status: 'Completed' } },
+            { $group: { _id: '$orderType', count: { $sum: 1 }, revenue: { $sum: '$totalAmount' } } },
+          ],
+          monthly: [
+            { $match: { status: 'Completed', createdAt: yearRange(year) } },
+            { $group: { _id: { $month: '$createdAt' }, sales: { $sum: '$totalAmount' } } },
+            { $sort: { _id: 1 } },
+          ],
+        },
+      },
+    ]);
 
     res.json({
-      total,
-      today: todaySales,
-      month: monthlySales,
-      year: yearlySales,
-      byType: salesByType,
-      monthlyChart,
+      total: facetNum(f?.total, 'v'),
+      today: facetNum(f?.today, 'v'),
+      month: facetNum(f?.month, 'v'),
+      year: facetNum(f?.year, 'v'),
+      byType: f?.byType || [],
+      monthlyChart: byMonth(f?.monthly || [], 'sales', 'sales'),
     });
   } catch (error) {
     console.error('Error fetching restaurant sales data:', error);
@@ -558,28 +601,34 @@ export const getRestaurantStats = async (_req, res) => {
     const tomorrow = endOfToday(today);
     const monthStart = startOfMonth();
 
-    const [total, todayCount, monthlyCount, pending, inProgress, completed, cancelled, avgValue, byType] =
-      await Promise.all([
-        Order.countDocuments(),
-        Order.countDocuments({ createdAt: { $gte: today, $lt: tomorrow } }),
-        Order.countDocuments({ createdAt: { $gte: monthStart } }),
-        Order.countDocuments({ status: 'Pending' }),
-        Order.countDocuments({ status: 'In Progress' }),
-        Order.countDocuments({ status: 'Completed' }),
-        Order.countDocuments({ status: 'Cancelled' }),
-        Order.aggregate([
-          { $group: { _id: null, average: { $avg: '$totalAmount' } } },
-        ]).then((r) => r[0]?.average || 0),
-        Order.aggregate([{ $group: { _id: '$orderType', count: { $sum: 1 } } }]),
-      ]);
+    // Nine queries (7 counts + 2 groups) collapsed into one $facet.
+    const [f] = await Order.aggregate([
+      {
+        $facet: {
+          total: [{ $count: 'n' }],
+          today: [{ $match: { createdAt: { $gte: today, $lt: tomorrow } } }, { $count: 'n' }],
+          month: [{ $match: { createdAt: { $gte: monthStart } } }, { $count: 'n' }],
+          byStatus: [{ $group: { _id: '$status', n: { $sum: 1 } } }],
+          avg: [{ $group: { _id: null, v: { $avg: '$totalAmount' } } }],
+          byType: [{ $group: { _id: '$orderType', count: { $sum: 1 } } }],
+        },
+      },
+    ]);
+
+    const status = Object.fromEntries((f?.byStatus || []).map((s) => [s._id, s.n]));
 
     res.json({
-      totalOrders: total,
-      todayOrders: todayCount,
-      monthlyOrders: monthlyCount,
-      byStatus: { pending, inProgress, completed, cancelled },
-      averageOrderValue: avgValue,
-      byType,
+      totalOrders: facetNum(f?.total),
+      todayOrders: facetNum(f?.today),
+      monthlyOrders: facetNum(f?.month),
+      byStatus: {
+        pending: status.Pending || 0,
+        inProgress: status['In Progress'] || 0,
+        completed: status.Completed || 0,
+        cancelled: status.Cancelled || 0,
+      },
+      averageOrderValue: facetNum(f?.avg, 'v'),
+      byType: f?.byType || [],
     });
   } catch (error) {
     console.error('Error fetching restaurant stats:', error);
@@ -626,27 +675,58 @@ export const getTodayRevenue = async (_req, res) => {
   }
 };
 
-// 16. Occupancy history
+// 16. Occupancy history — real month-by-month occupancy for the last 6 months.
+//
+// Room only stores CURRENT status, so history has to be derived from the stays
+// themselves. Standard hotel metric: monthly occupancy = room-nights sold in the
+// month / available room-nights (rooms × nights in the month). A stay contributes
+// the nights it overlaps each month, so a booking spanning a month boundary is
+// split correctly across both. Rooms count is the current inventory (a small,
+// stable hotel), which is the only room total we have.
+const DAY_MS = 24 * 60 * 60 * 1000;
+// Statuses that actually hold a room. Draft/Tentative aren't committed;
+// Cancelled/Rejected never happened — none count toward occupancy.
+const OCCUPYING_STATUSES = ['Confirmed', 'Checked-In', 'Completed', 'Pending'];
+
 export const getOccupancyHistory = async (_req, res) => {
   try {
-    const currentYear = new Date().getFullYear();
-    const currentMonth = new Date().getMonth();
-    const monthlyData = [];
+    const now = new Date();
 
+    // Build the six month buckets (oldest → current), each with its [start,end).
+    const buckets = [];
     for (let i = 5; i >= 0; i--) {
-      const targetMonth = currentMonth - i;
-      const actualMonth = targetMonth < 0 ? targetMonth + 12 : targetMonth;
-      const totalRooms = await Room.countDocuments();
-      const occupiedRooms = await Room.countDocuments({ status: 'occupied' });
-      const occupancyRate = totalRooms > 0 ? Math.round((occupiedRooms / totalRooms) * 100) : 0;
-
-      monthlyData.push({
-        name: MONTH_NAMES[actualMonth],
-        rate: occupancyRate,
-        totalRooms,
-        occupiedRooms,
-      });
+      const start = new Date(now.getFullYear(), now.getMonth() - i, 1); // JS wraps year
+      const end = new Date(start.getFullYear(), start.getMonth() + 1, 1);
+      buckets.push({ name: MONTH_NAMES[start.getMonth()], start, end, nights: (end - start) / DAY_MS });
     }
+    const windowStart = buckets[0].start;
+    const windowEnd = buckets[5].end;
+
+    // One booking query for the whole window + the current room count.
+    const [totalRooms, stays] = await Promise.all([
+      Room.countDocuments(),
+      Booking.find({
+        bookingStatus: { $in: OCCUPYING_STATUSES },
+        checkIn: { $lt: windowEnd }, // overlaps the window at all
+        checkOut: { $gt: windowStart },
+      })
+        .select('checkIn checkOut')
+        .lean(),
+    ]);
+
+    const monthlyData = buckets.map(({ name, start, end, nights }) => {
+      // Sum the nights every stay spent inside this month.
+      let roomNights = 0;
+      for (const s of stays) {
+        const from = Math.max(new Date(s.checkIn).getTime(), start.getTime());
+        const to = Math.min(new Date(s.checkOut).getTime(), end.getTime());
+        if (to > from) roomNights += (to - from) / DAY_MS;
+      }
+      const available = totalRooms * nights;
+      // Clamp to 100 in case of overlapping/double-booked data.
+      const rate = available > 0 ? Math.min(100, Math.round((roomNights / available) * 100)) : 0;
+      return { name, rate, totalRooms, occupiedRooms: Math.round(roomNights / nights) };
+    });
 
     res.json(monthlyData);
   } catch (error) {

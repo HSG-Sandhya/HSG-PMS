@@ -1702,7 +1702,7 @@ const BanquetHallBooking = () => {
                             slotProps={{
                               textField: {
                                 fullWidth: true,
-                                InputProps: { startAdornment: <AccessTimeIcon sx={{ mr: 1, color: '#10b981' }} /> },
+                                slotProps: { input: { startAdornment: <AccessTimeIcon sx={{ mr: 1, color: '#10b981' }} /> } },
                                 helperText: 'Select when the event starts',
                               },
                               clearButton: { title: 'Clear Start Time' },
@@ -1738,7 +1738,7 @@ const BanquetHallBooking = () => {
                             slotProps={{
                               textField: {
                                 fullWidth: true,
-                                InputProps: { startAdornment: <AccessTimeIcon sx={{ mr: 1, color: '#10b981' }} /> },
+                                slotProps: { input: { startAdornment: <AccessTimeIcon sx={{ mr: 1, color: '#10b981' }} /> } },
                                 helperText: 'Select when the event ends',
                               },
                               clearButton: { title: 'Clear End Time' },
@@ -1853,7 +1853,7 @@ const BanquetHallBooking = () => {
                           onWheel={e => e.target.blur()}
                           helperText={`Cost: ${currencySym()}${liveBilling().banquetVenueHourlyRate.toLocaleString('en-IN')} per hour`}
                           slotProps={{
-                            input: { inputProps: { min: 1 }, sx: {
+                            htmlInput: { min: 1 }, input: { sx: {
                               '& input[type=number]::-webkit-outer-spin-button, & input[type=number]::-webkit-inner-spin-button': {
                                 WebkitAppearance: 'none',
                                 margin: 0,

@@ -5,6 +5,7 @@ import connectDB, { closeDB } from "./config/db.js";
 import logger from "./config/logger.js";
 import { rotateOnStart, scheduleJWTRotation } from "./utils/jwtRotation.js";
 import { initSocket, closeSocket } from "./config/socket.js";
+import paymentService from "./services/paymentService.js";
 
 const PORT = parseInt(process.env.PORT, 10) || 5002;
 const USE_COLOR = process.stdout.isTTY && !process.env.NO_COLOR;
@@ -69,6 +70,17 @@ const startServer = async () => {
   // (the default), both rotateOnStart() above and this scheduler are no-ops, so
   // a routine restart never rotates the secret and logs out active sessions.
   scheduleJWTRotation(24);
+
+  // Load Razorpay credentials from the Settings doc as the final boot step —
+  // once the DB is connected and the server is already listening. The service
+  // constructor deliberately skips this to avoid a buffering timeout during
+  // module import (before connectDB runs). Kept non-fatal: a payment-config
+  // problem must not stop an otherwise-healthy server from serving traffic.
+  try {
+    await paymentService.initializeRazorpay();
+  } catch (err) {
+    logger.error("Payment service init failed (continuing)", { error: err.message });
+  }
 };
 
 // ── Graceful shutdown ───────────────────────────────────────────────────────

@@ -11,7 +11,11 @@ const guestSchema = new mongoose.Schema({
   gender: { type: String, enum: ["Male", "Female", "Other"] },
   age: Number,
   address: String,
-  identityType: { type: String, enum: ["Aadhar", "Passport", "DrivingLicense", "VoterID"], default: "Aadhar" },
+  // Free String (not an enum): the value is copied from Booking.idCardType — the
+  // authoritative enum the client dropdown matches (e.g. "Aadhaar Card", "PAN
+  // Card", "Other") — whose spellings differ from the short list this once used,
+  // so an enum here only caused validation failures on otherwise-valid records.
+  identityType: { type: String, default: "Aadhaar Card" },
   identityNumber: String,
   nationality: { type: String, default: "Indian" },
   specialNotes: String
@@ -19,8 +23,13 @@ const guestSchema = new mongoose.Schema({
 
 // Keep phoneKey derived from phone on every write path. Mongoose 9 hooks are
 // promise/sync-based — do NOT call next() (the first arg is not a callback).
-guestSchema.pre("save", function () {
+// pre("validate") — runs BEFORE validation (pre "save" runs after it), so this is
+// where we must normalize values the validators would otherwise reject.
+guestSchema.pre("validate", function () {
   this.phoneKey = normalizePhone(this.phone);
+  // An unselected dropdown submits "" — store it as unset so the enum (which has
+  // no "" member) doesn't reject an otherwise-valid record on save/edit.
+  if (this.gender === "") this.gender = undefined;
 });
 
 function applyPhoneKeyToUpdate() {

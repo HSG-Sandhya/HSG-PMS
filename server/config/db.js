@@ -7,7 +7,14 @@ const paint = (text, ansiCode) =>
   USE_COLOR ? `\x1b[${ansiCode}m${text}\x1b[0m` : text;
 
 const getMongoOptions = () => ({
-  maxPoolSize: process.env.NODE_ENV === "production" ? 10 : 5,
+  // Images are stored in Mongo and served through /api/images/:id, so one page
+  // can fire many concurrent multi-MB fetches. A pool of 5/10 saturated instantly
+  // and extra requests queued (with no wait-timeout) until the 30s HTTP timeout
+  // killed them (503). A larger pool lets those run in parallel; Atlas tiers
+  // allow far more connections than this.
+  maxPoolSize:
+    parseInt(process.env.MONGO_MAX_POOL_SIZE, 10) ||
+    (process.env.NODE_ENV === "production" ? 50 : 20),
   serverSelectionTimeoutMS: 5000,
   // Keep below the HTTP request timeout (REQUEST_TIMEOUT_MS, default 30s) so a
   // dead pooled socket — laptop sleep, network switch, Atlas failover — errors

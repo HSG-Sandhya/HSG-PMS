@@ -136,28 +136,33 @@ const Dashboard = () => {
     let isMounted = true;
     let refreshInterval;
     
-    const fetchWithTimeout = async (apiCall, retries = 2) => {
+    // One retry only. The client-side 15s timeout fires while the server request
+    // is still running (server timeout is 30s), so each retry adds a *concurrent*
+    // duplicate load on the DB. On a burst-throttled Atlas tier that snowballs
+    // (slow → timeout → retry → slower). With server-side caching in front, a
+    // transient miss is cheap to retry once and pointless to retry more.
+    const fetchWithTimeout = async (apiCall, retries = 1) => {
       let lastError;
-      
+
       for (let attempt = 0; attempt <= retries; attempt++) {
         try {
           const response = await Promise.race([
             apiCall(),
-            new Promise((_, reject) => 
+            new Promise((_, reject) =>
               setTimeout(() => reject(new Error('Request timeout')), 15000),
             ),
           ]);
-          
+
           return response;
         } catch (error) {
           lastError = error;
-          
+
           if (attempt < retries) {
             await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, attempt)));
           }
         }
       }
-      
+
       throw lastError;
     };
     
@@ -174,11 +179,11 @@ const Dashboard = () => {
           return;
         }
 
-        // Try to fetch dashboard data with individual error handling
-        const summaryRes = await fetchWithTimeout(() => api.dashboard.getSummary()).catch(err => {
-          return { data: null };
-        });
-        const [revenueRes, bookingsRes, roomTypesRes, occupancyRes, banquetRes, restaurantSalesRes, restaurantExpensesRes, restaurantStatsRes, todayRevenueRes, occupancyHistoryRes] = await Promise.allSettled([
+        // Fire every dashboard endpoint in one parallel batch. getSummary used
+        // to be awaited on its own first, which serialized one extra round-trip
+        // ahead of the rest for no reason — it has no dependency on the others.
+        const [summarySettled, revenueRes, bookingsRes, roomTypesRes, occupancyRes, banquetRes, restaurantSalesRes, restaurantExpensesRes, restaurantStatsRes, todayRevenueRes, occupancyHistoryRes] = await Promise.allSettled([
+          fetchWithTimeout(() => api.dashboard.getSummary()),
           fetchWithTimeout(() => api.dashboard.getMonthlyRevenue()),
           fetchWithTimeout(() => api.dashboard.getReservationsMonthly()),
           fetchWithTimeout(() => api.dashboard.getRoomTypes()),
@@ -197,7 +202,7 @@ const Dashboard = () => {
         };
         
         if (isMounted) {
-          const summaryData = summaryRes.data;
+          const summaryData = getValueOrDefault(summarySettled, null).data;
           const enhancedSummary = {
             ...summaryData,
             todayBookings: Number(summaryData?.todayBookings) || 0,

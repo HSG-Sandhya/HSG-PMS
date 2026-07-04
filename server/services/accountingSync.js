@@ -83,7 +83,7 @@ const syncEntry = async ({ sourceType, sourceId, sourceRef = '', ...fields }) =>
           sourceRef: String(sourceRef),
         },
       },
-      { upsert: true, new: true, setDefaultsOnInsert: true },
+      { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true },
     );
   } catch (err) {
     console.error(`[accountingSync] syncEntry ${sourceType}/${sourceId}/${sourceRef} failed:`, err.message);
@@ -115,22 +115,25 @@ export const syncRoomBookingIncome = async (booking) => {
   // Room-service food is billed to the guest at CHECKOUT, not when each order is
   // served — so a room order does NOT self-post as it is served (see
   // syncRestaurantOrderIncome, which skips orderType 'room'). Here we sum the
-  // booking's completed room-service orders (order.totalAmount is the
-  // GST-exclusive base) and recognise the food as ONE consolidated F&B line
-  // naming the room, but only once the guest has actually checked out.
+  // booking's completed room-service orders. order.totalAmount is already
+  // GST-INCLUSIVE (base + POS GST) and equals the invoice's F&B total, so this sum
+  // is the food TOTAL the guest pays — not a taxable base to add GST onto.
   const [foodAgg] = await Order.aggregate([
     { $match: { roomId: booking._id, orderType: 'room', status: 'Completed' } },
     { $group: { _id: null, total: { $sum: '$totalAmount' } } },
   ]);
-  const foodBase = Number(foodAgg?.total) || 0;
+  const foodInclusive = Number(foodAgg?.total) || 0;
   const checkedOut = !!booking.checkedOutAt || booking.bookingStatus === 'Completed';
 
   const { roomGstRate, posGstRate } = await getBilling();
   const roomRate = Number(roomGstRate) || 0;
   const foodRate = Number(posGstRate) || 0;
-  // The food total the guest pays (GST-inclusive) is what gets folded into
-  // paidAmount at checkout; before checkout nothing food-related is recognised.
-  const foodTotal = checkedOut ? round(foodBase * (1 + foodRate / 100)) : 0;
+  // The food total the guest pays (already GST-inclusive) folds into paidAmount at
+  // checkout; before checkout nothing food-related is recognised.
+  const foodTotal = checkedOut ? foodInclusive : 0;
+  // Back the taxable base out of the inclusive total so the ledger row's
+  // base + GST equals the food total exactly (no extra 5% added on top).
+  const foodBase = foodRate > 0 ? round(foodInclusive / (1 + foodRate / 100)) : foodInclusive;
 
   const guest = booking.guestName || booking.groupName || 'Guest';
   const roomNo = await resolveRoomNumber(booking);

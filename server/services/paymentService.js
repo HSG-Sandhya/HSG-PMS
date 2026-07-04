@@ -14,7 +14,11 @@ class PaymentService {
       environment: 'test',
       enabled: true,
     };
-    this.initializeRazorpay();
+    // NOTE: do NOT read Settings here. This singleton is constructed at module
+    // import time — before server.js awaits connectDB() — so a Settings.findOne()
+    // in the constructor buffers and times out ("buffering timed out after
+    // 10000ms"). The constructor leaves the service in safe demo mode; server.js
+    // calls initializeRazorpay() once Mongoose is connected.
   }
 
   /**
