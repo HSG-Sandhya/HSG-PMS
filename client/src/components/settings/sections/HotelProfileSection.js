@@ -11,9 +11,11 @@ import {
   Stack,
   Divider,
   CircularProgress,
+  InputAdornment,
 } from '@mui/material';
-import { CloudUpload as UploadIcon, Save as SaveIcon } from '@mui/icons-material';
+import { CloudUpload as UploadIcon, Save as SaveIcon, CheckCircleRounded as CheckCircleIcon } from '@mui/icons-material';
 import api from '../../../api';
+import RichTextField from '../../common/RichTextField';
 import { useSettings } from '../../../contexts/SettingsContext';
 import { broadcastSettingsChange } from '../settingsEvents';
 
@@ -41,8 +43,6 @@ const emptyProfile = {
   businessRegistration: {
     gstNumber: '',
     panNumber: '',
-    fssaiNumber: '',
-    cin: '',
   },
   restaurant: {
     name: '',
@@ -50,6 +50,18 @@ const emptyProfile = {
     fssaiNumber: '',
   },
 };
+
+// Phone fields store a "+91 <10 digits>" string but the +91 is shown as a fixed,
+// non-editable prefix, so the input only deals with the 10 digits.
+// For display, drop the leading "+91" the stored value carries (with any spacing)
+// THEN keep digits — using slice(-10) here would fold that prefix's "91" into a
+// short number as you type it.
+const tenDigits = (v) => String(v || '').replace(/^\s*\+91[\s-]*/, '').replace(/\D/g, '').slice(0, 10);
+const withPrefix = (digits) => (digits ? `+91 ${digits}` : '');
+
+// Up-to-3-letter monogram from the hotel name, shown when no logo is uploaded.
+const hotelInitials = (name) =>
+  (name || 'Hotel').trim().split(/\s+/).filter(Boolean).slice(0, 3).map((w) => w[0]).join('').toUpperCase() || 'H';
 
 const sectionPaper = {
   p: { xs: 2, md: 3 },
@@ -69,6 +81,7 @@ const HotelProfileSection = ({ onNotify }) => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [emailOtp, setEmailOtp] = useState({ sent: false, code: '', sending: false, verifying: false, verified: false, error: '', dev: '' });
 
   useEffect(() => {
     let active = true;
@@ -91,6 +104,8 @@ const HotelProfileSection = ({ onNotify }) => {
               ...(payload.restaurant || {}),
             },
           });
+          // Reflect a previously-saved email verification.
+          setEmailOtp((p) => ({ ...p, verified: !!payload.contact?.emailVerified }));
         }
       } catch (err) {
         onNotify?.('Failed to load hotel profile', 'error');
@@ -109,6 +124,58 @@ const HotelProfileSection = ({ onNotify }) => {
       if (b) return { ...prev, [a]: { ...prev[a], [b]: value } };
       return { ...prev, [a]: value };
     });
+  };
+
+  const emailValid = /^\S+@\S+\.\S+$/.test((profile.contact.email || '').trim());
+
+  // Reusable +91-prefixed phone field: fixed grey "+91", 10-digit input only.
+  const phoneField = (label, path, stored) => (
+    <TextField
+      fullWidth
+      label={label}
+      value={tenDigits(stored)}
+      onChange={(e) => {
+        const raw = e.target.value.replace(/\D/g, '');
+        const digits = raw.length > 10 ? raw.slice(-10) : raw;
+        updateField(path, withPrefix(digits));
+      }}
+      slotProps={{
+        input: {
+          startAdornment: (
+            <InputAdornment position="start">
+              <Box
+                component="span"
+                sx={{ color: 'text.disabled', fontWeight: 600, userSelect: 'none', pr: 0.75, mr: 0.25, borderRight: '1px solid', borderColor: 'divider' }}
+              >
+                +91
+              </Box>
+            </InputAdornment>
+          ),
+        },
+        htmlInput: { inputMode: 'numeric', 'aria-label': label },
+      }}
+    />
+  );
+
+  const sendEmailOtp = async () => {
+    if (!emailValid) { setEmailOtp((p) => ({ ...p, error: 'Enter a valid email first' })); return; }
+    setEmailOtp((p) => ({ ...p, sending: true, error: '' }));
+    try {
+      const { data } = await api.post('/settings/hotel-profile/email-otp/send', { email: profile.contact.email.trim() });
+      setEmailOtp((p) => ({ ...p, sending: false, sent: true, dev: data?.devCode || '' }));
+    } catch (err) {
+      setEmailOtp((p) => ({ ...p, sending: false, error: err.response?.data?.message || 'Could not send code' }));
+    }
+  };
+
+  const verifyEmailOtp = async () => {
+    setEmailOtp((p) => ({ ...p, verifying: true, error: '' }));
+    try {
+      await api.post('/settings/hotel-profile/email-otp/verify', { email: profile.contact.email.trim(), code: emailOtp.code });
+      setEmailOtp((p) => ({ ...p, verifying: false, verified: true, error: '' }));
+    } catch (err) {
+      setEmailOtp((p) => ({ ...p, verifying: false, error: err.response?.data?.message || 'Incorrect code' }));
+    }
   };
 
   const handleLogoUpload = async (event) => {
@@ -179,8 +246,15 @@ const HotelProfileSection = ({ onNotify }) => {
               src={profile.logo}
               alt="Hotel logo"
               variant="rounded"
-              sx={{ width: 96, height: 96, bgcolor: 'grey.100', border: '1px solid', borderColor: 'divider' }}
-            />
+              sx={{
+                width: 96, height: 96, border: '1px solid', borderColor: 'divider',
+                fontWeight: 800, fontSize: 26, letterSpacing: '0.5px', color: '#fff',
+                bgcolor: profile.logo ? 'grey.100' : 'transparent',
+                background: profile.logo ? undefined : 'linear-gradient(135deg, rgba(var(--app-primary-rgb),0.92), rgba(var(--app-primary-rgb),0.6))',
+              }}
+            >
+              {!profile.logo && hotelInitials(profile.hotelName)}
+            </Avatar>
             <Stack spacing={1} sx={{
               flex: 1
             }}>
@@ -229,7 +303,12 @@ const HotelProfileSection = ({ onNotify }) => {
               <TextField fullWidth label="Legal name" value={profile.legalName} onChange={(e) => updateField('legalName', e.target.value)} />
             </Grid>
             <Grid size={12}>
-              <TextField fullWidth label="Description" multiline rows={2} value={profile.description} onChange={(e) => updateField('description', e.target.value)} />
+              <RichTextField
+                label="Description"
+                placeholder="Describe your hotel — you can make text bold, coloured, sized, etc."
+                value={profile.description}
+                onChange={(html) => updateField('description', html)}
+              />
             </Grid>
           </Grid>
         </CardContent>
@@ -301,21 +380,55 @@ const HotelProfileSection = ({ onNotify }) => {
                 xs: 12,
                 sm: 6
               }}>
-              <TextField fullWidth label="Phone" value={profile.contact.phone} onChange={(e) => updateField('contact.phone', e.target.value)} />
+              {phoneField('Phone', 'contact.phone', profile.contact.phone)}
             </Grid>
             <Grid
               size={{
                 xs: 12,
                 sm: 6
               }}>
-              <TextField fullWidth label="Alt phone" value={profile.contact.altPhone} onChange={(e) => updateField('contact.altPhone', e.target.value)} />
+              {phoneField('Alt phone', 'contact.altPhone', profile.contact.altPhone)}
             </Grid>
             <Grid
               size={{
                 xs: 12,
                 sm: 6
               }}>
-              <TextField fullWidth label="Email" type="email" value={profile.contact.email} onChange={(e) => updateField('contact.email', e.target.value)} />
+              <TextField
+                fullWidth label="Email" type="email"
+                value={profile.contact.email}
+                onChange={(e) => {
+                  updateField('contact.email', e.target.value);
+                  // Editing the email invalidates any prior verification.
+                  setEmailOtp({ sent: false, code: '', sending: false, verifying: false, verified: false, error: '', dev: '' });
+                }}
+              />
+              <Box sx={{ mt: 0.75, ml: 0.5, minHeight: 30 }}>
+                {emailOtp.verified ? (
+                  <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.75, color: '#16a34a', fontWeight: 700, fontSize: 13.5 }}>
+                    <CheckCircleIcon sx={{ fontSize: 20 }} /> Email verified
+                  </Box>
+                ) : !emailOtp.sent ? (
+                  <Button size="small" onClick={sendEmailOtp} disabled={emailOtp.sending || !emailValid} sx={{ textTransform: 'none', fontWeight: 700, px: 0.5, minWidth: 0 }}>
+                    {emailOtp.sending ? 'Sending…' : 'Verify email →'}
+                  </Button>
+                ) : (
+                  <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                    <TextField
+                      size="small" placeholder="6-digit code" value={emailOtp.code}
+                      onChange={(e) => setEmailOtp((p) => ({ ...p, code: e.target.value.replace(/\D/g, '').slice(0, 6), error: '' }))}
+                      sx={{ width: 130 }}
+                      slotProps={{ htmlInput: { inputMode: 'numeric', maxLength: 6, 'aria-label': 'email verification code' } }}
+                    />
+                    <Button size="small" variant="contained" disableElevation onClick={verifyEmailOtp} disabled={emailOtp.code.length !== 6 || emailOtp.verifying} sx={{ textTransform: 'none' }}>
+                      {emailOtp.verifying ? '…' : 'Verify'}
+                    </Button>
+                    <Button size="small" onClick={sendEmailOtp} disabled={emailOtp.sending} sx={{ textTransform: 'none', color: 'text.secondary', minWidth: 0, px: 0.5 }}>Resend</Button>
+                  </Stack>
+                )}
+                {emailOtp.error && <Typography variant="caption" color="error" sx={{ display: 'block', mt: 0.5 }}>{emailOtp.error}</Typography>}
+                {emailOtp.dev && <Typography variant="caption" sx={{ display: 'block', mt: 0.5, color: 'text.secondary' }}>Dev code: <b>{emailOtp.dev}</b></Typography>}
+              </Box>
             </Grid>
             <Grid
               size={{
@@ -329,7 +442,7 @@ const HotelProfileSection = ({ onNotify }) => {
                 xs: 12,
                 sm: 6
               }}>
-              <TextField fullWidth label="WhatsApp business" value={profile.contact.whatsappBusinessNumber} onChange={(e) => updateField('contact.whatsappBusinessNumber', e.target.value)} />
+              {phoneField('WhatsApp business', 'contact.whatsappBusinessNumber', profile.contact.whatsappBusinessNumber)}
             </Grid>
           </Grid>
         </CardContent>
@@ -352,20 +465,6 @@ const HotelProfileSection = ({ onNotify }) => {
                 sm: 6
               }}>
               <TextField fullWidth label="PAN number" value={profile.businessRegistration.panNumber} onChange={(e) => updateField('businessRegistration.panNumber', e.target.value.toUpperCase())} />
-            </Grid>
-            <Grid
-              size={{
-                xs: 12,
-                sm: 6
-              }}>
-              <TextField fullWidth label="FSSAI number" value={profile.businessRegistration.fssaiNumber} onChange={(e) => updateField('businessRegistration.fssaiNumber', e.target.value)} />
-            </Grid>
-            <Grid
-              size={{
-                xs: 12,
-                sm: 6
-              }}>
-              <TextField fullWidth label="CIN" value={profile.businessRegistration.cin} onChange={(e) => updateField('businessRegistration.cin', e.target.value.toUpperCase())} />
             </Grid>
           </Grid>
         </CardContent>

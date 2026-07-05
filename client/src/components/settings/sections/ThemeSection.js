@@ -73,28 +73,33 @@ const DARKNESS_PHASES = {
 
 const BACKGROUND_STYLES = [
   { value: 'none',     label: 'Plain (flat colour)' },
-  { value: 'image',    label: 'Photo' },
-  { value: 'gradient', label: 'Primary → Secondary gradient' },
+  { value: 'gradient', label: 'Gradient (custom colours)' },
   { value: 'solid',    label: 'Solid colour' },
+  { value: 'image',    label: 'Uploaded photo' },
 ];
 
-// Mix of locally-hosted photos and pure-CSS "scenes". The scene IDs are
-// resolved to gradient strings by AppThemeProvider — no network, instant paint.
-const IMAGE_PRESETS = [
-  { url: '/images/background.jpg', label: 'House (default)', thumb: "url('/images/background.jpg') center/cover" },
-  { url: '/images/Room101.jpg',    label: 'Room 101',        thumb: "url('/images/Room101.jpg') center/cover" },
-  { url: 'scene:aurora',           label: 'Aurora',          thumb: 'linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%)' },
-  { url: 'scene:sunset',           label: 'Sunset',          thumb: 'linear-gradient(135deg, #f5a623 0%, #f5576c 60%, #c471f5 100%)' },
-  { url: 'scene:ocean',            label: 'Ocean',           thumb: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)' },
-  { url: 'scene:forest',           label: 'Forest',          thumb: 'linear-gradient(135deg, #0f3443 0%, #34e89e 100%)' },
-  { url: 'scene:midnight',         label: 'Midnight',        thumb: 'linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%)' },
-  { url: 'scene:peach',            label: 'Peach',           thumb: 'linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%)' },
-  { url: 'scene:lavender',         label: 'Lavender',        thumb: 'linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%)' },
-  { url: 'scene:nordic',           label: 'Nordic',          thumb: 'linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%)' },
-  { url: 'scene:rose',             label: 'Rose mist',       thumb: 'linear-gradient(135deg, #ff9a9e 0%, #fad0c4 100%)' },
-  { url: 'scene:emerald',          label: 'Emerald',         thumb: 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)' },
-  { url: 'scene:velvet',           label: 'Velvet',          thumb: 'linear-gradient(135deg, #cb356b 0%, #bd3f32 100%)' },
-  { url: 'scene:monochrome',       label: 'Monochrome',      thumb: 'linear-gradient(135deg, #232526 0%, #414345 100%)' },
+// Quick-pick colour combinations for the custom gradient (from → to + angle).
+const GRADIENT_PRESETS = [
+  { label: 'Aurora',   from: '#667eea', to: '#764ba2', angle: 135 },
+  { label: 'Sunset',   from: '#f5a623', to: '#f5576c', angle: 135 },
+  { label: 'Ocean',    from: '#4facfe', to: '#00f2fe', angle: 135 },
+  { label: 'Forest',   from: '#0f3443', to: '#34e89e', angle: 135 },
+  { label: 'Midnight', from: '#0f0c29', to: '#302b63', angle: 135 },
+  { label: 'Peach',    from: '#ffecd2', to: '#fcb69f', angle: 135 },
+  { label: 'Lavender', from: '#a18cd1', to: '#fbc2eb', angle: 135 },
+  { label: 'Rose',     from: '#ff9a9e', to: '#fad0c4', angle: 135 },
+  { label: 'Emerald',  from: '#11998e', to: '#38ef7d', angle: 135 },
+  { label: 'Velvet',   from: '#cb356b', to: '#bd3f32', angle: 135 },
+  { label: 'Mono',     from: '#232526', to: '#414345', angle: 135 },
+  { label: 'Sky',      from: '#e0c3fc', to: '#8ec5fc', angle: 135 },
+];
+
+// Optional pattern overlay laid over the gradient/solid colour.
+const TEXTURES = [
+  { id: 'none',     label: 'None' },
+  { id: 'dots',     label: 'Dots' },
+  { id: 'grid',     label: 'Grid' },
+  { id: 'diagonal', label: 'Diagonal' },
 ];
 
 const SOLID_SWATCHES = [
@@ -968,7 +973,7 @@ const ThemeSection = ({ onNotify }) => {
         <SectionHeader
           icon={WallpaperIcon}
           title="Page background"
-          subtitle="Pick a photo, gradient, scene or a solid colour for the whole app"
+          subtitle="Build a gradient or solid colour, or upload your own photo"
         />
         <Stack spacing={3}>
           <TextField
@@ -1076,12 +1081,107 @@ const ThemeSection = ({ onNotify }) => {
             </>
           )}
 
+          {themeData.backgroundStyle === 'gradient' && (() => {
+            const gFrom = themeData.gradientFrom || themeData.primaryColor || '#6366F1';
+            const gTo = themeData.gradientTo || themeData.secondaryColor || '#EC4899';
+            const gAngle = Number.isFinite(Number(themeData.gradientAngle)) ? Number(themeData.gradientAngle) : 135;
+            const tex = themeData.bgTexture || 'none';
+            const capLabel = { textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, color: 'text.secondary', mb: 1.25, display: 'block' };
+            const colorInputSx = { width: 48, height: 48, border: '1px solid rgba(148,163,184,0.35)', borderRadius: 1.5, background: 'transparent', cursor: 'pointer', padding: 0 };
+            return (
+              <>
+                <Box sx={{ height: 96, borderRadius: 2, border: '1px solid rgba(148,163,184,0.25)', background: `linear-gradient(${gAngle}deg, ${gFrom} 0%, ${gTo} 100%)` }} />
+
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={3} useFlexGap sx={{ flexWrap: 'wrap' }}>
+                  {[['From colour', 'gradientFrom', gFrom], ['To colour', 'gradientTo', gTo]].map(([lbl, key, val]) => (
+                    <Box key={key}>
+                      <Typography variant="caption" sx={capLabel}>{lbl}</Typography>
+                      <Stack direction="row" spacing={1.5} alignItems="center">
+                        <Box component="input" type="color" value={val} onChange={(e) => setField(key, e.target.value)} sx={colorInputSx} />
+                        <TextField
+                          size="small" value={val}
+                          onChange={(e) => setField(key, e.target.value)}
+                          sx={{ width: 130, '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                          slotProps={{ htmlInput: { style: { fontFamily: 'monospace', fontSize: 13 } } }}
+                        />
+                      </Stack>
+                    </Box>
+                  ))}
+                </Stack>
+
+                <SliderRow
+                  label="Direction"
+                  valueLabel={`${gAngle}°`}
+                  value={gAngle}
+                  onChange={(_, v) => setField('gradientAngle', v)}
+                  min={0} max={360} step={5}
+                  marks={[{ value: 0, label: '0°' }, { value: 90, label: '90°' }, { value: 180, label: '180°' }, { value: 270, label: '270°' }, { value: 360, label: '360°' }]}
+                  hint="Angle of the gradient sweep across the page."
+                />
+
+                <Box>
+                  <Typography variant="caption" sx={capLabel}>Quick combinations</Typography>
+                  <Box sx={{ display: 'grid', gap: 1, gridTemplateColumns: { xs: 'repeat(4, 1fr)', sm: 'repeat(6, 1fr)' } }}>
+                    {GRADIENT_PRESETS.map((p) => {
+                      const selected = (themeData.gradientFrom || '').toLowerCase() === p.from.toLowerCase() && (themeData.gradientTo || '').toLowerCase() === p.to.toLowerCase();
+                      return (
+                        <Box
+                          key={p.label}
+                          component="button"
+                          type="button"
+                          title={p.label}
+                          onClick={() => { setField('gradientFrom', p.from); setField('gradientTo', p.to); setField('gradientAngle', p.angle); }}
+                          sx={{
+                            height: 44, borderRadius: 1.5, cursor: 'pointer', padding: 0,
+                            border: '2px solid', borderColor: selected ? 'var(--app-primary)' : 'rgba(148,163,184,0.25)',
+                            background: `linear-gradient(${p.angle}deg, ${p.from}, ${p.to})`,
+                            transition: 'transform .15s ease', '&:hover': { transform: 'translateY(-2px)' },
+                          }}
+                        />
+                      );
+                    })}
+                  </Box>
+                </Box>
+
+                <Box>
+                  <Typography variant="caption" sx={capLabel}>Texture overlay</Typography>
+                  <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap' }}>
+                    {TEXTURES.map((t) => {
+                      const selected = tex === t.id;
+                      return (
+                        <Box
+                          key={t.id}
+                          component="button"
+                          type="button"
+                          onClick={() => setField('bgTexture', t.id)}
+                          sx={{
+                            px: 1.75, py: 0.75, borderRadius: 1.5, cursor: 'pointer', fontWeight: 600, fontSize: 13,
+                            border: '2px solid', borderColor: selected ? 'var(--app-primary)' : 'rgba(148,163,184,0.25)',
+                            background: selected ? 'rgba(var(--app-primary-rgb),0.08)' : 'transparent',
+                            color: selected ? 'var(--app-primary)' : 'text.secondary',
+                          }}
+                        >
+                          {t.label}
+                        </Box>
+                      );
+                    })}
+                  </Stack>
+                </Box>
+              </>
+            );
+          })()}
+
           {themeData.backgroundStyle === 'image' && (
             <>
               <Box>
                 <Typography variant="caption" sx={{ textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, color: 'text.secondary', mb: 1.25, display: 'block' }}>
-                  Choose a background
+                  Your uploaded backgrounds
                 </Typography>
+                {userBackgrounds.length === 0 && (
+                  <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5 }}>
+                    No backgrounds uploaded yet — use "Upload your own" below, or pick the Gradient / Solid colour style above.
+                  </Typography>
+                )}
                 <Box
                   sx={{
                     display: 'grid',
@@ -1089,53 +1189,6 @@ const ThemeSection = ({ onNotify }) => {
                     gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(4, 1fr)' },
                   }}
                 >
-                  {IMAGE_PRESETS.map((img) => {
-                    const selected = (themeData.backgroundImage || '') === img.url;
-                    return (
-                      <Box
-                        key={img.url}
-                        component="button"
-                        type="button"
-                        onClick={() => setField('backgroundImage', img.url)}
-                        sx={{
-                          position: 'relative',
-                          aspectRatio: '4 / 3',
-                          border: '2px solid',
-                          borderColor: selected ? 'var(--app-primary)' : 'rgba(148,163,184,0.25)',
-                          borderRadius: 2,
-                          overflow: 'hidden',
-                          cursor: 'pointer',
-                          padding: 0,
-                          background: img.thumb || `url('${img.url}') center/cover no-repeat`,
-                          transition: 'all .2s ease',
-                          boxShadow: selected ? '0 6px 18px -8px rgba(var(--app-primary-rgb), 0.55)' : 'none',
-                          '&:hover': {
-                            transform: 'translateY(-2px)',
-                            borderColor: 'var(--app-primary)',
-                          },
-                        }}
-                      >
-                        <Box
-                          sx={{
-                            position: 'absolute',
-                            insetInline: 0,
-                            bottom: 0,
-                            px: 1.25,
-                            py: 0.75,
-                            background: 'linear-gradient(180deg, transparent, rgba(0,0,0,0.55))',
-                            color: '#fff',
-                            fontSize: 11,
-                            fontWeight: 600,
-                            textAlign: 'left',
-                            letterSpacing: '0.04em',
-                          }}
-                        >
-                          {img.label}
-                        </Box>
-                      </Box>
-                    );
-                  })}
-
                   {/* User-uploaded backgrounds — clickable + deletable */}
                   {userBackgrounds.map((img) => {
                     const selected = (themeData.backgroundImage || '') === img.url;

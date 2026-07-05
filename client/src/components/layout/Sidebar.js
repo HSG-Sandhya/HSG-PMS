@@ -32,6 +32,32 @@ import { useAuth } from '../../contexts/AuthContext';
 // Link with motion props (whileHover / whileTap) for the animated sub-tabs.
 const MotionLink = motion.create(Link);
 
+// Up-to-3-letter initials from the hotel name, used when no logo is uploaded.
+const hotelInitials = (name) =>
+  (name || 'Hotel')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 3)
+    .map((w) => w[0])
+    .join('')
+    .toUpperCase() || 'H';
+
+// Shared style for the initials placeholder that fills the logo frame.
+const initialsBoxStyle = (fontSize) => ({
+  width: '100%',
+  height: '100%',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  borderRadius: '10px',
+  background: 'linear-gradient(135deg, rgba(var(--app-primary-rgb),0.92), rgba(var(--app-primary-rgb),0.6))',
+  color: '#fff',
+  fontWeight: 800,
+  fontSize,
+  letterSpacing: '0.5px',
+});
+
 // Accordion animation for the collapsible sub-nav. Height and opacity are
 // timed separately (so content fades in just after the panel has room) and the
 // sub-tabs stagger in/out for a smooth reveal.
@@ -68,6 +94,14 @@ const Sidebar = ({ open: propOpen, toggleSidebar: propToggleSidebar, mobile }) =
   const { hasPermission, isAdmin } = usePermissions();
   const { logout } = useAuth();
   const isDarkMode = settings?.theme?.darkMode;
+
+  // If a (possibly stale-cached) logo URL fails to load, fall back to the
+  // initials monogram instead of a broken image. Reset whenever the logo
+  // changes so a fixed/updated logo gets a fresh chance to render.
+  const logoSrc = settings?.hotelProfile?.logo || '';
+  const [logoBroken, setLogoBroken] = useState(false);
+  useEffect(() => { setLogoBroken(false); }, [logoSrc]);
+  const showLogo = !!logoSrc && !logoBroken;
   
   // Handle the case where toggleSidebar is not a function
   const [internalOpen, setInternalOpen] = useState(propOpen || false);
@@ -329,6 +363,11 @@ const Sidebar = ({ open: propOpen, toggleSidebar: propToggleSidebar, mobile }) =
             color: isDarkMode ? '#f3f4f6' : '#23272f',
             boxShadow: '0 2px 8px rgba(0,0,0,0.10)',
             width: '40px', height: '40px',
+            // Force the round clip: without an explicit radius + overflow,
+            // Chrome renders the backdrop-filter to the square border-box and
+            // leaks a square halo past the circle's corners.
+            borderRadius: '50%',
+            overflow: 'hidden',
             transition: 'all 0.3s ease',
             '&:hover': {
               background: 'transparent',
@@ -375,7 +414,6 @@ const Sidebar = ({ open: propOpen, toggleSidebar: propToggleSidebar, mobile }) =
           {/* Hotel Profile Card */}
           {(() => {
             const hotelName = settings?.hotelProfile?.hotelName || settings?.hotelName || 'Hotel Sandhya Grand';
-            const logoSrc = settings?.hotelProfile?.logo || '/images/sandhya-logo.png';
             const gstin = settings?.tax?.gstNumber || settings?.hotelProfile?.businessRegistration?.gstNumber;
             const starRating = settings?.starRating || settings?.hotelProfile?.classification?.starRating;
             const city = settings?.address?.city || settings?.hotelProfile?.address?.city;
@@ -431,11 +469,16 @@ const Sidebar = ({ open: propOpen, toggleSidebar: propToggleSidebar, mobile }) =
                     alignItems: 'center',
                     justifyContent: 'center',
                   }}>
-                    <img
-                      src={logoSrc}
-                      alt={hotelName}
-                      style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-                    />
+                    {showLogo ? (
+                      <img
+                        src={logoSrc}
+                        alt={hotelName}
+                        onError={() => setLogoBroken(true)}
+                        style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                      />
+                    ) : (
+                      <div style={initialsBoxStyle('26px')}>{hotelInitials(hotelName)}</div>
+                    )}
                   </div>
                 </div>
 
@@ -663,6 +706,11 @@ const Sidebar = ({ open: propOpen, toggleSidebar: propToggleSidebar, mobile }) =
           color: isDarkMode ? '#f3f4f6' : '#23272f',
           boxShadow: '0 2px 8px rgba(0,0,0,0.10)',
           width: '40px', height: '40px',
+          // Force the round clip: without an explicit radius + overflow,
+          // Chrome renders the backdrop-filter to the square border-box and
+          // leaks a square halo past the circle's corners.
+          borderRadius: '50%',
+          overflow: 'hidden',
           // Ride along with the drawer: same duration/curve, and only `left`
           // — animating `all` on a backdrop-filter button repaints its blur
           // every frame of the slide.
@@ -767,19 +815,26 @@ const Sidebar = ({ open: propOpen, toggleSidebar: propToggleSidebar, mobile }) =
               ? '2px solid rgba(148,163,184,0.1)'
               : '2px solid rgba(203,213,225,0.2)'
           }}>
-            <img 
-              src={settings?.hotelProfile?.logo || '/images/sandhya-logo.png'}
-              alt={settings?.hotelProfile?.hotelName || settings?.hotelName || 'Hotel Sandhya Grand Logo'} 
-              style={{
-                width: '100%',
-                height: '100%',
-                objectFit: 'contain',
-                backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                borderRadius: '10px'
-              }} 
-            />
+            {showLogo ? (
+              <img
+                src={logoSrc}
+                alt={settings?.hotelProfile?.hotelName || settings?.hotelName || 'Hotel Sandhya Grand Logo'}
+                onError={() => setLogoBroken(true)}
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'contain',
+                  backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                  borderRadius: '10px'
+                }}
+              />
+            ) : (
+              <div style={initialsBoxStyle('16px')}>
+                {hotelInitials(settings?.hotelProfile?.hotelName || settings?.hotelName)}
+              </div>
+            )}
           </div>
-          
+
           {/* Hotel Name */}
           <h1 style={{
             fontSize: '14px',

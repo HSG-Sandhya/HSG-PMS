@@ -7,6 +7,14 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+// Credentials for the admin to create. Override any of these from the shell so
+// you can seed a fresh database with your own login, e.g.
+//   ADMIN_USERNAME='Manager' ADMIN_PASSWORD='Secret123@' node scripts/createAdmin.js
+// (falls back to the original values when not provided).
+const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'Vikash_HSG';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'Nakedeyes25@';
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'kushvik0908@gmail.com';
+
 const createAdminUser = async () => {
   try {
     // Connect to MongoDB
@@ -70,10 +78,10 @@ const createAdminUser = async () => {
     }
 
     // Check if admin user already exists
-    const existingAdmin = await User.findOne({ 
+    const existingAdmin = await User.findOne({
       $or: [
-        { username: 'Vikash_HSG' },
-        { email: 'kushvik0908@gmail.com' }
+        { username: ADMIN_USERNAME },
+        { email: ADMIN_EMAIL }
       ]
     });
 
@@ -89,9 +97,9 @@ const createAdminUser = async () => {
       console.log('Creating new admin user...');
       
       const adminUser = new User({
-        username: 'Vikash_HSG',
-        email: 'kushvik0908@gmail.com',
-        password: 'Nakedeyes25@', // Let the model hash it with correct rounds
+        username: ADMIN_USERNAME,
+        email: ADMIN_EMAIL,
+        password: ADMIN_PASSWORD, // Let the model hash it with correct rounds
         firstName: 'System',
         lastName: 'Administrator',
         phone: '9931567123',
@@ -107,11 +115,11 @@ const createAdminUser = async () => {
 
       await adminUser.save();
       console.log('✅ Admin user created successfully!');
-      console.log('Username: Vikash_HSG');
-      console.log('Password: Nakedeyes25@');
-      
+      console.log(`Username: ${ADMIN_USERNAME}`);
+      console.log(`Password: ${ADMIN_PASSWORD}`);
+
       // Verify the user was created with proper password hash
-      const savedUser = await User.findOne({ username: 'Vikash_HSG' }).select('+password');
+      const savedUser = await User.findOne({ username: ADMIN_USERNAME }).select('+password');
       console.log('User saved with password hash:', savedUser.password.substring(0, 20) + '...');
     }
 
@@ -133,8 +141,8 @@ const createAdminUser = async () => {
 
     console.log('\n✅ Admin setup complete!');
     console.log('You can now login with:');
-    console.log('Username: Vikash_HSG');
-    console.log('Password: Nakedeyes25@');
+    console.log(`Username: ${ADMIN_USERNAME}`);
+    console.log(`Password: ${ADMIN_PASSWORD}`);
     console.log('\nOr use any existing user - they now have admin privileges.');
 
   } catch (error) {

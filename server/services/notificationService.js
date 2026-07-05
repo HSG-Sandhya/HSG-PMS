@@ -112,23 +112,32 @@ const buildMessages = (event, b) => {
 
 let _transporter;
 const getTransporter = () => {
-  if (!process.env.SMTP_HOST) return null;
-  if (!_transporter) {
+  if (_transporter) return _transporter;
+  if (process.env.SMTP_HOST) {
     _transporter = nodemailer.createTransport({
       host: process.env.SMTP_HOST,
       port: Number(process.env.SMTP_PORT) || 587,
       secure: process.env.SMTP_SECURE === 'true',
       auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
     });
+  } else if (process.env.EMAIL_USER && process.env.EMAIL_PASSWORD) {
+    // Gmail fallback — uses the EMAIL_USER/EMAIL_PASSWORD already in .env.
+    // (The password must be a Google "App Password", not the account password.)
+    _transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASSWORD },
+    });
+  } else {
+    return null;
   }
   return _transporter;
 };
 
-const sendEmail = async (to, msg) => {
+export const sendEmail = async (to, msg) => {
   const t = getTransporter();
   if (!t) return logSkip('email');
   await t.sendMail({
-    from: process.env.SMTP_FROM || 'no-reply@sandhyagrand.com',
+    from: process.env.SMTP_FROM || process.env.EMAIL_USER || 'no-reply@sandhyagrand.com',
     to, subject: msg.subject, html: msg.html, text: msg.text,
   });
   console.log(`[notify] email sent → ${to}`);
@@ -136,7 +145,7 @@ const sendEmail = async (to, msg) => {
 
 /* ───────────────────────────── SMS ───────────────────────────── */
 
-const sendSms = async (phone, text) => {
+export const sendSms = async (phone, text) => {
   const to = toE164(phone);
   switch ((process.env.SMS_PROVIDER || '').toLowerCase()) {
     case 'twilio':   return twilioSms(to, text);

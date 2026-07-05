@@ -1,7 +1,7 @@
 import express from 'express';
 import jwt from 'jsonwebtoken';
 const router = express.Router();
-import { login, logout, getProfile, refreshToken, forceLogoutAll, changeOwnPassword } from '../controllers/authController.js';
+import { login, logout, getProfile, refreshToken, forceLogoutAll, changeOwnPassword, getSetupStatus, bootstrapAdmin, requestSetupOtp, verifySetupOtp } from '../controllers/authController.js';
 import { authenticateToken } from '../middleware/auth.js';
 
 /**
@@ -29,6 +29,12 @@ import { authenticateToken } from '../middleware/auth.js';
 // Public routes
 router.post('/login', login);
 router.post('/logout', logout);
+
+// First-run setup (public, but self-closing once any user exists).
+router.get('/setup-status', getSetupStatus);
+router.post('/setup/otp/send', requestSetupOtp);
+router.post('/setup/otp/verify', verifySetupOtp);
+router.post('/setup', bootstrapAdmin);
 
 // Protected routes
 router.get('/profile', authenticateToken, getProfile);

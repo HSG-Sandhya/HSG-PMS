@@ -6,6 +6,7 @@ import User from '../models/User.js';
 import Image from '../models/Image.js';
 import { optimizeImage } from '../utils/imageOptimizer.js';
 import { PERMISSION_CATALOG } from '../config/permissions.js';
+import { sendOtp, verifyOtp, isVerified } from '../services/otpService.js';
 import mongoose from 'mongoose';
 import fs from 'fs';
 import path from 'path';
@@ -751,13 +752,31 @@ const persistHotelProfile = async (body) => {
     $set[`hotelProfile.${key}`] = value;
   };
 
+  // Load the current doc up-front so email-verification survives correctly.
+  const existing = await Settings.findOne({});
+
+  // Persisted email-verified flag: true if the email was just OTP-verified, or
+  // it's unchanged from a previously-verified email. Any edit clears it.
+  let contact = body.contact;
+  if (contact && typeof contact === 'object') {
+    const storedContact = existing?.hotelProfile?.contact || existing?.contact || {};
+    const newEmail = String(contact.email || '').trim().toLowerCase();
+    const storedEmail = String(storedContact.email || '').trim().toLowerCase();
+    let emailVerified = false;
+    if (newEmail) {
+      if (isVerified('email', newEmail)) emailVerified = true;
+      else if (newEmail === storedEmail && storedContact.emailVerified) emailVerified = true;
+    }
+    contact = { ...contact, emailVerified };
+  }
+
   mirror('hotelName', body.hotelName);
   mirror('legalName', body.legalName);
   mirror('description', body.description);
   mirror('starRating', body.starRating);
   mirror('yearEstablished', body.yearEstablished);
   mirror('address', body.address);
-  mirror('contact', body.contact);
+  mirror('contact', contact);
   mirror('social', body.social);
 
   // Top-level-only fields.
@@ -800,7 +819,6 @@ const persistHotelProfile = async (body) => {
     return out;
   };
 
-  const existing = await Settings.findOne({});
   if (!existing) {
     const initialDoc = buildNestedDoc($set);
     if (!initialDoc.hotelName) initialDoc.hotelName = 'Hotel Sandhya Grand';
@@ -842,6 +860,33 @@ const saveHotelProfile = async (req, res) => {
     console.error('saveHotelProfile failed:', error);
     res.status(500).json({ success: false, message: error.message });
   }
+};
+
+// Send an OTP to verify the hotel's contact email (authenticated — Settings page).
+const sendHotelEmailOtp = async (req, res) => {
+  const email = String(req.body?.email || '').trim().toLowerCase();
+  if (!/^\S+@\S+\.\S+$/.test(email)) {
+    return res.status(400).json({ success: false, message: 'Enter a valid email first.' });
+  }
+  try {
+    const result = await sendOtp('email', email);
+    if (!result.sent) {
+      return res.status(429).json({ success: false, message: `Please wait ${result.cooldown}s before requesting another code.`, cooldown: result.cooldown });
+    }
+    return res.json({ success: true, message: 'A verification code was sent to that email.', devCode: result.devCode });
+  } catch (error) {
+    console.error('sendHotelEmailOtp failed:', error.message);
+    return res.status(502).json({ success: false, message: 'Could not send the code. Check the email provider settings.' });
+  }
+};
+
+// Verify the OTP for the hotel's contact email.
+const verifyHotelEmailOtp = async (req, res) => {
+  const email = String(req.body?.email || '').trim().toLowerCase();
+  const code = String(req.body?.code || '').trim();
+  const result = verifyOtp('email', email, code);
+  if (!result.ok) return res.status(400).json({ success: false, message: result.message });
+  return res.json({ success: true, message: 'Email verified.' });
 };
 
 // Add more placeholder functions for other missing endpoints
@@ -1567,6 +1612,8 @@ export default {
   getHotelProfile,
   updateHotelProfile,
   saveHotelProfile,
+  sendHotelEmailOtp,
+  verifyHotelEmailOtp,
   exportSettings,
   importSettings,
   getAvailableInvoiceTemplates,

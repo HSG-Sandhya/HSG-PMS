@@ -1,9 +1,12 @@
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import User from '../models/User.js';
+import Role from '../models/Role.js';
+import Department from '../models/Department.js';
 import logger from '../config/logger.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { logActivity } from '../utils/activityLogger.js';
+import { sendOtp, verifyOtp, isVerified, clearOtp } from '../services/otpService.js';
 
 // Login user
 export const login = asyncHandler(async (req, res) => {
@@ -155,6 +158,160 @@ export const logout = asyncHandler(async (req, res) => {
     success: true,
     message: 'Logged out successfully'
   });
+});
+
+// ── First-run setup ─────────────────────────────────────────────────────────
+// Bootstrap the first administrator on an empty database. A fresh install has
+// no account to sign in with, and the in-app user manager is admin-only, so
+// there would otherwise be no way in. Both endpoints below are PUBLIC but
+// hard-gated on "the system has zero users" — the moment the first account
+// exists, setup is closed and can never create another account.
+
+// Tells the login screen whether to show the first-run "Create admin" form.
+export const getSetupStatus = asyncHandler(async (_req, res) => {
+  const userCount = await User.countDocuments();
+  res.json({ success: true, needsSetup: userCount === 0 });
+});
+
+// Create the very first admin. Refuses once any user exists.
+export const bootstrapAdmin = asyncHandler(async (req, res) => {
+  // Re-check here (not just on the status endpoint) so this can't be POSTed
+  // directly once anyone is registered.
+  const userCount = await User.countDocuments();
+  if (userCount > 0) {
+    return res.status(403).json({
+      success: false,
+      message: 'Setup is already complete. Ask an administrator to create your account.',
+    });
+  }
+
+  const clean = (v) => (typeof v === 'string' ? v.trim() : '');
+  const username = clean(req.body.username);
+  const email = clean(req.body.email).toLowerCase();
+  const phone = clean(req.body.phone);
+  const firstName = clean(req.body.firstName);
+  const lastName = clean(req.body.lastName);
+  const { password } = req.body;
+
+  if (!username) return res.status(400).json({ success: false, message: 'Username is required.' });
+  if (!password || password.length < 6)
+    return res.status(400).json({ success: false, message: 'Password must be at least 6 characters.' });
+  if (!email) return res.status(400).json({ success: false, message: 'Email is required.' });
+  if (!/^\d{10}$/.test(phone))
+    return res.status(400).json({ success: false, message: 'Phone must be exactly 10 digits.' });
+  if (!firstName || !lastName)
+    return res.status(400).json({ success: false, message: 'First and last name are required.' });
+
+  // Both the email and the phone must have been verified by OTP first.
+  if (!isVerified('email', email))
+    return res.status(400).json({ success: false, message: 'Please verify your email with the code sent to it.' });
+  if (!isVerified('phone', phone))
+    return res.status(400).json({ success: false, message: 'Please verify your phone with the code sent to it.' });
+
+  // Ensure the admin role + a default department exist (mirrors scripts/createAdmin.js).
+  let adminRole = await Role.findOne({ name: 'System Administrator' });
+  if (!adminRole) {
+    adminRole = await Role.create({
+      name: 'System Administrator',
+      description: 'Full system access with all administrative privileges',
+      hierarchy: 10,
+      permissions: [
+        'admin_access', 'system_admin', 'manage_settings', 'manage_staff',
+        'manage_roles', 'manage_users', 'view_dashboard', 'manage_bookings',
+        'manage_rooms', 'manage_guests', 'manage_payments', 'manage_housekeeping',
+        'manage_restaurant', 'manage_pos', 'manage_events', 'manage_channels',
+      ],
+      accessLevel: {
+        canViewAll: true, canEditAll: true, canDeleteAll: true,
+        canManageUsers: true, canManageRoles: true, canAccessSettings: true,
+        canViewReports: true, canManageSystem: true,
+      },
+      isActive: true,
+    });
+  }
+
+  let department = await Department.findOne({ name: 'Management' });
+  if (!department) {
+    department = await Department.create({
+      name: 'Management',
+      description: 'Executive and administrative management',
+      isActive: true,
+      color: '#EC4899',
+    });
+  }
+
+  try {
+    await User.create({
+      username,
+      email,
+      phone,
+      password, // hashed by the User pre-save hook
+      firstName,
+      lastName,
+      role: adminRole._id,
+      department: department._id,
+      isActive: true,
+      isSystemAdmin: true,
+    });
+  } catch (err) {
+    const message = err?.code === 11000
+      ? 'A user with that username, email or phone already exists.'
+      : err?.message || 'Could not create the admin account.';
+    return res.status(400).json({ success: false, message });
+  }
+
+  clearOtp('email', email);
+  clearOtp('phone', phone);
+  logger.info('First-run admin created', { username, ip: req.ip });
+
+  res.status(201).json({
+    success: true,
+    message: 'Admin account created. You can now sign in.',
+  });
+});
+
+// Send an OTP to the email or phone entered on the first-run setup form.
+export const requestSetupOtp = asyncHandler(async (req, res) => {
+  // Only meaningful while the system has no users (same gate as bootstrap).
+  const userCount = await User.countDocuments();
+  if (userCount > 0)
+    return res.status(403).json({ success: false, message: 'Setup is already complete.' });
+
+  const channel = req.body.channel === 'phone' ? 'phone' : 'email';
+  const value = String(req.body.value || '').trim();
+
+  if (channel === 'email' && !/^\S+@\S+\.\S+$/.test(value))
+    return res.status(400).json({ success: false, message: 'Enter a valid email first.' });
+  if (channel === 'phone' && !/^\d{10}$/.test(value))
+    return res.status(400).json({ success: false, message: 'Enter a 10-digit phone first.' });
+
+  try {
+    const result = await sendOtp(channel, channel === 'email' ? value.toLowerCase() : value);
+    if (!result.sent)
+      return res.status(429).json({ success: false, message: `Please wait ${result.cooldown}s before requesting another code.`, cooldown: result.cooldown });
+    return res.json({
+      success: true,
+      message: result.configured
+        ? `A code was sent to your ${channel}.`
+        : `Code generated (no ${channel} provider configured yet).`,
+      configured: result.configured,
+      devCode: result.devCode, // present only in non-production
+    });
+  } catch (err) {
+    console.error(`OTP send error (${channel}):`, err.message);
+    return res.status(502).json({ success: false, message: `Could not send the code to your ${channel}. Please try again.` });
+  }
+});
+
+// Verify an OTP the user typed on the setup form.
+export const verifySetupOtp = asyncHandler(async (req, res) => {
+  const channel = req.body.channel === 'phone' ? 'phone' : 'email';
+  const value = String(req.body.value || '').trim();
+  const code = String(req.body.code || '').trim();
+
+  const result = verifyOtp(channel, channel === 'email' ? value.toLowerCase() : value, code);
+  if (!result.ok) return res.status(400).json({ success: false, message: result.message });
+  return res.json({ success: true, message: `${channel === 'phone' ? 'Phone' : 'Email'} verified.` });
 });
 
 // Get current user profile

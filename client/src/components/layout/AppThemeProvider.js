@@ -129,6 +129,24 @@ const AppThemeProvider = ({ children }) => {
     const o = Number(settingsContext?.settings?.theme?.solidColorOpacity);
     return Number.isFinite(o) && o >= 0 && o <= 1 ? o : 1;
   })();
+  // Custom gradient colours + direction (fall back to the palette).
+  const gradientFrom = settingsContext?.settings?.theme?.gradientFrom || primaryColor;
+  const gradientTo = settingsContext?.settings?.theme?.gradientTo || secondaryColor;
+  const gradientAngle = (() => {
+    const a = Number(settingsContext?.settings?.theme?.gradientAngle);
+    return Number.isFinite(a) ? a : 135;
+  })();
+  const bgTexture = settingsContext?.settings?.theme?.bgTexture || 'none';
+  // A subtle pattern layer laid over the gradient (mode-aware tint).
+  const textureLayer = () => {
+    const c = isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)';
+    switch (bgTexture) {
+      case 'dots': return `radial-gradient(${c} 1.3px, transparent 1.3px) 0 0 / 22px 22px`;
+      case 'grid': return `linear-gradient(${c} 1px, transparent 1px) 0 0 / 100% 26px, linear-gradient(90deg, ${c} 1px, transparent 1px) 0 0 / 26px 100%`;
+      case 'diagonal': return `repeating-linear-gradient(45deg, ${c} 0 1px, transparent 1px 14px)`;
+      default: return '';
+    }
+  };
 
   const hexToRgbaWith = (hex, alpha) => {
     const rgb = hexToRgb(hex);
@@ -143,7 +161,9 @@ const AppThemeProvider = ({ children }) => {
       return `linear-gradient(${hexToRgbaWith(solidColor, solidOpacity)}, ${hexToRgbaWith(solidColor, solidOpacity)}), ${baseUnder}`;
     }
     if (backgroundStyle === 'gradient') {
-      return `linear-gradient(135deg, ${primaryColor} 0%, ${secondaryColor} 100%)`;
+      const g = `linear-gradient(${gradientAngle}deg, ${gradientFrom} 0%, ${gradientTo} 100%)`;
+      const tex = textureLayer();
+      return tex ? `${tex}, ${g}` : g;
     }
     if (backgroundStyle === 'image' && backgroundImage) {
       // Scene IDs resolve to a pre-built CSS gradient — no image load needed.
@@ -216,7 +236,7 @@ const AppThemeProvider = ({ children }) => {
       : 'linear-gradient(135deg, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0.14) 24%, rgba(255,255,255,0) 46%, rgba(255,255,255,0.10) 100%)');
     root.style.setProperty('--app-bg', computeBackground());
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [primaryColor, secondaryColor, accentColor, textPrimary, textSecondary, safeSurfaceOpacity, safeBlur, backgroundStyle, backgroundImage, solidColor, solidOpacity, isDarkMode, darkness]);
+  }, [primaryColor, secondaryColor, accentColor, textPrimary, textSecondary, safeSurfaceOpacity, safeBlur, backgroundStyle, backgroundImage, solidColor, solidOpacity, gradientFrom, gradientTo, gradientAngle, bgTexture, isDarkMode, darkness]);
 
   // Handle case when settings context is not yet available
   if (!settingsContext) {

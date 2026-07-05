@@ -1117,15 +1117,31 @@ const Restaurant = () => {
       const response = await api.restaurant.uploadMenuCSV(formData);
       
       if (response.data.success) {
-        const { imported, errors } = response.data;
-        
+        const { imported, errors, errorSummary } = response.data;
+
+        // Turn the grouped reasons into a short, human-readable "why": e.g.
+        // "Valid price is required (184)". Falls back to grouping the raw
+        // errors client-side if the server didn't send a summary.
+        const summary =
+          errorSummary ||
+          (errors || []).reduce((acc, e) => {
+            const reason = e?.error || 'Unknown error';
+            acc[reason] = (acc[reason] || 0) + 1;
+            return acc;
+          }, {});
+        const reasonText = Object.entries(summary)
+          .sort((a, b) => b[1] - a[1])
+          .map(([reason, count]) => `${reason} (${count})`)
+          .join(' · ');
+
         if (imported > 0 && errors.length === 0) {
           showSnackbar(`Successfully imported ${imported} menu items!`, 'success');
         } else if (imported > 0 && errors.length > 0) {
-          showSnackbar(`Imported ${imported} items with ${errors.length} errors.`, 'warning');
+          showSnackbar(`Imported ${imported} items — skipped ${errors.length}: ${reasonText}`, 'warning');
         } else {
-          showSnackbar(`Import failed. ${errors.length} errors occurred.`, 'error');
+          showSnackbar(`Import failed (${errors.length}). Reason: ${reasonText}`, 'error');
         }
+        if (errors.length > 0) console.warn('[CSV import] error breakdown:', summary, errors.slice(0, 10));
         
         // Refresh menu items and categories if any were imported
         if (imported > 0) {

@@ -176,7 +176,15 @@ const api = {
     login: wrapApiMethod((credentials, cancelToken) => {
       return axiosInstance.post('/auth/login', credentials, cancelToken ? { cancelToken } : undefined);
     }),
-    
+
+    // First-run setup: is the database empty (no users yet)?
+    getSetupStatus: () => axiosInstance.get('/auth/setup-status'),
+    // Send / verify the email or phone OTP during first-run setup.
+    sendSetupOtp: (data) => axiosInstance.post('/auth/setup/otp/send', data),
+    verifySetupOtp: (data) => axiosInstance.post('/auth/setup/otp/verify', data),
+    // Create the very first admin on an empty database.
+    setup: (data) => axiosInstance.post('/auth/setup', data),
+
     profile: () => {
       return axiosInstance.get('/auth/profile');
     },

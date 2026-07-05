@@ -57,6 +57,8 @@ router.post('/tax/validate-pan', settingsController.validatePAN);
 router.get('/hotel-profile', settingsController.getHotelProfile);
 router.put('/hotel-profile', settingsController.updateHotelProfile);
 router.post('/hotel-profile', settingsController.saveHotelProfile);
+router.post('/hotel-profile/email-otp/send', settingsController.sendHotelEmailOtp);
+router.post('/hotel-profile/email-otp/verify', settingsController.verifyHotelEmailOtp);
 
 // === DATA MANAGEMENT ===
 router.get('/data/export', settingsController.exportSettings);

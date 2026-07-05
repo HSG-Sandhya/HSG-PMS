@@ -220,6 +220,10 @@ const defaultSettings = {
     backgroundImage: '',
     solidColor: '#f8fafc',
     solidColorOpacity: 1,
+    gradientFrom: '#6366F1',
+    gradientTo: '#EC4899',
+    gradientAngle: 135,
+    bgTexture: 'none',
     surfaceOpacity: 0.05,
     blurStrength: 8,
     darknessLevel: 60,
@@ -339,21 +343,35 @@ export const SettingsContext = createContext();
 // theme per device and seed from it, so login follows the app's appearance.
 const THEME_CACHE_KEY = 'pms-theme-cache';
 
-const readCachedTheme = () => {
+// Same idea as the theme cache, but for the hotel's visual identity (logo +
+// name). Without it, a refresh renders `hotelProfile.logo = ''` from the
+// defaults for a frame — so the sidebar flashes the initials monogram before
+// the server fetch swaps in the real logo. Seeding from this cache puts the
+// logo on screen from frame 1.
+const IDENTITY_CACHE_KEY = 'pms-hotel-identity';
+
+const readCache = (key) => {
   try {
-    const parsed = JSON.parse(localStorage.getItem(THEME_CACHE_KEY));
+    const parsed = JSON.parse(localStorage.getItem(key));
     return parsed && typeof parsed === 'object' ? parsed : null;
   } catch {
     return null; // missing/corrupt cache or blocked storage — use defaults
   }
 };
+const readCachedTheme = () => readCache(THEME_CACHE_KEY);
+const readCachedIdentity = () => readCache(IDENTITY_CACHE_KEY);
 
 export const SettingsProvider = ({ children }) => {
   const [settings, setSettings] = useState(() => {
     const cachedTheme = readCachedTheme();
-    return cachedTheme
-      ? { ...defaultSettings, theme: { ...defaultSettings.theme, ...cachedTheme } }
-      : defaultSettings;
+    const cachedIdentity = readCachedIdentity();
+    return {
+      ...defaultSettings,
+      theme: cachedTheme ? { ...defaultSettings.theme, ...cachedTheme } : defaultSettings.theme,
+      hotelProfile: cachedIdentity
+        ? { ...defaultSettings.hotelProfile, ...cachedIdentity }
+        : defaultSettings.hotelProfile,
+    };
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -375,6 +393,24 @@ export const SettingsProvider = ({ children }) => {
       // storage full or blocked — login just won't be themed on this device
     }
   }, [settings?.theme, isAuthenticated]);
+
+  // Cache the hotel logo + name so a refresh paints the real logo immediately
+  // instead of flashing the initials monogram. Only cache the two identity
+  // fields the sidebar seeds from — not the whole (large) hotelProfile.
+  useEffect(() => {
+    if (!isAuthenticated || !settings?.hotelProfile) return;
+    try {
+      localStorage.setItem(
+        IDENTITY_CACHE_KEY,
+        JSON.stringify({
+          logo: settings.hotelProfile.logo || '',
+          hotelName: settings.hotelProfile.hotelName || '',
+        })
+      );
+    } catch {
+      // storage full or blocked — refresh just flashes the monogram briefly
+    }
+  }, [settings?.hotelProfile?.logo, settings?.hotelProfile?.hotelName, isAuthenticated]);
 
   // Keep the module-level billing config in lock-step with settings so plain
   // (non-React) formatters, print/invoice builders and hook-less components read

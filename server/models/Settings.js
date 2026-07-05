@@ -246,6 +246,11 @@ const SettingsSchema = new Schema(
       backgroundImage: { type: String, default: '' },
       solidColor: { type: String, default: '#f8fafc' },
       solidColorOpacity: { type: Number, default: 1, min: 0, max: 1 },
+      // Custom gradient (from → to at an angle) + optional pattern overlay
+      gradientFrom: { type: String, default: '#6366F1' },
+      gradientTo: { type: String, default: '#EC4899' },
+      gradientAngle: { type: Number, default: 135, min: 0, max: 360 },
+      bgTexture: { type: String, default: 'none' }, // none | dots | grid | diagonal
       // Glassmorphism — surface opacity + blur strength
       surfaceOpacity: { type: Number, default: 0.05, min: 0, max: 1 },
       blurStrength: { type: Number, default: 8, min: 0, max: 40 },
