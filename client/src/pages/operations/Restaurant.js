@@ -755,9 +755,11 @@ const Restaurant = () => {
         showSnackbar('Table created successfully');
       }
       
-      // Refresh tables
-      api.tables.getAll();
-      
+      // Refresh tables — must await and push into state, otherwise the new
+      // table doesn't appear until the user hits "Refresh Data".
+      const tableResponse = await api.tables.getAll();
+      setTables(tableResponse.data || []);
+
       handleCloseTableDialog();
     } catch (error) {
       showSnackbar(error.message || 'Failed to save table', 'error');

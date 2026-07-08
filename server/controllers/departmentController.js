@@ -11,15 +11,23 @@ export const getAllDepartments = async (req, res) => {
       .sort({ name: 1 })
       .lean();
 
-    // Attach a live staff count per department.
+    // Attach a live staff count AND actual monthly staff cost (sum of salaries)
+    // per department, so the UI can show real cost against the budget.
     const counts = await User.aggregate([
       { $match: { department: { $ne: null } } },
-      { $group: { _id: '$department', count: { $sum: 1 } } },
+      {
+        $group: {
+          _id: '$department',
+          count: { $sum: 1 },
+          cost: { $sum: { $ifNull: ['$profile.salary', 0] } },
+        },
+      },
     ]);
-    const countMap = new Map(counts.map((c) => [String(c._id), c.count]));
+    const countMap = new Map(counts.map((c) => [String(c._id), c]));
     const withCounts = departments.map((d) => ({
       ...d,
-      staffCount: countMap.get(String(d._id)) || 0,
+      staffCount: countMap.get(String(d._id))?.count || 0,
+      staffCost: countMap.get(String(d._id))?.cost || 0,
     }));
 
     res.json({

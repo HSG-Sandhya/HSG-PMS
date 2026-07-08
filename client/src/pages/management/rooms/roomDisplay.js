@@ -12,7 +12,9 @@ import {
   Spa as SpaIcon,
   Security as SecurityIcon,
   LocalParking as ParkingIcon,
-  BusinessCenter as BusinessIcon,
+  Checkroom as CheckroomIcon,
+  Weekend as SofaIcon,
+  Groups as FamilyBedIcon,
 } from '@mui/icons-material';
 
 export const amenityIcons = {
@@ -22,6 +24,8 @@ export const amenityIcons = {
   'Room Service': <RestaurantIcon fontSize="small" />,
   'King Bed': <KingBedIcon fontSize="small" />,
   'Twin Beds': <SingleBedIcon fontSize="small" />,
+  'Grand Family Bed': <FamilyBedIcon fontSize="small" />,
+  Sofa: <SofaIcon fontSize="small" />,
   Balcony: <BalconyIcon fontSize="small" />,
   'City View': <ViewIcon fontSize="small" />,
   Bathtub: <SpaIcon fontSize="small" />,
@@ -30,7 +34,7 @@ export const amenityIcons = {
   Safe: <SecurityIcon fontSize="small" />,
   Restaurant: <RestaurantIcon fontSize="small" />,
   Parking: <ParkingIcon fontSize="small" />,
-  Waderobe: <BusinessIcon fontSize="small" />,
+  Wardrobe: <CheckroomIcon fontSize="small" />,
 };
 
 // Background + text colour per room status (pill / card accents).

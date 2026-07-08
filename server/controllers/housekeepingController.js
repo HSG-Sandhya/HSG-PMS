@@ -1,6 +1,42 @@
 import Housekeeping from '../models/Housekeeping.js';
 import Room from '../models/Room.js';
 import { emitHousekeepingTask } from '../config/socket.js';
+import { getOps } from '../config/operationalConfig.js';
+
+// Room effect when a task is completed. With "require inspection" on (Settings →
+// Operations → Housekeeping), finishing a CLEANING task raises an Inspection
+// task and keeps the room out of service until that inspection is completed;
+// finishing the inspection (or with the setting off) frees the room.
+const applyCompletionRoomEffect = async (task) => {
+  if (!task?.roomId) return;
+  const { housekeeping } = await getOps();
+  const isCleaning = task.taskType !== 'Inspection';
+
+  if (isCleaning && housekeeping.requireInspection) {
+    const roomId = task.roomId._id || task.roomId;
+    // Avoid stacking duplicate inspection tasks for the same room.
+    const openInspection = await Housekeeping.findOne({
+      roomId,
+      taskType: 'Inspection',
+      status: { $in: ['Pending', 'In Progress'] },
+    });
+    if (!openInspection) {
+      await Housekeeping.create({
+        roomId,
+        taskType: 'Inspection',
+        priority: housekeeping.defaultPriority,
+        status: 'Pending',
+        source: 'system',
+        notes: 'Inspect room after cleaning before it is marked available.',
+        scheduledFor: new Date(),
+      });
+    }
+    await Room.findByIdAndUpdate(roomId, { status: 'cleaning', isAvailable: false });
+    return;
+  }
+
+  await Room.findByIdAndUpdate(task.roomId._id || task.roomId, { status: 'available', isAvailable: true });
+};
 
 // Get all tasks
 export const getAllTasks = async (req, res) => {
@@ -118,7 +154,7 @@ export const updateTask = async (req, res) => {
     ]);
 
     if (isCompletingTask && updatedTask.roomId) {
-      await Room.findByIdAndUpdate(updatedTask.roomId, { status: 'available' });
+      await applyCompletionRoomEffect(updatedTask);
     }
 
     res.json(updatedTask);
@@ -188,10 +224,9 @@ export const completeTask = async (req, res) => {
     task.updatedAt = Date.now();
     const updatedTask = await task.save();
 
-    // A completed task means the room no longer needs attention.
-    if (task.roomId) {
-      await Room.findByIdAndUpdate(task.roomId, { status: 'available' });
-    }
+    // A completed task means the room no longer needs attention — unless
+    // inspection is required, in which case an inspection task is raised first.
+    await applyCompletionRoomEffect(task);
 
     res.json(updatedTask);
   } catch (error) {

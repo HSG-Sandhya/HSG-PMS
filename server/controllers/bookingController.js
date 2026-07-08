@@ -21,13 +21,18 @@ const generateInvoiceNumber = async (guestName, checkIn) => {
   const lastInitial = nameParts.length > 1 ? nameParts[nameParts.length - 1][0].toUpperCase() : '';
   const initials = firstInitial + lastInitial;
 
+  // DDMMYY so the date leads the number (after the prefix) — invoices then
+  // group/filter datewise. e.g. 6 Jul 2026 → "060726".
   const dateObj = new Date(checkIn);
-  const yyyy = dateObj.getFullYear();
+  const yy = String(dateObj.getFullYear()).slice(-2);
   const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
   const dd = String(dateObj.getDate()).padStart(2, '0');
-  const dateStr = `${yyyy}${mm}${dd}`;
+  const dateStr = `${dd}${mm}${yy}`;
 
-  const regex = new RegExp(`^${invoicePrefix}-${initials}-${dateStr}-\\d{4}$`);
+  // Pattern: PREFIX-DDMMYY-INITIALS-NNNN. The running number increments within
+  // the same date + guest-initials group. The regex pins prefix/date/initials
+  // so sorting by the whole string sorts by the 4-digit sequence.
+  const regex = new RegExp(`^${invoicePrefix}-${dateStr}-${initials}-\\d{4}$`);
   const latestBooking = await Booking.findOne(
     { invoiceNumber: { $regex: regex } },
     { invoiceNumber: 1 },
@@ -38,14 +43,44 @@ const generateInvoiceNumber = async (guestName, checkIn) => {
   if (latestBooking && latestBooking.invoiceNumber) {
     const parts = latestBooking.invoiceNumber.split('-');
     if (parts.length === 4) {
-      const lastSeq = parseInt(parts[3]);
+      const lastSeq = parseInt(parts[3], 10);
       if (!isNaN(lastSeq)) {
         sequenceNumber = lastSeq + 1;
       }
     }
   }
 
-  return `${invoicePrefix}-${initials}-${dateStr}-${String(sequenceNumber).padStart(4, '0')}`;
+  return `${invoicePrefix}-${dateStr}-${initials}-${String(sequenceNumber).padStart(4, '0')}`;
+};
+
+// Tiered late-checkout fee (Settings → Operations → Front desk). Free within
+// the grace window; a checkout up to the "full day after" cutoff costs half a
+// night, past the cutoff costs a full night — of the room's nightly tariff.
+// Returns { base, gst } (both 0 when not late / no rate). `booking.roomId` must
+// be populated so pricePerNight is available.
+const computeLateCheckoutFee = async (booking, actualCheckout) => {
+  const rate = Number(booking?.roomId?.pricePerNight) || 0;
+  if (rate <= 0) return { base: 0, gst: 0 };
+  const { frontDesk } = await getOps();
+  const { defaultCheckOutTime, roomGstRate } = await getBilling();
+
+  // Scheduled checkout datetime = the booking's checkout date + checkout time.
+  const sched = new Date(booking.checkOut);
+  const [ch, cm] = String(booking.checkOutTime || defaultCheckOutTime || '11:00').split(':').map(Number);
+  sched.setHours(ch || 11, cm || 0, 0, 0);
+
+  const grace = Number(frontDesk.lateCheckoutGraceMinutes) || 0;
+  if (actualCheckout <= new Date(sched.getTime() + grace * 60000)) return { base: 0, gst: 0 };
+
+  // Tier by the actual checkout's time-of-day vs the "full day after" cutoff.
+  const [fh, fm] = String(frontDesk.lateCheckoutFullDayAfter || '18:00').split(':').map(Number);
+  const cutoff = new Date(actualCheckout);
+  cutoff.setHours(fh || 18, fm || 0, 0, 0);
+  const tier = actualCheckout <= cutoff ? 0.5 : 1; // ½ night vs full night
+
+  const base = Math.round(rate * tier);
+  const gst = Math.round(base * (Number(roomGstRate) || 0) / 100);
+  return { base, gst };
 };
 
 // Create booking
@@ -115,9 +150,19 @@ export const createBooking = async (req, res) => {
     // Check if room exists
     const room = await Room.findById(bookingData.roomId);
     if (!room) {
-      return res.status(404).json({ 
+      return res.status(404).json({
         success: false,
-        message: 'Selected room not found' 
+        message: 'Selected room not found'
+      });
+    }
+
+    // Front desk: optionally require an ID document (Settings → Operations →
+    // Front desk). Accepts either an uploaded ID photo or an entered ID number.
+    const { frontDesk } = await getOps();
+    if (frontDesk.requireIdProof && !bookingData.idCardImage && !bookingData.idCardNumber) {
+      return res.status(400).json({
+        success: false,
+        message: 'ID proof is required to create a booking. Please capture the guest ID (number or photo).'
       });
     }
 
@@ -135,6 +180,24 @@ export const createBooking = async (req, res) => {
         success: false,
         message: 'This room is reserved for a banquet event on the selected dates and cannot be booked.'
       });
+    }
+
+    // Front desk: block double-booking the same room for overlapping dates,
+    // unless overbooking is explicitly allowed (Settings → Operations → Front
+    // desk). Overlap = existing active booking whose stay intersects this one.
+    if (!frontDesk.allowOverbooking) {
+      const clash = await Booking.findOne({
+        roomId: bookingData.roomId,
+        bookingStatus: { $in: ACTIVE_HOLD_STATUSES },
+        checkIn: { $lt: bookingData.checkOut },
+        checkOut: { $gt: bookingData.checkIn },
+      }).select('invoiceNumber customerId guestName');
+      if (clash) {
+        return res.status(409).json({
+          success: false,
+          message: `This room is already booked for overlapping dates (${clash.invoiceNumber || clash.customerId || clash.guestName || 'existing booking'}). Turn on "Allow overbooking" in Operations settings to override.`,
+        });
+      }
     }
 
     // Generate customer ID
@@ -390,6 +453,26 @@ export const updateBooking = async (req, res) => {
     if (bookingData.bookingStatus === 'Completed') {
       bookingData.checkedIn = false;
       bookingData.checkedOutAt = new Date();
+
+      // Apply the tiered late-checkout fee exactly once — on the transition INTO
+      // Completed — folding it into base / GST / total so the bill + invoice
+      // reflect it. Guarded so re-saving a completed booking never re-charges.
+      if (existingBooking.bookingStatus !== 'Completed' && !existingBooking.lateCheckoutFee) {
+        try {
+          const fee = await computeLateCheckoutFee(existingBooking, bookingData.checkedOutAt);
+          if (fee.base > 0) {
+            const curTotal = Number(bookingData.totalAmount ?? existingBooking.totalAmount) || 0;
+            const curBase = Number(bookingData.baseAmount ?? existingBooking.baseAmount) || 0;
+            const curGst = Number(bookingData.gstAmount ?? existingBooking.gstAmount) || 0;
+            bookingData.lateCheckoutFee = fee.base;
+            bookingData.baseAmount = Math.round(curBase + fee.base);
+            bookingData.gstAmount = Math.round(curGst + fee.gst);
+            bookingData.totalAmount = Math.round(curTotal + fee.base + fee.gst);
+          }
+        } catch (e) {
+          console.error('Late-checkout fee calc failed:', e.message);
+        }
+      }
     } else if (bookingData.bookingStatus === 'Cancelled' || bookingData.bookingStatus === 'Rejected') {
       bookingData.checkedIn = false;
     } else if (bookingData.checkedIn === true && !existingBooking.checkedIn) {
@@ -421,6 +504,7 @@ export const updateBooking = async (req, res) => {
             source: 'checkout_booking',
             notes: 'Room requires cleaning after guest checkout.',
             priority: housekeeping.checkoutCleaningPriority,
+            estimatedMinutes: housekeeping.expectedCleaningMinutes,
           });
           // existingBooking.roomId is the populated Room doc → carries roomNumber.
           emitHousekeepingTask(task, existingBooking.roomId);

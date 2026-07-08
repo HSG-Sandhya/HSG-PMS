@@ -38,14 +38,33 @@ export const OPERATIONS_DEFAULTS = Object.freeze({
     defaultPriority: 'Medium',             // priority for manually created tasks
     checkoutCleaningPriority: 'High',      // priority for auto checkout-cleaning tasks
     autoCreateOnCheckout: true,            // raise a cleaning task when a guest checks out
+    requireInspection: false,              // completed cleaning must be inspected before "Clean"
+    expectedCleaningMinutes: 30,           // ETA stamped on auto-created cleaning tasks
   }),
   payroll: Object.freeze({
     defaultSalary: 25000,                  // ₹ fallback salary when a staff record has none
     minWalletRecharge: 10,                 // ₹ minimum staff wallet recharge amount
+    payDay: 1,                             // day-of-month the monthly salary is paid
+    overtimeMultiplier: 1.5,               // × hourly rate for overtime hours
   }),
   accounting: Object.freeze({
     defaultAccountType: 'savings',         // type pre-selected for a new account
     defaultPaymentMethod: 'cash',          // method pre-selected for a new transaction
+    autoPostIncome: true,                  // auto-post income/expense to the ledger (accountingSync)
+    financialYearStartMonth: 4,            // 1–12; India FY starts April
+  }),
+  banquet: Object.freeze({
+    advancePercent: 50,                    // % of total to confirm a banquet booking
+    quotationValidityDays: 15,             // how long a quotation stays valid
+    defaultEventHours: 4,                  // pre-fill for a new event's duration
+    minAdvanceAmount: 0,                   // ₹ floor on the advance to confirm
+  }),
+  frontDesk: Object.freeze({
+    requireIdProof: false,                 // block booking without an ID document
+    allowOverbooking: false,               // permit booking a room that's already occupied
+    holdExpiryHours: 24,                   // tentative/hold auto-release window
+    lateCheckoutGraceMinutes: 120,         // grace after checkout time before a late fee
+    lateCheckoutFullDayAfter: '18:00',     // checkout past this time = full night (else ½ night)
   }),
 });
 

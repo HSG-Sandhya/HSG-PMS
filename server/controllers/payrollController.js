@@ -7,6 +7,16 @@ import StaffRecharge from "../models/StaffRecharge.js";
 import { validationResult } from "express-validator";
 import PDFDocument from "pdfkit";
 import { syncPayrollExpense } from "../services/accountingSync.js";
+import { getOps } from "../config/operationalConfig.js";
+
+// Scheduled salary pay date for a payroll period: the configured pay day of the
+// month FOLLOWING the period (salary paid in arrears). payrollPeriod.month is
+// 1-indexed, so passing it straight to Date() lands on the next month. Clamped
+// to 28 so it never rolls over a short month.
+const scheduledPayDate = (payrollPeriod, payDay) => {
+  const day = Math.min(Math.max(Number(payDay) || 1, 1), 28);
+  return new Date(payrollPeriod.year, payrollPeriod.month, day);
+};
 
 // Helper function to check if user can manage payroll
 const canManagePayroll = (user) => {
@@ -355,12 +365,19 @@ export const generatePayrollPDF = async (req, res) => {
     currentY += 44;
 
     // ---- Employee information ----
+    // Payment date: the actual paid date once paid, otherwise the scheduled
+    // pay day from Settings → Operations → Payroll.
+    const { payroll: payCfg } = await getOps();
+    const paidDate = payroll.payment?.paidDate;
+    const payDateLabel = paidDate
+      ? `${new Date(paidDate).toLocaleDateString('en-IN')} (paid)`
+      : `${scheduledPayDate(payroll.payrollPeriod, payCfg.payDay).toLocaleDateString('en-IN')} (scheduled)`;
     const empRows = [
       ['Employee Name', `${payroll.staff.firstName} ${payroll.staff.lastName}`],
       ['Employee ID', payroll.staff.profile?.employeeId || 'N/A'],
       ['Email', payroll.staff.email || 'N/A'],
       ['Phone', payroll.staff.phone || 'N/A'],
-      ['Payment Date', new Date().toLocaleDateString('en-IN')],
+      ['Payment Date', payDateLabel],
     ];
     currentY = drawCard(PAGE_X, currentY, PAGE_W, 'Employee Information', indigo, empRows) + 16;
 
@@ -570,12 +587,25 @@ export const getPayrollSummary = async (req, res) => {
 
     const summary = await Payroll.getPayrollSummary(targetMonth, targetYear);
 
+    // Next salary pay day (Settings → Operations → Payroll): the upcoming
+    // occurrence of the configured pay day, plus how many days away it is.
+    const { payroll: payCfg } = await getOps();
+    const pd = Math.min(Math.max(Number(payCfg.payDay) || 1, 1), 28);
+    const now = new Date();
+    const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    let nextPayDate = new Date(now.getFullYear(), now.getMonth(), pd);
+    if (now.getDate() > pd) nextPayDate = new Date(now.getFullYear(), now.getMonth() + 1, pd);
+    const daysUntilPayDay = Math.round((nextPayDate - todayMidnight) / 86400000);
+
     res.status(200).json({
       success: true,
       data: {
         month: targetMonth,
         year: targetYear,
-        summary
+        summary,
+        payDay: pd,
+        nextPayDate,
+        daysUntilPayDay
       }
     });
   } catch (error) {

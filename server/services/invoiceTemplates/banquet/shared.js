@@ -29,10 +29,12 @@ export const eventFacts = (ctx) => {
   return rows;
 };
 
-// A quotation is valid for 15 days from issue.
+// A quotation is valid for a configurable window (Settings → Operations →
+// Banquet). Falls back to 15 days when no config is supplied.
 export const validUntil = (ctx) => {
+  const days = Number(ctx?.banquet?.quotationValidityDays) || 15;
   const base = ctx?.invoice?.issuedOn ? new Date(ctx.invoice.issuedOn) : new Date();
-  return formatLongDate(new Date(base.getTime() + 15 * 24 * 60 * 60 * 1000));
+  return formatLongDate(new Date(base.getTime() + days * 24 * 60 * 60 * 1000));
 };
 
 // Short human tag for a line-item category (used as a pill on some designs).
@@ -97,14 +99,21 @@ export const quotationExtras = (ctx, pal) => {
   const { accent, ink, muted, line, soft } = pal;
   const total = Number(ctx.totals.total) || 0;
   const paid = Number(ctx.totals.paid) || 0;
+  // Advance %, minimum advance and validity window are configurable (Settings →
+  // Operations → Banquet); fall back to the historical 50% / 15-day figures.
+  const pct = Number(ctx?.banquet?.advancePercent);
+  const advancePct = Number.isFinite(pct) && pct > 0 ? pct : 50;
+  const minAdvance = Number(ctx?.banquet?.minAdvanceAmount) || 0;
+  const validityDays = Number(ctx?.banquet?.quotationValidityDays) || 15;
   // Show the actual advance already received; if none, fall back to the
-  // standard 50%-to-confirm figure so the schedule is still meaningful.
+  // configured %-to-confirm figure so the schedule is still meaningful.
   const hasAdvance = paid > 0;
-  const advance = hasAdvance ? paid : Math.round(total / 2);
+  const computedAdvance = Math.min(Math.max(Math.round(total * advancePct / 100), minAdvance), total);
+  const advance = hasAdvance ? paid : computedAdvance;
   const balance = hasAdvance
     ? (Number(ctx.totals.balance) || Math.max(0, total - paid))
     : Math.max(0, total - advance);
-  const advLabel = hasAdvance ? 'Advance received' : 'Advance to confirm (50%)';
+  const advLabel = hasAdvance ? 'Advance received' : `Advance to confirm (${advancePct}%)`;
   const advNote = hasAdvance ? 'Paid towards booking' : 'Due on confirmation';
   const eventDate = ctx.event?.date ? formatLongDate(ctx.event.date) : 'the event day';
   const sections = sectionBreakdown(ctx);
@@ -162,7 +171,11 @@ export const quotationExtras = (ctx, pal) => {
       ${rows.map(([label, val]) => `<div style="margin:0 0 7px;font-size:11.5px;line-height:1.5"><span style="font-weight:700;color:${ink}">${e(label)}:</span> <span style="color:${muted}">${e(val)}</span></div>`).join('')}
     </div>` : ''}
     <ol style="margin:0;padding:0 0 0 18px;color:${muted};font-size:11px">
-      ${POLICY.map((x) => `<li style="margin:0 0 6px;line-height:1.55">${e(x)}</li>`).join('')}
+      ${[
+        `This quotation is valid for ${validityDays} days from the date of issue and is subject to availability.`,
+        `A ${advancePct}% advance confirms the booking; the balance is payable on or before the event day.`,
+        ...POLICY.slice(2),
+      ].map((x) => `<li style="margin:0 0 6px;line-height:1.55">${e(x)}</li>`).join('')}
     </ol>
   </section>`;
   })()}`;

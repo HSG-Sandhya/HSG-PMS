@@ -888,7 +888,7 @@ const Rooms = ({ _sidebarOpen }) => {
                       'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
                     fontWeight: 600,
                     letterSpacing: '-0.5px',
-                    color: isDarkMode ? '#f3f4f6' : '#23272f',
+                    color: 'var(--app-primary)',
                     lineHeight: 1.2,
                   }}
                 >

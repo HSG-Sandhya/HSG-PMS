@@ -18,7 +18,7 @@
 import AccountingEntry from '../models/AccountingEntry.js';
 import Order from '../models/Order.js';
 import Room from '../models/Room.js';
-import { getBilling } from '../config/operationalConfig.js';
+import { getBilling, getOps } from '../config/operationalConfig.js';
 
 const round = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
@@ -57,6 +57,11 @@ export const mapAccount = (method) => {
 // existing entry (e.g. a payment reversed to zero) so the ledger self-heals.
 const syncEntry = async ({ sourceType, sourceId, sourceRef = '', ...fields }) => {
   try {
+    // Respect the "auto-post to ledger" switch (Settings → Operations →
+    // Accounting). When off, operational money movements aren't mirrored into
+    // the ledger — finance is then entered manually.
+    const { accounting } = await getOps();
+    if (accounting.autoPostIncome === false) return;
     const key = { sourceType, sourceId: String(sourceId), sourceRef: String(sourceRef), auto: true };
     if (!(Number(fields.amount) > 0)) {
       await AccountingEntry.deleteOne(key);

@@ -200,14 +200,23 @@ const Sidebar = ({ open: propOpen, toggleSidebar: propToggleSidebar, mobile }) =
     openMenus[item.path] !== undefined ? openMenus[item.path] : isActive(item.path);
 
   const toggleMenu = (item) => {
-    setOpenMenus((prev) => ({ ...prev, [item.path]: !isMenuOpen(item) }));
+    const willOpen = !isMenuOpen(item);
+    // Accordion: opening one parent's sub-nav collapses any other open one.
+    setOpenMenus(willOpen ? { [item.path]: true } : { [item.path]: false });
   };
 
   // Clicking a parent row navigates and makes sure its sub-nav is open.
   const handleParentClick = (item) => {
-    if (item.subItems) setOpenMenus((prev) => ({ ...prev, [item.path]: true }));
+    if (item.subItems) setOpenMenus({ [item.path]: true });
     toggleSidebar(false);
   };
+
+  // Auto-collapse: after every route change, drop manual expand/collapse
+  // overrides so only the active section's sub-nav stays open (a stale menu
+  // like Bookings no longer lingers open once you've navigated to Dashboard).
+  useEffect(() => {
+    setOpenMenus({});
+  }, [location.pathname]);
 
   // Rotating chevron toggle placed at the end of a parent row. Stops the click
   // from following the link / closing the drawer so it only expands/collapses.

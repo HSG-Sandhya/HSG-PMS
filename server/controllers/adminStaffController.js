@@ -325,6 +325,16 @@ export const updateStaff = asyncHandler(async (req, res) => {
   delete updates.createdBy;
   delete updates._id;
 
+  // The staff form (create AND edit) sends roleId/departmentId, but the User
+  // document stores them as `role`/`department`. Without this mapping the edit
+  // path validated the wrong keys and Object.assign wrote non-schema fields
+  // that Mongoose silently dropped — so changing a staff member's role or
+  // department never persisted. Normalise here so edits actually save.
+  if (updates.roleId !== undefined) { updates.role = updates.roleId; delete updates.roleId; }
+  if (updates.departmentId !== undefined) { updates.department = updates.departmentId; delete updates.departmentId; }
+  // Not schema fields — drop so they don't linger on the doc.
+  delete updates.generateCredentials;
+
   const user = await User.findById(id);
   if (!user) {
     return res.status(404).json({

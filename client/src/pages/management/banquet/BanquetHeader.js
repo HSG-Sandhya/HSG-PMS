@@ -73,7 +73,7 @@ const BanquetHeader = ({
           <CelebrationIcon sx={{ fontSize: 30 }} />
         </Box>
         <Box>
-          <Typography sx={{ fontSize: { xs: 20, md: 24 }, fontWeight: 800, color: textPrimary(isDark), letterSpacing: '-0.5px', lineHeight: 1.15 }}>
+          <Typography sx={{ fontSize: { xs: 20, md: 24 }, fontWeight: 800, color: 'var(--app-primary)', letterSpacing: '-0.5px', lineHeight: 1.15 }}>
             Banquet &amp; Event Management
           </Typography>
           <Typography sx={{ fontSize: 13, color: textSecondary(isDark), mb: 1.25 }}>

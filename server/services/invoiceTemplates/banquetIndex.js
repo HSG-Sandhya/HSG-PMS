@@ -3,16 +3,17 @@
 // Settings → Invoice templates. One selected template renders BOTH the banquet
 // quotation and the banquet invoice (the docType flag switches the copy/layout).
 import { meta as auroraMeta, render as renderAurora } from './banquet/aurora.js';
-import { meta as noirMeta, render as renderNoir } from './banquet/noir.js';
+import { meta as royalMeta, render as renderRoyal } from './banquet/royal.js';
 import { meta as blushMeta, render as renderBlush } from './banquet/blush.js';
 import { meta as emeraldMeta, render as renderEmerald } from './banquet/emerald.js';
 import { meta as sapphireMeta, render as renderSapphire } from './banquet/sapphire.js';
 import { meta as marigoldMeta, render as renderMarigold } from './banquet/marigold.js';
 import { normalizeInvoiceContext } from './normalize.js';
+import { getOps } from '../../config/operationalConfig.js';
 
 const BANQUET_TEMPLATES = [
   { ...auroraMeta, render: renderAurora },
-  { ...noirMeta, render: renderNoir },
+  { ...royalMeta, render: renderRoyal },
   { ...blushMeta, render: renderBlush },
   { ...emeraldMeta, render: renderEmerald },
   { ...sapphireMeta, render: renderSapphire },
@@ -33,5 +34,12 @@ export const getBanquetTemplate = (id) =>
 export const renderBanquetDocument = async ({ booking, hotel, templateId, docType = 'invoice' }) => {
   const template = getBanquetTemplate(templateId);
   const context = normalizeInvoiceContext({ booking, hotel, type: 'banquet' });
+  // Surface the configurable banquet rules (advance %, quotation validity) so
+  // the quotation reflects Settings → Operations instead of hardcoded values.
+  try {
+    context.banquet = (await getOps()).banquet;
+  } catch {
+    context.banquet = undefined; // templates fall back to their built-in defaults
+  }
   return template.render(context, { docType });
 };

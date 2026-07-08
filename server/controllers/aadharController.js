@@ -1,9 +1,10 @@
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
-import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
+import { isConfigured, generateOtp, submitOtp } from '../services/aadhaarKyc.js';
+import { isValidAadhaar, normalizeAadhaar } from '../utils/aadhaar.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -43,137 +44,140 @@ const upload = multer({
   }
 });
 
-// In-memory OTP storage (in production, use Redis or database)
+// Short-lived OTP session store. For the real provider we keep the vendor's
+// client_id; for the dev fallback we keep the simulated code. (In-memory is
+// fine here — an OTP session lives ~10 min. Use Redis if you run >1 instance.)
 const otpStorage = new Map();
 
-// Generate 6-digit OTP
-const generateOTP = () => {
-  return Math.floor(100000 + Math.random() * 900000).toString();
-};
+const generateMockOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
 
-// Send OTP for Aadhar verification
+// Send OTP for Aadhaar verification.
+//  • Provider configured  → real OTP goes to the UIDAI-registered mobile.
+//  • Not configured (dev) → clearly-labelled simulation; code returned in body.
 const sendAadharOTP = async (req, res) => {
   try {
-    const { aadharNumber } = req.body;
+    const aadharNumber = normalizeAadhaar(req.body.aadharNumber);
 
-    // Validate Aadhar number format
-    if (!aadharNumber || !/^\d{12}$/.test(aadharNumber)) {
+    if (!/^\d{12}$/.test(aadharNumber)) {
+      return res.status(400).json({ success: false, message: 'Invalid Aadhaar number format' });
+    }
+    // Reject fake numbers (bad checksum) before spending a provider API call.
+    if (!isValidAadhaar(aadharNumber)) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid Aadhar number format'
+        message: 'That is not a valid Aadhaar number (checksum failed). Please re-check the 12 digits.',
       });
     }
 
-    // Generate OTP
-    const otp = generateOTP();
-    const otpExpiry = Date.now() + 10 * 60 * 1000; // 10 minutes expiry
+    const otpExpiry = Date.now() + 10 * 60 * 1000; // 10 minutes
 
-    // Store OTP (in production, this should be in Redis or database)
-    otpStorage.set(aadharNumber, {
-      otp: otp,
-      expiry: otpExpiry,
-      attempts: 0
-    });
-
-    // In production, integrate with SMS gateway to send OTP
-    // For demo purposes, we'll just log it
-    console.log(`🔐 OTP for Aadhar ${aadharNumber}: ${otp}`);
-    console.log(`📱 SMS would be sent to registered mobile number`);
-
-    // Simulate SMS sending delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
-    res.json({
-      success: true,
-      message: `OTP sent successfully to registered mobile number ending with ***${aadharNumber.slice(-4)}`,
-      data: {
-        aadharNumber: aadharNumber,
-        otpExpiry: new Date(otpExpiry).toISOString(),
-        // In demo mode, return OTP for testing (remove in production)
-        demoOTP: process.env.NODE_ENV === 'development' ? otp : undefined,
-        // Show OTP in response for development testing
-        testOTP: otp
+    if (isConfigured()) {
+      let clientId;
+      try {
+        ({ clientId } = await generateOtp(aadharNumber));
+      } catch (err) {
+        console.error('Aadhaar generate-otp failed:', err.providerMessage || err.message);
+        return res.status(502).json({
+          success: false,
+          message: err.providerMessage || 'Could not send Aadhaar OTP. Please try again.',
+        });
       }
-    });
+      otpStorage.set(aadharNumber, { clientId, expiry: otpExpiry, attempts: 0, real: true });
+      return res.json({
+        success: true,
+        message: `OTP sent to the mobile registered with Aadhaar ****${aadharNumber.slice(-4)}`,
+        data: { aadharNumber, otpExpiry: new Date(otpExpiry).toISOString() },
+      });
+    }
 
+    // Dev fallback — no KYC provider configured.
+    const otp = generateMockOTP();
+    otpStorage.set(aadharNumber, { otp, expiry: otpExpiry, attempts: 0, real: false });
+    console.log(`🔐 [DEV/simulated] Aadhaar OTP for ${aadharNumber}: ${otp} (no KYC provider configured)`);
+    return res.json({
+      success: true,
+      message: 'Demo mode: no real OTP was sent. Enter the code shown to continue.',
+      data: {
+        aadharNumber,
+        otpExpiry: new Date(otpExpiry).toISOString(),
+        demo: true,
+        testOTP: otp, // surfaced by the UI only in this simulated mode
+      },
+    });
   } catch (error) {
     console.error('Send OTP error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to send OTP'
-    });
+    res.status(500).json({ success: false, message: 'Failed to send OTP' });
   }
 };
 
-// Verify OTP for Aadhar
+// Verify the OTP against whichever channel issued it (provider or dev sim).
 const verifyAadharOTP = async (req, res) => {
   try {
-    const { aadharNumber, otp } = req.body;
+    const aadharNumber = normalizeAadhaar(req.body.aadharNumber);
+    const { otp } = req.body;
 
-    // Validate input
     if (!aadharNumber || !otp) {
-      return res.status(400).json({
-        success: false,
-        message: 'Aadhar number and OTP are required'
-      });
+      return res.status(400).json({ success: false, message: 'Aadhaar number and OTP are required' });
     }
 
-    // Check if OTP exists
-    const storedOTPData = otpStorage.get(aadharNumber);
-    if (!storedOTPData) {
-      return res.status(400).json({
-        success: false,
-        message: 'OTP not found or expired. Please request a new OTP.'
-      });
+    const stored = otpStorage.get(aadharNumber);
+    if (!stored) {
+      return res.status(400).json({ success: false, message: 'OTP not found or expired. Please request a new OTP.' });
     }
-
-    // Check if OTP is expired
-    if (Date.now() > storedOTPData.expiry) {
+    if (Date.now() > stored.expiry) {
       otpStorage.delete(aadharNumber);
-      return res.status(400).json({
-        success: false,
-        message: 'OTP has expired. Please request a new OTP.'
-      });
+      return res.status(400).json({ success: false, message: 'OTP has expired. Please request a new OTP.' });
     }
-
-    // Check attempt limit
-    if (storedOTPData.attempts >= 3) {
+    if (stored.attempts >= 3) {
       otpStorage.delete(aadharNumber);
-      return res.status(400).json({
-        success: false,
-        message: 'Maximum verification attempts exceeded. Please request a new OTP.'
-      });
+      return res.status(400).json({ success: false, message: 'Maximum verification attempts exceeded. Please request a new OTP.' });
     }
 
-    // Verify OTP
-    if (storedOTPData.otp !== otp) {
-      storedOTPData.attempts += 1;
+    if (stored.real) {
+      // Real provider verification — returns the UIDAI KYC profile on success.
+      try {
+        const result = await submitOtp(stored.clientId, otp);
+        otpStorage.delete(aadharNumber);
+        return res.json({
+          success: true,
+          message: 'Aadhaar verified successfully',
+          data: {
+            aadharNumber,
+            verified: true,
+            verifiedAt: new Date().toISOString(),
+            fullName: result.fullName,
+            dob: result.dob,
+            gender: result.gender,
+          },
+        });
+      } catch (err) {
+        stored.attempts += 1;
+        return res.status(400).json({
+          success: false,
+          message: err.providerMessage || 'Invalid OTP. Please try again.',
+          attemptsRemaining: 3 - stored.attempts,
+        });
+      }
+    }
+
+    // Dev fallback verification.
+    if (stored.otp !== otp) {
+      stored.attempts += 1;
       return res.status(400).json({
         success: false,
         message: 'Invalid OTP. Please try again.',
-        attemptsRemaining: 3 - storedOTPData.attempts
+        attemptsRemaining: 3 - stored.attempts,
       });
     }
-
-    // OTP verified successfully
     otpStorage.delete(aadharNumber);
-
-    res.json({
+    return res.json({
       success: true,
-      message: 'Aadhar verified successfully',
-      data: {
-        aadharNumber: aadharNumber,
-        verified: true,
-        verifiedAt: new Date().toISOString()
-      }
+      message: 'Aadhaar verified (demo mode)',
+      data: { aadharNumber, verified: true, verifiedAt: new Date().toISOString(), demo: true },
     });
-
   } catch (error) {
     console.error('Verify OTP error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to verify OTP'
-    });
+    res.status(500).json({ success: false, message: 'Failed to verify OTP' });
   }
 };
 

@@ -16,6 +16,7 @@ import {
   Tooltip,
   Divider,
   InputAdornment,
+  LinearProgress,
   useTheme,
 } from '@mui/material';
 import {
@@ -52,6 +53,48 @@ const emptyForm = {
   color: DEFAULT_DEPT_COLOR,
   budget: 0,
   isActive: true,
+};
+
+// Actual staff cost (sum of department salaries) shown against the budget:
+// a coloured utilisation bar that flags when a department is over budget.
+const BudgetMeter = ({ budget, cost, isDarkMode }) => {
+  const b = Number(budget) || 0;
+  const c = Number(cost) || 0;
+  const hasBudget = b > 0;
+  if (!hasBudget && c <= 0) return null; // nothing meaningful to show
+  const pct = hasBudget ? Math.round((c / b) * 100) : 0;
+  const over = hasBudget && c > b;
+  const near = hasBudget && !over && pct >= 85;
+  const meterColor = over ? '#ef4444' : near ? '#f59e0b' : '#10b981';
+  return (
+    <Box sx={{ mt: 1.5 }}>
+      <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'baseline', mb: 0.5 }}>
+        <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+          {hasBudget ? 'Staff cost / budget' : 'Staff cost'}
+        </Typography>
+        <Typography variant="caption" sx={{ fontWeight: 700, color: over ? '#ef4444' : 'text.primary' }}>
+          {currencySym()}{c.toLocaleString('en-IN')}
+          {hasBudget ? ` / ${currencySym()}${b.toLocaleString('en-IN')}` : ''}
+        </Typography>
+      </Stack>
+      {hasBudget && (
+        <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+          <LinearProgress
+            variant="determinate"
+            value={Math.min(pct, 100)}
+            sx={{
+              flex: 1, height: 6, borderRadius: 999,
+              backgroundColor: isDarkMode ? 'rgba(148,163,184,0.18)' : 'rgba(15,23,42,0.08)',
+              '& .MuiLinearProgress-bar': { backgroundColor: meterColor, borderRadius: 999 },
+            }}
+          />
+          <Typography variant="caption" sx={{ fontWeight: 700, color: meterColor, whiteSpace: 'nowrap' }}>
+            {pct}%{over ? ' over' : ''}
+          </Typography>
+        </Stack>
+      )}
+    </Box>
+  );
 };
 
 const DepartmentCard = ({ dept, onEdit, onDelete, onToggle, isDarkMode }) => {
@@ -145,26 +188,17 @@ const DepartmentCard = ({ dept, onEdit, onDelete, onToggle, isDarkMode }) => {
           alignItems: "center",
           justifyContent: "space-between"
         }}>
-        <Stack direction="row" spacing={0.75}>
-          <Chip
-            icon={<PeopleIcon sx={{ fontSize: 15 }} />}
-            label={`${dept.staffCount ?? 0} staff`}
-            size="small"
-            sx={{ borderRadius: 999 }}
-          />
-          {Number(dept.budget) > 0 && (
-            <Chip
-              label={`${currencySym()}${Number(dept.budget).toLocaleString('en-IN')}`}
-              size="small"
-              variant="outlined"
-              sx={{ borderRadius: 999 }}
-            />
-          )}
-        </Stack>
+        <Chip
+          icon={<PeopleIcon sx={{ fontSize: 15 }} />}
+          label={`${dept.staffCount ?? 0} staff`}
+          size="small"
+          sx={{ borderRadius: 999 }}
+        />
         <Tooltip title={active ? 'Active — click to deactivate' : 'Inactive — click to activate'}>
           <Switch size="small" checked={active} onChange={() => onToggle(dept)} />
         </Tooltip>
       </Stack>
+      <BudgetMeter budget={dept.budget} cost={dept.staffCost} isDarkMode={isDarkMode} />
     </Box>
   );
 };
@@ -394,6 +428,7 @@ const DepartmentsSection = ({ onNotify }) => {
                 value={form.budget}
                 onChange={(e) => setForm({ ...form, budget: e.target.value })}
                 fullWidth
+                helperText="Tracked against total staff salaries in this department"
                 slotProps={{
                   input: { startAdornment: <InputAdornment position="start">{currencySym()}</InputAdornment> }
                 }}

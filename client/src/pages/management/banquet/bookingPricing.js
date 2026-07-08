@@ -89,8 +89,9 @@ export const calculateEventDuration = (startTime, endTime) => {
 
 // Standard timing per event type:
 // - Wedding: 10:00 on the event date until 09:00 the next day (overnight)
-// - Everything else: 10:00 to 22:00 on the same day
-export const getEventTimingDefaults = (eventType, eventDate) => {
+// - Everything else: 10:00 for the configured default duration (Settings →
+//   Operations → Banquet → default event hours); falls back to 10:00–22:00.
+export const getEventTimingDefaults = (eventType, eventDate, defaultHours) => {
   if (eventType === 'Wedding') {
     let endDate = '';
     if (eventDate) {
@@ -103,6 +104,14 @@ export const getEventTimingDefaults = (eventType, eventDate) => {
       }
     }
     return { startTime: '10:00', endTime: '09:00', endDate };
+  }
+  const h = Number(defaultHours);
+  if (Number.isFinite(h) && h > 0) {
+    // 10:00 + h hours, clamped to the same day (cap at 23:59).
+    const endMinutes = Math.min(10 * 60 + Math.round(h * 60), 23 * 60 + 59);
+    const eh = String(Math.floor(endMinutes / 60)).padStart(2, '0');
+    const em = String(endMinutes % 60).padStart(2, '0');
+    return { startTime: '10:00', endTime: `${eh}:${em}`, endDate: '' };
   }
   return { startTime: '10:00', endTime: '22:00', endDate: '' };
 };

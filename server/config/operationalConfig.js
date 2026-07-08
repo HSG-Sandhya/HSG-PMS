@@ -27,6 +27,8 @@ const mergeOps = (saved = {}) => ({
   housekeeping: { ...OPERATIONS_DEFAULTS.housekeeping, ...(saved.housekeeping || {}) },
   payroll: { ...OPERATIONS_DEFAULTS.payroll, ...(saved.payroll || {}) },
   accounting: { ...OPERATIONS_DEFAULTS.accounting, ...(saved.accounting || {}) },
+  banquet: { ...OPERATIONS_DEFAULTS.banquet, ...(saved.banquet || {}) },
+  frontDesk: { ...OPERATIONS_DEFAULTS.frontDesk, ...(saved.frontDesk || {}) },
 });
 
 async function load() {

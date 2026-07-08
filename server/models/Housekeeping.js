@@ -34,6 +34,9 @@ const housekeepingSchema = new mongoose.Schema({
   scheduledFor: { type: Date, default: Date.now },
   completedAt: { type: Date },
 
+  // Expected time to complete (minutes). Default from Operations settings.
+  estimatedMinutes: { type: Number, min: 0, default: HK.expectedCleaningMinutes },
+
   notes: { type: String, trim: true },
 
   // Assignment
@@ -69,7 +72,7 @@ housekeepingSchema.pre("save", function () {
 
 // Create a cleaning task for a room or hall, skipping if an open one already exists.
 // Returns the existing or newly created task (or null when no target is given).
-housekeepingSchema.statics.ensureCleaningTask = async function ({ roomId, hallId, source, notes, priority = HK.checkoutCleaningPriority } = {}) {
+housekeepingSchema.statics.ensureCleaningTask = async function ({ roomId, hallId, source, notes, priority = HK.checkoutCleaningPriority, estimatedMinutes } = {}) {
   if (!roomId && !hallId) return null;
 
   const query = {
@@ -88,6 +91,7 @@ housekeepingSchema.statics.ensureCleaningTask = async function ({ roomId, hallId
     taskType: HK.defaultTaskType,
     notes: notes || "Cleaning required.",
     priority,
+    ...(estimatedMinutes != null ? { estimatedMinutes } : {}),
     status: "Pending",
     source: source || "manual",
     scheduledFor: new Date(),

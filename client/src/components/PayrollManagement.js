@@ -37,6 +37,7 @@ import {
   Payments as AmountIcon,
   VerifiedUser as VerifiedIcon,
   AccountBalanceWallet as WalletIcon,
+  EventAvailable as PayDayIcon,
 } from '@mui/icons-material';
 import api from '../api';
 import { dialogPaperSx, dialogBackdropSx, primaryButtonSx, secondaryButtonSx } from './forms/formStyles';
@@ -130,6 +131,7 @@ const PayrollManagement = () => {
   const [paymentDialog, setPaymentDialog] = useState(false);
   const [selectedPayroll, setSelectedPayroll] = useState(null);
   const [summary, setSummary] = useState({});
+  const [payDayInfo, setPayDayInfo] = useState(null);
   const [filters, setFilters] = useState({
     month: new Date().getMonth() + 1,
     year: new Date().getFullYear(),
@@ -192,7 +194,13 @@ const PayrollManagement = () => {
         month: filters.month,
         year: filters.year
       });
-      setSummary(response.data.data?.summary || []);
+      const d = response.data.data || {};
+      setSummary(d.summary || []);
+      setPayDayInfo({
+        payDay: d.payDay,
+        nextPayDate: d.nextPayDate,
+        daysUntilPayDay: d.daysUntilPayDay,
+      });
     } catch (error) {
       console.error('Error fetching summary:', error);
     }
@@ -349,6 +357,29 @@ const PayrollManagement = () => {
           </Typography>
         </Box>
       </Stack>
+      {/* Next pay day reminder — from Settings → Operations → Payroll */}
+      {payDayInfo?.nextPayDate && (
+        <Box
+          sx={{
+            display: 'flex', alignItems: 'center', gap: 1, mb: 3, px: 2, py: 1.25, borderRadius: 2,
+            border: '1px solid', borderColor: 'divider',
+            background: 'rgba(var(--app-primary-rgb),0.06)',
+          }}
+        >
+          <PayDayIcon sx={{ fontSize: 20, color: ACCENT }} />
+          <Typography variant="body2">
+            Next salary pay day:{' '}
+            <Box component="span" sx={{ fontWeight: 700 }}>
+              {new Date(payDayInfo.nextPayDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+            </Box>
+            {typeof payDayInfo.daysUntilPayDay === 'number' && (
+              <Box component="span" sx={{ fontWeight: 600, color: payDayInfo.daysUntilPayDay <= 2 ? '#d97706' : 'text.secondary' }}>
+                {' · '}{payDayInfo.daysUntilPayDay === 0 ? 'today' : `in ${payDayInfo.daysUntilPayDay} day${payDayInfo.daysUntilPayDay === 1 ? '' : 's'}`}
+              </Box>
+            )}
+          </Typography>
+        </Box>
+      )}
       {/* Summary Cards */}
       <Grid container spacing={2} sx={{ mb: 3 }}>
         <Grid

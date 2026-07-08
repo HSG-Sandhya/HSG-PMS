@@ -397,20 +397,20 @@ export const SettingsProvider = ({ children }) => {
   // Cache the hotel logo + name so a refresh paints the real logo immediately
   // instead of flashing the initials monogram. Only cache the two identity
   // fields the sidebar seeds from — not the whole (large) hotelProfile.
+  const identityLogo = settings?.hotelProfile?.logo || '';
+  const identityHotelName = settings?.hotelProfile?.hotelName || '';
+  const hasHotelProfile = !!settings?.hotelProfile;
   useEffect(() => {
-    if (!isAuthenticated || !settings?.hotelProfile) return;
+    if (!isAuthenticated || !hasHotelProfile) return;
     try {
       localStorage.setItem(
         IDENTITY_CACHE_KEY,
-        JSON.stringify({
-          logo: settings.hotelProfile.logo || '',
-          hotelName: settings.hotelProfile.hotelName || '',
-        })
+        JSON.stringify({ logo: identityLogo, hotelName: identityHotelName })
       );
     } catch {
       // storage full or blocked — refresh just flashes the monogram briefly
     }
-  }, [settings?.hotelProfile?.logo, settings?.hotelProfile?.hotelName, isAuthenticated]);
+  }, [isAuthenticated, hasHotelProfile, identityLogo, identityHotelName]);
 
   // Keep the module-level billing config in lock-step with settings so plain
   // (non-React) formatters, print/invoice builders and hook-less components read

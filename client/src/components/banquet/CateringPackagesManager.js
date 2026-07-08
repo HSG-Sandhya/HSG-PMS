@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   Box, Grid, Card, CardContent, Typography, Button, IconButton, Chip, Stack,
-  TextField, MenuItem, CircularProgress, Divider, Tooltip, InputAdornment,
+  TextField, MenuItem, CircularProgress, Divider, Tooltip, InputAdornment, Autocomplete,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
@@ -13,6 +13,26 @@ import { currencySym } from '../../utils/billing';
 
 const CATEGORIES = ['Veg', 'Non-Veg', 'Mixed'];
 const CATEGORY_COLOR = { 'Veg': '#10B981', 'Non-Veg': '#EF4444', 'Mixed': '#F59E0B' };
+
+// Suggested names for the catering Package name field (freeSolo — user can
+// still type anything). Common per-plate menu tiers and cuisines.
+const NAME_SUGGESTIONS = [
+  'Silver Veg Menu', 'Gold Veg Menu', 'Platinum Veg Menu',
+  'Standard Veg Thali', 'Deluxe Non-Veg Menu', 'Royal Non-Veg Thali',
+  'Premium Mixed Menu', 'North Indian Thali', 'South Indian Special',
+  'Live Counter Package', 'Wedding Feast', 'Corporate Lunch',
+];
+
+// Suggested dishes for the "Dishes included" field (multi-select freeSolo —
+// user can still add anything). Common Indian banquet menu items.
+const DISH_SUGGESTIONS = [
+  'Paneer Tikka', 'Veg Spring Roll', 'Chicken Tikka', 'Fish Fry',
+  'Paneer Butter Masala', 'Dal Makhani', 'Mix Veg', 'Chana Masala',
+  'Veg Pulao', 'Jeera Rice', 'Butter Naan', 'Tandoori Roti',
+  'Chicken Curry', 'Mutton Rogan Josh', 'Egg Curry',
+  'Green Salad', 'Raita', 'Papad', 'Pickle',
+  'Gulab Jamun', 'Ice Cream', 'Rasgulla', 'Gajar Halwa',
+];
 
 const emptyPkg = {
   name: '', description: '', category: 'Veg', pricePerPlate: 0, items: [], isActive: true,
@@ -215,7 +235,18 @@ const CateringPackagesManager = ({ onNotify }) => {
       >
         <FormSection title="Package Details" icon={<RestaurantMenuIcon fontSize="small" />} iconColor="#f43f5e">
           <Grid container spacing={2} sx={{ mt: 0 }}>
-            <Grid size={12}><TextField fullWidth label="Package name" value={form.name} onChange={(e) => set('name', e.target.value)} required /></Grid>
+            <Grid size={12}>
+              <Autocomplete
+                freeSolo
+                options={NAME_SUGGESTIONS}
+                inputValue={form.name}
+                onInputChange={(e, val) => set('name', val)}
+                renderInput={(params) => (
+                  <TextField {...params} fullWidth label="Package name" required
+                    helperText="Pick a suggestion or type your own" />
+                )}
+              />
+            </Grid>
             <Grid size={12}><TextField fullWidth label="Description" value={form.description} onChange={(e) => set('description', e.target.value)} multiline rows={2} /></Grid>
             <Grid size={6}>
               <TextField select fullWidth label="Category" value={form.category} onChange={(e) => set('category', e.target.value)}>
@@ -236,10 +267,17 @@ const CateringPackagesManager = ({ onNotify }) => {
               </TextField>
             </Grid>
             <Grid size={12}>
-              <TextField fullWidth label="Dishes included (one per line)" multiline rows={5}
-                value={Array.isArray(form.items) ? form.items.join('\n') : form.items}
-                onChange={(e) => set('items', e.target.value.split('\n'))}
-                placeholder={'Veg Pulao\nDaal Makhani\nPaneer Butter Masala\nMix Veg\nGulab Jamun\nSalad & Papad'} />
+              <Autocomplete
+                multiple freeSolo filterSelectedOptions
+                options={DISH_SUGGESTIONS}
+                value={Array.isArray(form.items) ? form.items.filter(Boolean) : []}
+                onChange={(e, val) => set('items', val)}
+                renderInput={(params) => (
+                  <TextField {...params} fullWidth label="Dishes included"
+                    placeholder="Pick or type, then Enter"
+                    helperText="Choose from suggestions or type your own and press Enter" />
+                )}
+              />
             </Grid>
           </Grid>
         </FormSection>

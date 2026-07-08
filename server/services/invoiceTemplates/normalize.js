@@ -50,6 +50,18 @@ const buildHotelItems = (booking) => {
     });
   });
 
+  const lateFee = Number(booking.lateCheckoutFee || 0);
+  if (lateFee > 0) {
+    items.push({
+      description: 'Late checkout fee',
+      detail: '',
+      quantity: 1,
+      rate: lateFee,
+      amount: lateFee,
+      category: 'extra',
+    });
+  }
+
   return items;
 };
 

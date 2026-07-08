@@ -79,6 +79,9 @@ const bookingSchema = new mongoose.Schema({
     other: { type: Number, default: 0 },
   },
   extraChargesTotal: { type: Number, default: 0 },
+  // Tiered late-checkout fee (base, pre-GST) applied at checkout when the guest
+  // leaves past the grace window. Folded into baseAmount/gstAmount/totalAmount.
+  lateCheckoutFee: { type: Number, default: 0 },
   paidAmount: { type: Number, default: 0 },
   remainingAmount: { type: Number, default: 0 },
   paymentMethod: {

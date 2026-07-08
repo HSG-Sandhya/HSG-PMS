@@ -33,13 +33,32 @@ export const OPERATIONS_DEFAULTS = {
     defaultPriority: 'Medium',
     checkoutCleaningPriority: 'High',
     autoCreateOnCheckout: true,
+    requireInspection: false,        // completed cleaning must be inspected before "Clean"
+    expectedCleaningMinutes: 30,     // ETA stamped on auto-created cleaning tasks
   },
   payroll: {
     defaultSalary: 25000,
     minWalletRecharge: 10,
+    payDay: 1,                       // day-of-month the monthly salary is paid
+    overtimeMultiplier: 1.5,         // × hourly rate for overtime hours
   },
   accounting: {
     defaultAccountType: 'savings',
     defaultPaymentMethod: 'cash',
+    autoPostIncome: true,            // auto-post income/expense to the ledger
+    financialYearStartMonth: 4,      // 1–12; India FY starts April
+  },
+  banquet: {
+    advancePercent: 50,              // % of total to confirm a banquet booking
+    quotationValidityDays: 15,       // how long a quotation stays valid
+    defaultEventHours: 4,            // pre-fill for a new event's duration
+    minAdvanceAmount: 0,             // ₹ floor on the advance to confirm
+  },
+  frontDesk: {
+    requireIdProof: false,           // block booking without an ID document
+    allowOverbooking: false,         // permit booking a room that's already occupied
+    holdExpiryHours: 24,             // tentative/hold auto-release window
+    lateCheckoutGraceMinutes: 120,   // grace after checkout time before a late fee
+    lateCheckoutFullDayAfter: '18:00', // checkout past this time = full night (else ½ night)
   },
 };

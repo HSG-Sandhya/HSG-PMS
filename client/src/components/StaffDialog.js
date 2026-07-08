@@ -15,6 +15,7 @@ import {
   CircularProgress,
   InputAdornment,
   Alert,
+  Collapse,
 } from '@mui/material';
 import {
   Person as PersonIcon,
@@ -27,10 +28,85 @@ import {
   Image as ImageIcon,
   CheckCircle as CheckCircleIcon
 } from '@mui/icons-material';
+import { motion, AnimatePresence } from 'framer-motion';
 import FormDialog, { FormSection } from './forms/FormDialog';
 import AppDatePicker from './forms/AppDatePicker';
 import api from '../api';
 import { currencySym } from '../utils/billing';
+
+// Per-section accent styling layered on top of the shared FormSection: a soft
+// gradient "spine" down the left edge, a lift-on-hover glow, and a colour focus
+// ring on the inputs — all keyed off the section's accent colour.
+const accentSx = (accent) => ({
+  position: 'relative',
+  overflow: 'hidden',
+  transition: 'box-shadow .3s ease, border-color .3s ease',
+  '&::before': {
+    content: '""',
+    position: 'absolute', left: 0, top: 0, bottom: 0, width: 4,
+    background: `linear-gradient(180deg, ${accent}, ${accent}22)`,
+  },
+  '&:hover': {
+    borderColor: `${accent}66`,
+    boxShadow: `0 16px 36px -22px ${accent}`,
+  },
+  '& .MuiOutlinedInput-root': {
+    borderRadius: 2,
+    transition: 'box-shadow .2s ease',
+    '&.Mui-focused': { boxShadow: `0 0 0 3px ${accent}22` },
+  },
+});
+
+// A FormSection that cascades up into view on mount (staggered by `index`) and
+// carries a colour accent. When `complete` is true, a check pops in beside the
+// title — a live "this section's required fields are done" cue.
+const AnimatedSection = ({ index = 0, iconColor = '#6366f1', title, complete = false, sx, children, ...rest }) => {
+  const titleNode = (
+    <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.75 }}>
+      {title}
+      <AnimatePresence>
+        {complete && (
+          <Box
+            component={motion.span}
+            key="section-done"
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0, opacity: 0 }}
+            transition={{ type: 'spring', stiffness: 500, damping: 20 }}
+            sx={{ display: 'inline-flex', color: iconColor }}
+          >
+            <CheckCircleIcon sx={{ fontSize: 15 }} />
+          </Box>
+        )}
+      </AnimatePresence>
+    </Box>
+  );
+  return (
+    <Box
+      component={motion.div}
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.45, delay: 0.07 * index, ease: [0.22, 1, 0.36, 1] }}
+    >
+      <FormSection title={titleNode} iconColor={iconColor} {...rest} sx={{ ...accentSx(iconColor), ...(sx || {}) }}>
+        {children}
+      </FormSection>
+    </Box>
+  );
+};
+
+// Little spring "pop" for status chips (OTP Sent / Verified).
+const PopChip = ({ children }) => (
+  <Box
+    component={motion.span}
+    initial={{ scale: 0, opacity: 0 }}
+    animate={{ scale: 1, opacity: 1 }}
+    transition={{ type: 'spring', stiffness: 520, damping: 22 }}
+    sx={{ display: 'inline-flex' }}
+  >
+    {children}
+  </Box>
+);
 
 const EMPTY_FORM_DATA = {
   firstName: '',
@@ -372,6 +448,15 @@ const StaffDialog = ({ open, onClose, onSuccess, editingStaff, roles: propRoles,
     onClose();
   };
 
+  // Live "section done" cues — only the sections with required fields.
+  const basicComplete = Boolean(
+    formData.firstName.trim() &&
+    formData.lastName.trim() &&
+    /\S+@\S+\.\S+/.test(formData.email) &&
+    formData.phone.length === 10
+  );
+  const roleComplete = Boolean(formData.roleId && formData.departmentId);
+
   return (
     <FormDialog
       open={open}
@@ -389,7 +474,7 @@ const StaffDialog = ({ open, onClose, onSuccess, editingStaff, roles: propRoles,
           {error}
         </Alert>
       )}
-      <FormSection title="Basic Information" icon={<PersonIcon fontSize="small" />} iconColor="#06b6d4">
+      <AnimatedSection index={0} complete={basicComplete} title="Basic Information" icon={<PersonIcon fontSize="small" />} iconColor="#06b6d4">
         <Grid container spacing={2}>
           <Grid
             size={{
@@ -465,8 +550,8 @@ const StaffDialog = ({ open, onClose, onSuccess, editingStaff, roles: propRoles,
               }} />
           </Grid>
         </Grid>
-      </FormSection>
-      <FormSection title="Role & Department" icon={<WorkIcon fontSize="small" />} iconColor="#6366f1">
+      </AnimatedSection>
+      <AnimatedSection index={1} complete={roleComplete} title="Role & Department" icon={<WorkIcon fontSize="small" />} iconColor="#6366f1">
         <Grid container spacing={2}>
           <Grid
             size={{
@@ -529,8 +614,8 @@ const StaffDialog = ({ open, onClose, onSuccess, editingStaff, roles: propRoles,
             </FormControl>
           </Grid>
         </Grid>
-      </FormSection>
-      <FormSection title="Profile Information (Optional)" icon={<BadgeIcon fontSize="small" />} iconColor="#a21caf">
+      </AnimatedSection>
+      <AnimatedSection index={2} title="Profile Information (Optional)" icon={<BadgeIcon fontSize="small" />} iconColor="#a21caf">
         <Grid container spacing={2}>
           <Grid
             size={{
@@ -590,8 +675,8 @@ const StaffDialog = ({ open, onClose, onSuccess, editingStaff, roles: propRoles,
             />
           </Grid>
         </Grid>
-      </FormSection>
-      <FormSection title="Aadhar Verification" icon={<FingerprintIcon fontSize="small" />} iconColor="#10b981">
+      </AnimatedSection>
+      <AnimatedSection index={3} title="Aadhar Verification" icon={<FingerprintIcon fontSize="small" />} iconColor="#10b981">
         <Grid container spacing={2}>
           <Grid
             size={{
@@ -628,78 +713,79 @@ const StaffDialog = ({ open, onClose, onSuccess, editingStaff, roles: propRoles,
                 {otpLoading ? 'Sending...' : 'Send OTP'}
               </Button>
               {otpSent && (
-                <Chip 
-                  label="OTP Sent" 
-                  color="success" 
-                  size="small" 
-                  icon={<CheckCircleIcon />} 
-                />
+                <PopChip>
+                  <Chip
+                    label="OTP Sent"
+                    color="success"
+                    size="small"
+                    icon={<CheckCircleIcon />}
+                  />
+                </PopChip>
               )}
             </Box>
           </Grid>
 
-          {otpSent && (
-            <>
-              <Grid
-                size={{
-                  xs: 12,
-                  sm: 6
-                }}>
-                <TextField
-                  fullWidth
-                  label="Enter OTP"
-                  value={otp || ''}
-                  onChange={(e) => {
-                    const value = e.target.value.replace(/\D/g, '').slice(0, 6);
-                    setOtp(value);
-                  }}
-                  helperText="6-digit OTP sent to registered mobile"
-                  slotProps={{
-                    htmlInput: { maxLength: 6 }
-                  }}
-                />
-              </Grid>
-              
-              {receivedOtp && (
+          {/* OTP entry — smoothly reveals once the OTP has been sent */}
+          <Grid size={12}>
+            <Collapse in={otpSent} timeout={350} unmountOnExit>
+              <Grid container spacing={2} sx={{ pt: 0.5 }}>
                 <Grid
                   size={{
                     xs: 12,
                     sm: 6
                   }}>
-                  <Alert severity="info" sx={{ display: 'flex', alignItems: 'center' }}>
-                    <strong>Development OTP: {receivedOtp}</strong>
-                  </Alert>
-                </Grid>
-              )}
-            </>
-          )}
-
-          {otpSent && (
-            <Grid
-              size={{
-                xs: 12,
-                sm: 6
-              }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Button
-                  variant="contained"
-                  onClick={verifyOtp}
-                  disabled={!otp || otp.length !== 6}
-                  startIcon={<VerifiedIcon />}
-                >
-                  Verify OTP
-                </Button>
-                {otpVerified && (
-                  <Chip 
-                    label="Verified" 
-                    color="success" 
-                    size="small" 
-                    icon={<CheckCircleIcon />} 
+                  <TextField
+                    fullWidth
+                    label="Enter OTP"
+                    value={otp || ''}
+                    onChange={(e) => {
+                      const value = e.target.value.replace(/\D/g, '').slice(0, 6);
+                      setOtp(value);
+                    }}
+                    helperText="6-digit OTP sent to registered mobile"
+                    slotProps={{
+                      htmlInput: { maxLength: 6 }
+                    }}
                   />
+                </Grid>
+
+                {receivedOtp && (
+                  <Grid
+                    size={{
+                      xs: 12,
+                      sm: 6
+                    }}>
+                    <Alert severity="info" sx={{ display: 'flex', alignItems: 'center' }}>
+                      <strong>Development OTP: {receivedOtp}</strong>
+                    </Alert>
+                  </Grid>
                 )}
-              </Box>
-            </Grid>
-          )}
+
+                <Grid size={12}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Button
+                      variant="contained"
+                      onClick={verifyOtp}
+                      disabled={!otp || otp.length !== 6}
+                      startIcon={<VerifiedIcon />}
+                    >
+                      Verify OTP
+                    </Button>
+                    {otpVerified && (
+                      <PopChip>
+                        <Chip
+                          label="Verified"
+                          color="success"
+                          size="small"
+                          icon={<CheckCircleIcon />}
+                        />
+                      </PopChip>
+                    )}
+                  </Box>
+                </Grid>
+              </Grid>
+            </Collapse>
+          </Grid>
 
           {/* Aadhar Image Upload - Front and Back */}
           <Grid size={12}>
@@ -804,8 +890,8 @@ const StaffDialog = ({ open, onClose, onSuccess, editingStaff, roles: propRoles,
             </Grid>
           </Grid>
         </Grid>
-      </FormSection>
-      <FormSection title="Emergency Contact (Optional)" icon={<ContactPhoneIcon fontSize="small" />} iconColor="#f59e0b">
+      </AnimatedSection>
+      <AnimatedSection index={4} title="Emergency Contact (Optional)" icon={<ContactPhoneIcon fontSize="small" />} iconColor="#f59e0b">
         <Grid container spacing={2}>
           <Grid
             size={{
@@ -845,9 +931,9 @@ const StaffDialog = ({ open, onClose, onSuccess, editingStaff, roles: propRoles,
             />
           </Grid>
         </Grid>
-      </FormSection>
+      </AnimatedSection>
       {!editingStaff && (
-        <FormSection title="Login Credentials" icon={<VerifiedIcon fontSize="small" />} iconColor="#6366f1">
+        <AnimatedSection index={5} title="Login Credentials" icon={<VerifiedIcon fontSize="small" />} iconColor="#6366f1">
           <FormControlLabel
             control={
               <Switch
@@ -857,7 +943,7 @@ const StaffDialog = ({ open, onClose, onSuccess, editingStaff, roles: propRoles,
             }
             label="Auto-generate login credentials"
           />
-        </FormSection>
+        </AnimatedSection>
       )}
     </FormDialog>
   );

@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import mongoosePaginate from "mongoose-paginate-v2";
+import { getOps } from "../config/operationalConfig.js";
 
 const payrollSchema = new mongoose.Schema({
   // Staff reference (excluding admin and system admin)
@@ -237,10 +238,13 @@ payrollSchema.methods.calculatePayroll = async function() {
     const attendanceRatio = this.attendance.attendancePercentage / 100;
     this.earnings.basicPay = this.salary.basic * attendanceRatio;
 
-    // Calculate overtime pay (with safety checks)
+    // Calculate overtime pay (with safety checks). The multiplier is
+    // configurable in Settings → Operations → Payroll (defaults to 1.5×).
+    const { payroll: payrollCfg } = await getOps();
+    const otMultiplier = Number(payrollCfg?.overtimeMultiplier) || 1.5;
     const workingHours = (this.attendance.workingDays || 22) * 8;
     const hourlyRate = workingHours > 0 ? this.salary.basic / workingHours : 0;
-    this.earnings.overtimePay = (this.attendance.overtimeHours || 0) * hourlyRate * 1.5;
+    this.earnings.overtimePay = (this.attendance.overtimeHours || 0) * hourlyRate * otMultiplier;
 
     // Calculate allowances (proportional to attendance)
     Object.keys(this.earnings.allowances).forEach(key => {

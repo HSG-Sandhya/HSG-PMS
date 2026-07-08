@@ -4,6 +4,7 @@ import Guest from '../models/Guest.js';
 import BanquetBooking from '../models/BanquetBooking.js';
 import Order from '../models/Order.js';
 import AccountingEntry from '../models/AccountingEntry.js';
+import { getOps } from '../config/operationalConfig.js';
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -16,7 +17,18 @@ const endOfToday = (start = startOfToday()) =>
   new Date(start.getTime() + 24 * 60 * 60 * 1000);
 const startOfMonth = (today = new Date()) =>
   new Date(today.getFullYear(), today.getMonth(), 1);
-const startOfYear = (today = new Date()) => new Date(today.getFullYear(), 0, 1);
+// Start of the *financial* year for a given FY-start month (1–12). e.g. with
+// startMonth=4 (India, April): in Jul 2026 → 1 Apr 2026; in Feb 2026 → 1 Apr 2025.
+const startOfFinancialYear = (startMonth = 1, today = new Date()) => {
+  const m = today.getMonth() + 1;
+  const year = m >= startMonth ? today.getFullYear() : today.getFullYear() - 1;
+  return new Date(year, startMonth - 1, 1);
+};
+// The current financial year's start, per Settings → Operations → Accounting.
+// All "year revenue / stats" KPIs use this so the dashboard reflects the FY
+// (India: Apr–Mar) rather than the calendar year.
+const financialYearStartNow = async () =>
+  startOfFinancialYear((await getOps()).accounting.financialYearStartMonth);
 
 const yearRange = (year) => ({
   $gte: new Date(`${year}-01-01`),
@@ -184,7 +196,8 @@ export const getRevenueSummary = async (_req, res) => {
   try {
     const today = startOfToday();
     const monthStart = startOfMonth();
-    const yearStart = startOfYear();
+    // "Year revenue" follows the configured financial year, not the calendar year.
+    const yearStart = await financialYearStartNow();
 
     const [todayRev, monthRev, yearRev, pending] = await Promise.all([
       sumPaidAmount(Booking, { createdAt: { $gte: today, $lt: endOfToday(today) } }),
@@ -370,7 +383,7 @@ export const getBookingStats = async (_req, res) => {
     const today = startOfToday();
     const tomorrow = endOfToday(today);
     const monthStart = startOfMonth();
-    const yearStart = startOfYear();
+    const yearStart = await financialYearStartNow();
 
     // Ten separate countDocuments collapsed into one $facet aggregation — a
     // single round-trip instead of ten (see atlas-shared-tier-throttling).
@@ -416,7 +429,7 @@ export const getRevenueStats = async (_req, res) => {
     const today = startOfToday();
     const tomorrow = endOfToday(today);
     const monthStart = startOfMonth();
-    const yearStart = startOfYear();
+    const yearStart = await financialYearStartNow();
 
     // Six aggregations collapsed into one $facet round-trip.
     const paidSum = (match) => [
@@ -459,7 +472,7 @@ export const getBanquetBookingsStats = async (_req, res) => {
     const today = startOfToday();
     const tomorrow = endOfToday(today);
     const monthStart = startOfMonth();
-    const yearStart = startOfYear();
+    const yearStart = await financialYearStartNow();
 
     // Twelve queries (8 counts + 3 sums + 1 group) collapsed into one $facet.
     const totalSum = (match) => [
@@ -516,7 +529,7 @@ export const getRestaurantSales = async (_req, res) => {
     const today = startOfToday();
     const tomorrow = endOfToday(today);
     const monthStart = startOfMonth();
-    const yearStart = startOfYear();
+    const yearStart = await financialYearStartNow();
     const year = new Date().getFullYear();
 
     // Six aggregations collapsed into one $facet. Every sub-pipeline scopes to

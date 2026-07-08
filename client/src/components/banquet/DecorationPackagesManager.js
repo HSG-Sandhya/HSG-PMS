@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   Box, Grid, Card, CardContent, Typography, Button, IconButton, Chip, Stack,
-  TextField, MenuItem, CircularProgress, Divider, Tooltip, InputAdornment,
+  TextField, MenuItem, CircularProgress, Divider, Tooltip, InputAdornment, Autocomplete,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
@@ -10,6 +10,24 @@ import CelebrationIcon from '@mui/icons-material/Celebration';
 import FormDialog, { FormSection } from '../forms/FormDialog';
 import api from '../../api';
 import { currencySym } from '../../utils/billing';
+
+// Suggested names for the decoration Package name field (freeSolo — user can
+// still type anything). Common décor bundles and wedding-function themes.
+const NAME_SUGGESTIONS = [
+  'Standard Décor', 'Premium Décor', 'Royal Stage Décor',
+  'Floral Theme', 'Wedding Mandap', 'Reception Backdrop',
+  'Haldi Décor', 'Mehndi Décor', 'Sangeet Stage',
+  'Entrance & Aisle Décor', 'Birthday Theme', 'Corporate Setup',
+];
+
+// Suggested décor items for the "Included items" field (multi-select freeSolo
+// — user can still add anything). Common décor elements in a bundle.
+const DECOR_ITEM_SUGGESTIONS = [
+  'Stage backdrop', 'Floral entrance', 'Mandap setup', 'Aisle décor',
+  'Lighting & drapes', 'Ceiling drapes', 'Table centerpieces',
+  'Chair covers & sashes', 'Welcome board', 'Balloon décor',
+  'Fairy lights', 'Flower garlands', 'Photo booth', 'Carpet & walkway', 'LED wall',
+];
 
 const CATEGORIES = ['Standard', 'Premium', 'Theme', 'Floral', 'Stage', 'Custom'];
 const CATEGORY_COLOR = {
@@ -215,7 +233,18 @@ const DecorationPackagesManager = ({ onNotify }) => {
       >
         <FormSection title="Package Details" icon={<CelebrationIcon fontSize="small" />} iconColor="#ec4899">
           <Grid container spacing={2} sx={{ mt: 0 }}>
-            <Grid size={12}><TextField fullWidth label="Package name" value={form.name} onChange={(e) => set('name', e.target.value)} required /></Grid>
+            <Grid size={12}>
+              <Autocomplete
+                freeSolo
+                options={NAME_SUGGESTIONS}
+                inputValue={form.name}
+                onInputChange={(e, val) => set('name', val)}
+                renderInput={(params) => (
+                  <TextField {...params} fullWidth label="Package name" required
+                    helperText="Pick a suggestion or type your own" />
+                )}
+              />
+            </Grid>
             <Grid size={12}><TextField fullWidth label="Description" value={form.description} onChange={(e) => set('description', e.target.value)} multiline rows={2} /></Grid>
             <Grid size={6}>
               <TextField select fullWidth label="Category" value={form.category} onChange={(e) => set('category', e.target.value)}>
@@ -236,10 +265,17 @@ const DecorationPackagesManager = ({ onNotify }) => {
               </TextField>
             </Grid>
             <Grid size={12}>
-              <TextField fullWidth label="Included items (one per line)" multiline rows={5}
-                value={Array.isArray(form.items) ? form.items.join('\n') : form.items}
-                onChange={(e) => set('items', e.target.value.split('\n'))}
-                placeholder={'Stage backdrop\nFloral entrance\nMandap setup\nAisle décor\nLighting & drapes'} />
+              <Autocomplete
+                multiple freeSolo filterSelectedOptions
+                options={DECOR_ITEM_SUGGESTIONS}
+                value={Array.isArray(form.items) ? form.items.filter(Boolean) : []}
+                onChange={(e, val) => set('items', val)}
+                renderInput={(params) => (
+                  <TextField {...params} fullWidth label="Included items"
+                    placeholder="Pick or type, then Enter"
+                    helperText="Choose from suggestions or type your own and press Enter" />
+                )}
+              />
             </Grid>
           </Grid>
         </FormSection>

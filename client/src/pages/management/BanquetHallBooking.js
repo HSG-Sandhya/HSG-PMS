@@ -215,6 +215,8 @@ const BanquetHallBooking = () => {
 
   // Get marriage settings
   const banquetHallBookingSettings = settings.banquetHallBooking || {};
+  // Default event duration (hours) for new non-wedding bookings — Operations settings.
+  const defaultEventHours = settings?.operations?.banquet?.defaultEventHours;
 
   const showSnackbar = useCallback((message, severity = 'success') => {
     setSnackbar({ open: true, message, severity });
@@ -579,7 +581,7 @@ const BanquetHallBooking = () => {
       setSelectedBooking(null);
       const today = format(new Date(), 'yyyy-MM-dd');
       const presetType = preset || 'Wedding';
-      setFormData({ ...initialFormData, eventType: presetType, eventDate: today, ...getEventTimingDefaults(presetType, today), ...policyDefaultsForType(presetType) });
+      setFormData({ ...initialFormData, eventType: presetType, eventDate: today, ...getEventTimingDefaults(presetType, today, defaultEventHours), ...policyDefaultsForType(presetType) });
     }
     setActiveStep(0);
     setOpenDialog(true);
@@ -1613,7 +1615,7 @@ const BanquetHallBooking = () => {
                             POLICY_FIELDS.forEach((f) => {
                               if (isAutoPolicyValue(f, formData[f])) { policyPatch[f] = defaults[f]; }
                             });
-                            setFormData({ ...formData, eventType, ...getEventTimingDefaults(eventType, formData.eventDate), ...policyPatch });
+                            setFormData({ ...formData, eventType, ...getEventTimingDefaults(eventType, formData.eventDate, defaultEventHours), ...policyPatch });
                           }}
                           MenuProps={{ slotProps: {
                             paper: { sx: { backgroundColor: '#fff' } }
@@ -1636,7 +1638,7 @@ const BanquetHallBooking = () => {
                         value={formData.eventDate ? (typeof formData.eventDate === 'string' ? (formData.eventDate ? parseISO(formData.eventDate) : null) : formData.eventDate) : null}
                         onChange={(date) => {
                           const eventDate = date ? format(date, 'yyyy-MM-dd') : '';
-                          setFormData({ ...formData, eventDate, ...getEventTimingDefaults(formData.eventType, eventDate) });
+                          setFormData({ ...formData, eventDate, ...getEventTimingDefaults(formData.eventType, eventDate, defaultEventHours) });
                         }}
                         slotProps={{ 
                           textField: { fullWidth: true, required: true },

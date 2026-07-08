@@ -177,7 +177,7 @@ const BillingSection = ({ onNotify }) => {
             value={form.invoicePrefix}
             onChange={(e) => set({ invoicePrefix: e.target.value })}
             sx={{ maxWidth: 260 }}
-            helperText="Leads every invoice number, e.g. HSG-AB-20260616-1001"
+            helperText="Leads every invoice number: PREFIX-DDMMYY-INITIALS-NNNN, e.g. HSG-060726-AB-1001"
           />
           <FormControlLabel
             control={<Switch checked={!!form.roundAmounts} onChange={(e) => set({ roundAmounts: e.target.checked })} />}

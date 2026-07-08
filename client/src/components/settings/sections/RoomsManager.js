@@ -75,8 +75,9 @@ const ROOM_STATUSES = ['available', 'occupied', 'maintenance', 'cleaning'];
 
 const AMENITY_OPTIONS = [
   'Air Conditioning', 'TV', 'WiFi', 'Room Service', 'King Bed', 'Twin Beds',
-  'Balcony', 'City View', 'Bathtub', 'Shower', 'Safe', 'Restaurant',
-  'Parking', 'Mini Bar', 'Refrigerator', 'Hot Water', 'Tea/Coffee Maker', 'Bathroom',
+  'Grand Family Bed', 'Sofa', 'Balcony', 'City View', 'Bathtub', 'Shower', 'Safe', 'Restaurant',
+  'Parking', 'Mini Bar', 'Refrigerator', 'Hot Water', 'Tea/Coffee Maker',
+  'Wardrobe',
 ];
 
 const emptyForm = {

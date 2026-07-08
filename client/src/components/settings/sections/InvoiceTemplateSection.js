@@ -17,7 +17,6 @@ import {
 import {
   Save as SaveIcon,
   Refresh as RefreshIcon,
-  Event as EventIcon,
   Hotel as RoomIcon,
   RequestQuoteOutlined as QuoteIcon,
   ReceiptLongOutlined as InvoiceIcon,
@@ -273,16 +272,10 @@ const InvoiceTemplateSection = ({ onNotify }) => {
                     selectedId={selectedId}
                     originalId={originalId}
                     actions={(id) => (
-                      <>
-                        <Button size="small" variant="outlined" startIcon={<RoomIcon fontSize="small" />}
-                          onClick={() => openPreview(PREVIEW_PATH, { templateId: id, type: 'hotel' })} sx={pressSx}>
-                          Room
-                        </Button>
-                        <Button size="small" variant="outlined" startIcon={<EventIcon fontSize="small" />}
-                          onClick={() => openPreview(PREVIEW_PATH, { templateId: id, type: 'banquet' })} sx={pressSx}>
-                          Banquet
-                        </Button>
-                      </>
+                      <Button size="small" variant="outlined" startIcon={<RoomIcon fontSize="small" />}
+                        onClick={() => openPreview(PREVIEW_PATH, { templateId: id, type: 'hotel' })} sx={pressSx}>
+                        Preview
+                      </Button>
                     )}
                   />
                 ))}

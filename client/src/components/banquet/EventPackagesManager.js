@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   Box, Grid, Card, CardContent, Typography, Button, IconButton, Chip, Stack,
-  TextField, MenuItem, CircularProgress, Divider, Tooltip,
+  TextField, MenuItem, CircularProgress, Divider, Tooltip, Autocomplete,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
@@ -13,6 +13,24 @@ import { currencySym } from '../../utils/billing';
 
 const EVENT_TYPES = ['Wedding', 'Engagement', 'Reception', 'Anniversary', 'Birthday', 'Corporate', 'Conference', 'Party', 'Other'];
 const DECOR = ['Standard', 'Premium', 'Custom'];
+
+// Suggested names for the Package name field (freeSolo — user can still type
+// anything). Common banquet/event package tiers and occasions.
+const NAME_SUGGESTIONS = [
+  'Silver Package', 'Gold Package', 'Platinum Package', 'Diamond Package',
+  'Wedding Basic', 'Wedding Deluxe', 'Royal Wedding',
+  'Reception Special', 'Engagement Package', 'Sangeet Package', 'Haldi & Mehndi',
+  'Anniversary Celebration', 'Birthday Package', 'Corporate Event', 'Conference Package',
+];
+
+// Suggested inclusions for the Inclusions field (multi-select freeSolo — user
+// can still add anything). Common things bundled into an event package.
+const INCLUSION_SUGGESTIONS = [
+  'Welcome drinks', 'Stage decoration', 'Flower decoration', 'DJ & music',
+  'Lighting', 'Sound system', 'Seating arrangement', 'Buffet setup',
+  'Waiters & service staff', 'Valet parking', 'Photography', 'Videography',
+  'Bridal room', 'AC hall', 'Generator backup', 'Welcome gate', 'Red carpet entry',
+];
 
 const emptyPkg = {
   name: '', description: '', eventTypes: [], hallId: '',
@@ -214,7 +232,18 @@ const EventPackagesManager = ({ halls = [], onNotify }) => {
       >
         <FormSection title="Package Details" icon={<Inventory2OutlinedIcon fontSize="small" />} iconColor="#8b5cf6">
           <Grid container spacing={2} sx={{ mt: 0 }}>
-            <Grid size={12}><TextField fullWidth label="Package name" value={form.name} onChange={(e) => set('name', e.target.value)} required /></Grid>
+            <Grid size={12}>
+              <Autocomplete
+                freeSolo
+                options={NAME_SUGGESTIONS}
+                inputValue={form.name}
+                onInputChange={(e, val) => set('name', val)}
+                renderInput={(params) => (
+                  <TextField {...params} fullWidth label="Package name" required
+                    helperText="Pick a suggestion or type your own" />
+                )}
+              />
+            </Grid>
             <Grid size={12}><TextField fullWidth label="Description" value={form.description} onChange={(e) => set('description', e.target.value)} multiline rows={2} /></Grid>
             <Grid
               size={{
@@ -273,10 +302,17 @@ const EventPackagesManager = ({ halls = [], onNotify }) => {
               </TextField>
             </Grid>
             <Grid size={12}>
-              <TextField fullWidth label="Inclusions (one per line)" multiline rows={3}
-                value={Array.isArray(form.inclusions) ? form.inclusions.join('\n') : form.inclusions}
-                onChange={(e) => set('inclusions', e.target.value.split('\n'))}
-                placeholder={'Welcome drinks\nStage decoration\nDJ & lighting'} />
+              <Autocomplete
+                multiple freeSolo filterSelectedOptions
+                options={INCLUSION_SUGGESTIONS}
+                value={Array.isArray(form.inclusions) ? form.inclusions.filter(Boolean) : []}
+                onChange={(e, val) => set('inclusions', val)}
+                renderInput={(params) => (
+                  <TextField {...params} fullWidth label="Inclusions"
+                    placeholder="Pick or type, then Enter"
+                    helperText="Choose from suggestions or type your own and press Enter" />
+                )}
+              />
             </Grid>
           </Grid>
         </FormSection>
