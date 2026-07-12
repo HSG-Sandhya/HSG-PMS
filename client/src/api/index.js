@@ -218,25 +218,6 @@ const api = {
       return { success: true };
     },
   },
-  website: {
-    // Room availability and booking
-    checkAvailability: wrapApiMethod((checkIn, checkOut, guests, cancelToken) => 
-      axiosInstance.get(`/website/availability?checkIn=${checkIn}&checkOut=${checkOut}&guests=${guests}`, 
-        cancelToken ? { cancelToken } : undefined)),
-    
-    getRoomTypes: wrapApiMethod((cancelToken) => 
-      axiosInstance.get('/website/room-types', cancelToken ? { cancelToken } : undefined)),
-    
-    getRoomDetails: wrapApiMethod((roomTypeId, cancelToken) => 
-      axiosInstance.get(`/website/room-types/${roomTypeId}`, cancelToken ? { cancelToken } : undefined)),
-    
-    createBooking: wrapApiMethod((bookingData, cancelToken) => 
-      axiosInstance.post('/website/bookings', bookingData, cancelToken ? { cancelToken } : undefined)),
-    
-    getBookingStatus: wrapApiMethod((bookingId, cancelToken) => 
-      axiosInstance.get(`/website/bookings/${bookingId}/status`, cancelToken ? { cancelToken } : undefined)),
-    
-  },
 
   // Dashboard API
   dashboard: {

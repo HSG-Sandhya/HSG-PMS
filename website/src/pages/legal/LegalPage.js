@@ -61,9 +61,12 @@ const LegalPage = ({ eyebrow, title, lede, lastUpdated, sections = [] }) => (
               </ul>
               <div className="mt-10 pt-8 border-t border-ink-200 space-y-3 text-sm font-light">
                 <p className="eyebrow mb-3">— Questions?</p>
-                <p className="text-ink-900">+91 94314 19196</p>
-                <p className="text-ink-500">reservations@sandhyagrand.in</p>
-                <p className="text-ink-500 pt-2">Bari Bazaar Road, Munger · Bihar 811201</p>
+                <p className="text-ink-900">Hotel Sandhya Grand &amp; Marriage Hall</p>
+                <p className="text-ink-900">+91 94314 19196 · +91 87898 96312</p>
+                <p className="text-ink-500">
+                  <a href="mailto:reservations@sandhyagrand.in" className="link-underline">reservations@sandhyagrand.in</a>
+                </p>
+                <p className="text-ink-500 pt-2">Bari Bazaar Road, Near Punjab National Bank,<br />Munger, Bihar 811201, India</p>
               </div>
             </div>
           </Reveal>

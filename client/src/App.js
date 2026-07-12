@@ -46,9 +46,7 @@ import AdminPanel from './components/AdminPanel';
 // Staff Management Components
 import WorkforceManagement from './components/WorkforceManagement';
 
-// Website Components
-import WebsiteHome from './pages/Website/WebsiteHome';
-import WebsiteBookingForm from './pages/Website/WebsiteForm';
+// Live pop-up alert for new website bookings (Socket.IO)
 import BookingNotifications from './pages/Website/BookingNotifications';
 
 // Debug Components
@@ -131,10 +129,6 @@ const App = () => {
                   <Routes>
                     {/* Public Routes */}
                     <Route path="/login" element={<Login />} />
-                  
-                    {/* Website Routes */}
-                    <Route path="/website" element={<WebsiteHome />} />
-                    <Route path="/website/booking" element={<WebsiteBookingForm />} />
                   
                     {/* Protected Routes */}
                     <Route path="/dashboard" element={

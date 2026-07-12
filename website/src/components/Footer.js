@@ -11,7 +11,6 @@ const Footer = () => {
       links: [
         { name: 'Rooms', path: '/rooms' },
         { name: 'Reserve', path: '/booking' },
-        { name: 'Room Service', path: '/contact' },
       ],
     },
     {
@@ -27,7 +26,6 @@ const Footer = () => {
       links: [
         { name: 'Contact', path: '/contact' },
         { name: 'Directions', path: '/contact' },
-        { name: 'Press', path: '/about' },
       ],
     },
   ];
