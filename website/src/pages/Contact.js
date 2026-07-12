@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import axios from 'axios';
 import { motion, useScroll, useTransform } from 'framer-motion';
 import { useForm } from 'react-hook-form';
 import { toast } from 'react-toastify';
@@ -23,10 +24,10 @@ const Contact = () => {
   const heroOpacity = useTransform(scrollY, [0, 500], [1, 0]);
   const heroImageY = useTransform(scrollY, [0, 800], [0, 120]);
 
-  const onSubmit = async () => {
+  const onSubmit = async (data) => {
     setLoading(true);
     try {
-      // (Same behaviour as before — placeholder submit.)
+      await axios.post('/api/website/contact', data);
       toast.success('Thank you for writing. We will reply shortly.');
       reset();
     } catch {
@@ -82,7 +83,7 @@ const Contact = () => {
       <section className="bg-bone-200 border-y border-ink-100 overflow-hidden py-8 md:py-10">
         <MarqueeStrip
           speed={50}
-          items={['Bari Bazaar Road', 'Munger', 'Bihar', '+91 94314 19196', 'info@sandhyagrand.com']}
+          items={['Bari Bazaar Road', 'Munger', 'Bihar', '+91 94314 19196', 'reservations@sandhyagrand.in']}
         />
       </section>
 
@@ -93,7 +94,7 @@ const Contact = () => {
             {[
               { label: 'Address',     value: 'Bari Bazaar Road', sub: 'Munger, Bihar 811201' },
               { label: 'Reservations',value: '+91 94314 19196',   sub: '+91 87898 96312' },
-              { label: 'Email',       value: 'info@sandhyagrand.com', sub: 'reservations@sandhyagrand.com' },
+              { label: 'Email',       value: 'reservations@sandhyagrand.in', sub: '' },
               { label: 'Hours',       value: 'Reception 24h',     sub: 'Restaurant 07:00 – 23:00' },
             ].map((c, i) => (
               <motion.div
@@ -106,7 +107,7 @@ const Contact = () => {
               >
                 <p className="eyebrow mb-4">— {c.label}</p>
                 <p className="font-serif text-lg md:text-xl text-ink-900 font-light leading-snug">{c.value}</p>
-                <p className="mt-1 text-sm text-ink-500 font-light">{c.sub}</p>
+                {c.sub && <p className="mt-1 text-sm text-ink-500 font-light">{c.sub}</p>}
               </motion.div>
             ))}
           </div>
@@ -242,7 +243,7 @@ const Contact = () => {
               <div className="mt-6 pt-6 border-t border-bone-200/15 text-sm font-light space-y-2">
                 <p>+91 94314 19196</p>
                 <p>+91 87898 96312</p>
-                <p className="text-bone-200/70">info@sandhyagrand.com</p>
+                <p className="text-bone-200/70">reservations@sandhyagrand.in</p>
               </div>
             </div>
           </motion.aside>

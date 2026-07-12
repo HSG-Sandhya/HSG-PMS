@@ -113,9 +113,16 @@ class PaymentService {
     }
   }
 
+  /** Whether the service is running without real gateway credentials. */
+  isDemoMode() {
+    return this.isDemo;
+  }
+
   verifyPaymentSignature(orderId, paymentId, signature) {
-    // Demo mode - always return true for demo orders
-    if (this.isDemo || orderId.includes('demo')) {
+    // Demo mode (no real gateway keys configured) always verifies. We must NOT
+    // treat a client-supplied "demo" order id as demo here: in live mode that
+    // would let a forged `order_demo_*` id skip the real HMAC check entirely.
+    if (this.isDemo) {
       console.log('💡 Demo Mode: Payment verification (always successful)');
       return true;
     }

@@ -206,7 +206,7 @@ const GuestWelcomeSection = ({ onNotify }) => {
         <Stack spacing={2}>
           <TextField
             label="Website address" value={form.websiteBaseUrl} onChange={(e) => set({ websiteBaseUrl: e.target.value })}
-            placeholder="https://sandhyagrand.com" fullWidth
+            placeholder="https://sandhyagrand.in" fullWidth
             helperText="Used to build the room-service link: <website>/room-service/<room number>"
           />
           <TextField

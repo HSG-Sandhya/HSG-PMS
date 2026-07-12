@@ -30,8 +30,8 @@ class InvoiceService {
         name: hotelName,
         logo,
         contact: {
-          phone: settings.contact?.phone || '9431419106',
-          email: settings.contact?.email || 'info@sandhyagrand.com'
+          phone: settings.contact?.phone || '9431419196',
+          email: settings.contact?.email || 'reservations@sandhyagrand.in'
         },
         address: settings.address?.full ||
                  `${settings.address?.street || ''}, ${settings.address?.city || ''}, ${settings.address?.state || ''}, ${settings.address?.pincode || ''}`.replace(/^,\s*|,\s*$/g, '') ||
@@ -53,8 +53,8 @@ class InvoiceService {
       return {
         name: 'Hotel Sandhya Grand & Marriage Hall',
         contact: {
-          phone: '9431419106',
-          email: 'info@sandhyagrand.com'
+          phone: '9431419196',
+          email: 'reservations@sandhyagrand.in'
         },
         address: 'Bari Bazaar, Near Punjab National Bank, Town Hall, Munger, Bihar, 811201',
         gstin: '10ASQPM7914B3ZW',
@@ -216,7 +216,7 @@ class InvoiceService {
       } catch (error) {
         hotelInfo = {
           name: hotelName || 'Hotel Sandhya Grand & Marriage Hall',
-          contact: hotelContact || { phone: '9431419106', email: 'info@sandhyagrand.com' },
+          contact: hotelContact || { phone: '9431419196', email: 'reservations@sandhyagrand.in' },
           address: addressLine || 'Bari Bazaar, Near Punjab National Bank, Town Hall, Munger, Bihar, 811201',
           gstin: '10ASQPM7914B3ZW'
         };
@@ -239,7 +239,7 @@ class InvoiceService {
       } catch (error) {
         hotelInfo = {
           name: hotelName || 'Hotel Sandhya Grand & Marriage Hall',
-          contact: hotelContact || { phone: '9431419106', email: 'info@sandhyagrand.com' },
+          contact: hotelContact || { phone: '9431419196', email: 'reservations@sandhyagrand.in' },
           address: addressLine || 'Bari Bazaar, Near Punjab National Bank, Town Hall, Munger, Bihar, 811201',
           gstin: '10ASQPM7914B3ZW'
         };

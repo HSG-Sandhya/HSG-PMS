@@ -16,8 +16,8 @@ class BaseInvoiceTemplate {
     return {
       name: 'Hotel Sandhya Grand & Marriage Hall',
       contact: {
-        phone: '9431419106',
-        email: 'info@sandhyagrand.com'
+        phone: '9431419196',
+        email: 'reservations@sandhyagrand.in'
       },
       address: 'Bari Bazaar, Near Punjab National Bank, Town Hall, Munger, Bihar, 811201',
       gstin: '10ASQPM7914B3ZW'

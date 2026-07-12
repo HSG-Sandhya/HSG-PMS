@@ -10,7 +10,7 @@ const DEFAULTS = {
   hotelName: 'Hotel Sandhya Grand',
   hotelNameFull: 'Hotel Sandhya Grand & Marriage Hall',
   phone: '+91 9431419196',
-  email: 'info@sandhyagrand.com',
+  email: 'reservations@sandhyagrand.in',
   gstin: '10ASQPM7914B3ZW',
   // Restaurant operates under its own name + GST registration on the food bill.
   restaurantName: 'Sandhya Sweets',

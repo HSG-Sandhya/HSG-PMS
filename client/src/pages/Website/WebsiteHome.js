@@ -613,7 +613,7 @@ const WebsiteHome = () => {
               }}>
               <Box
                 component="iframe"
-                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3888.001696423075!2d77.59791287381694!3d12.971598987384476!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3bae1670c9b44e6d%3A0xf8dfc3e8517e4fe0!2sBengaluru%2C%20Karnataka%2C%20India!5e0!3m2!1sen!2sus!4v1686489913219!5m2!1sen!2sus"
+                src="https://www.google.com/maps?q=Hotel+Sandhya+Grand+Bari+Bazaar+Munger+Bihar&output=embed"
                 style={{ border: 0 }}
                 allowFullScreen=""
                 loading="lazy"
@@ -749,16 +749,16 @@ const WebsiteHome = () => {
               </Typography>
               <Box sx={{ mb: 2 }}>
                 <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.7)', mb: 0.5 }}>
-                  <strong>Address:</strong> 123 Main Street, City Center, State 12345, India
+                  <strong>Address:</strong> Bari Bazaar Road, Near Punjab National Bank, Munger, Bihar 811201, India
                 </Typography>
                 <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.7)', mb: 0.5 }}>
-                  <strong>Phone:</strong> +91 1234567890
+                  <strong>Phone:</strong> +91 94314 19196
                 </Typography>
                 <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.7)', mb: 0.5 }}>
-                  <strong>Email:</strong> info@hotelsandhyagrand.com
+                  <strong>Email:</strong> reservations@sandhyagrand.in
                 </Typography>
                 <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.7)', mb: 0.5 }}>
-                  <strong>Website:</strong> www.hotelsandhyagrand.com
+                  <strong>Website:</strong> www.sandhyagrand.in
                 </Typography>
               </Box>
             </Grid>

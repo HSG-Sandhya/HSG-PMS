@@ -14,11 +14,48 @@
     />
     <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
 
+    <!-- Social / search preview (Facebook, WhatsApp, Google …).
+         Update the sandhyagrand.in URLs below if the site is published elsewhere. -->
+    <meta property="og:type" content="business.business" />
+    <meta property="og:site_name" content="Hotel Sandhya Grand & Marriage Hall" />
+    <meta property="og:title" content="Hotel Sandhya Grand · Munger" />
+    <meta property="og:description" content="A quietly considered stay in Munger, Bihar — rooms, dining and a marriage hall, kept with care since 2019." />
+    <meta property="og:url" content="https://www.sandhyagrand.in/" />
+    <meta property="og:image" content="https://www.sandhyagrand.in/images/hero-image.jpg" />
+    <meta name="twitter:card" content="summary_large_image" />
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,300;1,9..144,400;1,9..144,500;1,9..144,600&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 
     <title>Hotel Sandhya Grand · Munger</title>
+
+    <!-- Structured data: ties this website to the Facebook page (via sameAs) so
+         Google can show the business in search and its knowledge panel. -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Hotel",
+      "name": "Hotel Sandhya Grand & Marriage Hall",
+      "description": "A quietly considered stay in Munger, Bihar — rooms, dining and a marriage hall, kept with care since 2019.",
+      "url": "https://www.sandhyagrand.in/",
+      "image": "https://www.sandhyagrand.in/images/hero-image.jpg",
+      "telephone": "+91-94314-19196",
+      "email": "reservations@sandhyagrand.in",
+      "address": {
+        "@type": "PostalAddress",
+        "streetAddress": "Bari Bazaar Road",
+        "addressLocality": "Munger",
+        "addressRegion": "Bihar",
+        "addressCountry": "IN"
+      },
+      "hasMap": "https://www.google.com/maps/search/?api=1&query=Hotel+Sandhya+Grand+Munger",
+      "sameAs": [
+        "https://www.facebook.com/sandhyagrand",
+        "https://www.instagram.com/sandhyagrand"
+      ]
+    }
+    </script>
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>

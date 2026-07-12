@@ -318,6 +318,52 @@ export const createRoomBooking = async (req, res) => {
       });
     }
 
+    // An "online" booking is only trusted as Paid after we verify the payment
+    // server-side. Without this a crafted request could mark a booking Paid (and
+    // post income) without ever paying, or confirm a large booking with a tiny
+    // real payment. The client already sends the three Razorpay fields.
+    if (bookingData.paymentMethod === 'online') {
+      const { razorpayOrderId, razorpayPaymentId, razorpaySignature } = bookingData;
+      if (!razorpayOrderId || !razorpayPaymentId || !razorpaySignature) {
+        return res.status(400).json({ message: 'Online payment verification details are required' });
+      }
+
+      let signatureValid = false;
+      try {
+        signatureValid = paymentService.verifyPaymentSignature(
+          razorpayOrderId,
+          razorpayPaymentId,
+          razorpaySignature
+        );
+      } catch (err) {
+        console.error('Payment signature verification error:', err.message);
+        return res.status(400).json({ message: 'Payment could not be verified' });
+      }
+      if (!signatureValid) {
+        return res.status(400).json({ message: 'Payment verification failed' });
+      }
+
+      // In live mode, confirm with the gateway that the payment was actually
+      // captured and covers the booking total. Skipped only when the service has
+      // no real keys (demo mode), where there is no gateway payment to fetch.
+      if (!paymentService.isDemoMode()) {
+        try {
+          const payment = await paymentService.getPaymentDetails(razorpayPaymentId);
+          const expectedPaise = Math.round(Number(bookingData.totalAmount || 0) * 100);
+          const paidPaise = Number(payment?.amount || 0);
+          if (payment?.status !== 'captured') {
+            return res.status(400).json({ message: 'Payment has not been captured' });
+          }
+          if (paidPaise < expectedPaise) {
+            return res.status(400).json({ message: 'Paid amount does not match the booking total' });
+          }
+        } catch (err) {
+          console.error('Payment confirmation with gateway failed:', err.message);
+          return res.status(400).json({ message: 'Unable to confirm payment with the gateway' });
+        }
+      }
+    }
+
     let guest = await Guest.findOne({ email: bookingData.guest.email });
     if (!guest) {
       const guestName = `${bookingData.guest.firstName || ''} ${
@@ -394,6 +440,15 @@ export const createRoomBooking = async (req, res) => {
       remainingAmount: bookingData.remainingAmount || 0,
       paymentStatus: bookingData.paymentMethod === 'online' ? 'Paid' : 'Pending',
       paymentMethod: bookingData.paymentMethod || 'pay_at_hotel',
+      // Persist the gateway transaction so an online booking can be reconciled
+      // against Razorpay settlements and refunded from the record. The frontend
+      // sends these after a verified payment; without mapping them here they
+      // were being silently dropped.
+      paymentGateway: bookingData.paymentGateway || 'manual',
+      razorpayPaymentId: bookingData.razorpayPaymentId,
+      razorpayOrderId: bookingData.razorpayOrderId,
+      razorpaySignature: bookingData.razorpaySignature,
+      paymentDate: bookingData.paymentDate,
       bookingStatus: bookingData.bookingStatus || 'Pending',
       specialRequests: bookingData.specialRequests || bookingData.notes,
       customerId,
@@ -497,8 +552,8 @@ export const getHotelInfo = async (_req, res) => {
       description: 'A luxurious hotel offering world-class amenities and exceptional service.',
       address: settings?.address || '123 Main Street, City, State 12345',
       phone: settings?.phone || '+1 (555) 123-4567',
-      email: settings?.email || 'info@sandhyagrand.com',
-      website: settings?.website || 'www.sandhyagrand.com',
+      email: settings?.email || 'reservations@sandhyagrand.in',
+      website: settings?.website || 'www.sandhyagrand.in',
       checkIn: '3:00 PM',
       checkOut: '11:00 AM',
       policies: [

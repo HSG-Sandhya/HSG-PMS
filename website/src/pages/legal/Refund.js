@@ -84,7 +84,7 @@ const Refund = () => (
         body: (
           <>
             <p>
-              Email <a className="link-underline text-ink-900" href="mailto:reservations@sandhyagrand.com">reservations@sandhyagrand.com</a> with
+              Email <a className="link-underline text-ink-900" href="mailto:reservations@sandhyagrand.in">reservations@sandhyagrand.in</a> with
               your booking reference and the reason for cancellation, or call
               the front desk on <a className="link-underline text-ink-900" href="tel:+919431419196">+91 94314 19196</a>.
               We reply within one working day with a confirmation and the

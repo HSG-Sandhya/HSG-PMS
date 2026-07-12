@@ -137,7 +137,7 @@ export const sendEmail = async (to, msg) => {
   const t = getTransporter();
   if (!t) return logSkip('email');
   await t.sendMail({
-    from: process.env.SMTP_FROM || process.env.EMAIL_USER || 'no-reply@sandhyagrand.com',
+    from: process.env.SMTP_FROM || process.env.EMAIL_USER || 'no-reply@sandhyagrand.in',
     to, subject: msg.subject, html: msg.html, text: msg.text,
   });
   console.log(`[notify] email sent → ${to}`);

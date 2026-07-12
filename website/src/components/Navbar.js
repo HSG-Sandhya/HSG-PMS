@@ -229,7 +229,7 @@ const Navbar = () => {
                 </Link>
                 <div className="text-sm text-ink-500 space-y-1 font-light">
                   <p>Bari Bazaar Road, Munger · Bihar 811201</p>
-                  <p>+91 94314 19196 · info@sandhyagrand.com</p>
+                  <p>+91 94314 19196 · reservations@sandhyagrand.in</p>
                 </div>
               </motion.div>
             </div>

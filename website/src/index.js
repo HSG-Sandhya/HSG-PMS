@@ -2,9 +2,21 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { ToastContainer } from 'react-toastify';
+import axios from 'axios';
 import 'react-toastify/dist/ReactToastify.css';
 import './index.css';
 import App from './App';
+
+// API base URL for all axios calls.
+// - Left empty (the default) requests go to the same origin that serves this
+//   site, using relative /api/... paths. That is what the dev-server proxy
+//   (package.json "proxy") relies on locally, and what a same-origin production
+//   deploy relies on.
+// - For a cross-origin deploy (site and API on different domains, e.g. the site
+//   on sandhyagrand.in and the API on admin.sandhyagrand.in), set
+//   REACT_APP_API_URL to the API's base URL at build time and it applies to
+//   every request below with no other code change.
+axios.defaults.baseURL = process.env.REACT_APP_API_URL || '';
 
 // Global error handler for browser extension related errors
 const handleGlobalError = (event) => {

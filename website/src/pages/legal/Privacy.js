@@ -87,7 +87,7 @@ const Privacy = () => (
               <li>Request deletion of your reservation history, subject to records we're required by law to keep.</li>
             </ul>
             <p>
-              Send these requests to <a className="link-underline text-ink-900" href="mailto:info@sandhyagrand.com">info@sandhyagrand.com</a>.
+              Send these requests to <a className="link-underline text-ink-900" href="mailto:reservations@sandhyagrand.in">reservations@sandhyagrand.in</a>.
               We respond within seven working days.
             </p>
           </>

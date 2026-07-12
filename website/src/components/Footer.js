@@ -116,8 +116,7 @@ const Footer = () => {
               </div>
               <div>
                 <p className="eyebrow-on-dark mb-4">Write</p>
-                <p className="text-bone-100 font-light text-sm md:text-base">info@sandhyagrand.com</p>
-                <p className="text-bone-200/60 font-light text-sm md:text-base">reservations@sandhyagrand.com</p>
+                <p className="text-bone-100 font-light text-sm md:text-base">reservations@sandhyagrand.in</p>
               </div>
             </div>
           </div>
@@ -154,8 +153,8 @@ const Footer = () => {
             <Link to="/privacy" className="hover:text-bone-100 transition-colors duration-300">Privacy</Link>
             <Link to="/terms" className="hover:text-bone-100 transition-colors duration-300">Terms</Link>
             <span aria-hidden className="w-px h-3 bg-bone-200/15" />
-            <a href="https://instagram.com" target="_blank" rel="noopener noreferrer" className="hover:text-bone-100 transition-colors duration-300">Instagram</a>
-            <a href="https://facebook.com" target="_blank" rel="noopener noreferrer" className="hover:text-bone-100 transition-colors duration-300">Facebook</a>
+            <a href="https://www.instagram.com/sandhyagrand" target="_blank" rel="noopener noreferrer" className="hover:text-bone-100 transition-colors duration-300">Instagram</a>
+            <a href="https://www.facebook.com/sandhyagrand" target="_blank" rel="noopener noreferrer" className="hover:text-bone-100 transition-colors duration-300">Facebook</a>
             <a href="https://www.google.com/maps/search/?api=1&query=Hotel+Sandhya+Grand+Munger" target="_blank" rel="noopener noreferrer" className="hover:text-bone-100 transition-colors duration-300">Map</a>
           </div>
         </div>

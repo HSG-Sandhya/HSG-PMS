@@ -18,7 +18,7 @@ class GuestPrintService {
         name: settings.hotelName || 'Hotel Sandhya Grand & Marriage Hall',
         contact: {
           phone: settings.contact?.phone || '+91 9431419196',
-          email: settings.contact?.email || 'info@sandhyagrand.com'
+          email: settings.contact?.email || 'reservations@sandhyagrand.in'
         },
         address: settings.address?.full || 
                  `${settings.address?.street || ''}, ${settings.address?.city || ''}, ${settings.address?.state || ''}, ${settings.address?.pincode || ''}`.replace(/^,\s*|,\s*$/g, '') ||
@@ -34,7 +34,7 @@ class GuestPrintService {
         name: 'Hotel Sandhya Grand & Marriage Hall',
         contact: {
           phone: '+91 9431419196',
-          email: 'info@sandhyagrand.com'
+          email: 'reservations@sandhyagrand.in'
         },
         address: '0021, Bari Bazaar, Near Punjab National Bank, Monghyr, Bihar-811201',
         gstin: '10ASQPM7914B3ZW'

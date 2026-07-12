@@ -234,6 +234,10 @@ const BookingForm = ({
         checkOutDate: parsedBooking.checkOut || parsedBooking.checkOutDate || '',
         checkInTime:  parsedBooking.checkInTime  || currentTimeHHmm(),
         checkOutTime: parsedBooking.checkOutTime || billing.defaultCheckOutTime,
+        // Online (website) bookings store the gateway transaction under
+        // razorpayPaymentId; surface it in Payment Reference so the front desk
+        // can see/reconcile it when no manual reference was entered.
+        paymentReference: parsedBooking.paymentReference || parsedBooking.razorpayPaymentId || '',
       });
     }
   }, [booking, rooms, setFormData, billing.defaultCheckOutTime]);
