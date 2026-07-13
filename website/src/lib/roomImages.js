@@ -15,6 +15,8 @@ const CATEGORY_IMAGES = {
   'Deluxe AC': '/images/deluxe-ac.webp',
   'Standard AC': '/images/standard-ac.webp',
   'Standard Non AC': '/images/standard-non-ac.webp',
+  // Separate (pricier) category that intentionally shares the Standard Non AC photo.
+  'Standard Non-AC': '/images/standard-non-ac.webp',
   'Economic Non AC': '/images/economic-non-ac.webp',
 };
 

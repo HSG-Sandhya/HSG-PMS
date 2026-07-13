@@ -254,9 +254,9 @@ export const syncRestaurantOrderIncome = async (order) => {
     return;
   }
   const paid = Number(order.totalAmount) || 0;
-  const { posGstRate } = await getBilling();
-  const rate = Number(posGstRate) || 0;
-  const base = rate > 0 ? paid / (1 + rate / 100) : paid;
+  // Walk-in restaurant sales (counter POS + dine-in table) are recorded WITHOUT a
+  // GST split — the full collected total is the income. Only room-service food,
+  // settled on the room bill via syncRoomBookingIncome, carries the 5% GST.
   const typeLabel = order.orderType === 'pos' ? 'POS' : 'Table';
   const customer = order.customerName || 'Walk-in Customer';
 
@@ -270,8 +270,8 @@ export const syncRestaurantOrderIncome = async (order) => {
     account: mapAccount(order.paymentMethod === 'none' ? '' : order.paymentMethod),
     party: customer,
     description: `Restaurant ${typeLabel} order${order.orderNumber ? ` ${order.orderNumber}` : ''} — ${customer}`,
-    amount: base,
-    gstRate: rate,
+    amount: paid,
+    gstRate: 0,
     reference: order.orderNumber || '',
   });
 };
@@ -289,7 +289,8 @@ export const syncTableSettlement = async ({ tableId, settlementRef, amount, tabl
   const label = tableNumber ? `Table ${tableNumber}` : 'Dine-in';
   // The dine-in table charge (time-based minimum + packing) is NOT a taxable F&B
   // sale — carry NO GST; the full collected amount is the base. (À la carte food
-  // orders still carry their POS GST via syncRestaurantOrderIncome above.)
+  // orders are likewise recorded GST-free via syncRestaurantOrderIncome above;
+  // only room-service food carries GST.)
   await syncEntry({
     sourceType: 'table_settlement',
     sourceId: tableId,
