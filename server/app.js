@@ -48,7 +48,21 @@ const HSTS_MAX_AGE = parseInt(process.env.HSTS_MAX_AGE, 10) || 15552000; // 180 
 
 app.use(
   helmet({
-    contentSecurityPolicy: IS_PRODUCTION ? undefined : false,
+    contentSecurityPolicy: IS_PRODUCTION
+      ? {
+          directives: {
+            ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+            // The front-desk booking form looks up district/state from external
+            // pincode APIs directly in the browser. The default CSP connect-src
+            // is 'self' only, which blocks them — allow just those two hosts.
+            "connect-src": [
+              "'self'",
+              "https://api.postalpincode.in",
+              "https://api.zippopotam.us",
+            ],
+          },
+        }
+      : false,
     crossOriginEmbedderPolicy: false,
     crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
     referrerPolicy: { policy: "strict-origin-when-cross-origin" },
