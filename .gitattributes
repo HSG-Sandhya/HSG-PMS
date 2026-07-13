@@ -1,0 +1,42 @@
+# ── Cross-platform line endings (Windows + macOS + Linux) ───────────────────
+# Store every text file as LF in the repo and check it out as LF everywhere, so
+# a Windows dev and a macOS dev produce byte-identical diffs and the files that
+# run on the Linux VPS (shell/nginx/env) never pick up CRLF.
+* text=auto eol=lf
+
+# Explicit text types (belt-and-suspenders if content detection is off)
+*.js    text eol=lf
+*.jsx   text eol=lf
+*.mjs   text eol=lf
+*.cjs   text eol=lf
+*.ts    text eol=lf
+*.tsx   text eol=lf
+*.json  text eol=lf
+*.css   text eol=lf
+*.scss  text eol=lf
+*.html  text eol=lf
+*.md    text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+*.svg   text eol=lf
+*.conf  text eol=lf
+*.sh    text eol=lf
+.gitattributes text eol=lf
+.gitignore     text eol=lf
+
+# ── Binary assets — never normalize or diff as text ─────────────────────────
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.webp  binary
+*.ico   binary
+*.pdf   binary
+*.woff  binary
+*.woff2 binary
+*.ttf   binary
+*.eot   binary
+*.zip   binary
+*.gz    binary
+*.xlsx  binary
+*.xls   binary

@@ -21,7 +21,7 @@
     "tesseract.js": "^7.0.0"
   },
   "scripts": {
-    "start": "PORT=3001 react-scripts start",
+    "start": "cross-env PORT=3001 react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
@@ -53,5 +53,8 @@
       "last 1 safari version"
     ]
   },
-  "proxy": "http://localhost:5002"
+  "proxy": "http://localhost:5002",
+  "devDependencies": {
+    "cross-env": "^10.1.0"
+  }
 }
