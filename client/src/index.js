@@ -31,3 +31,12 @@ root.render(
     <App />
   </React.StrictMode>,
 );
+
+// Register the service worker so the admin installs as a PWA (desktop + mobile
+// home screen) and auto-updates on every deploy. It never caches API/socket
+// traffic, so live data stays current — see public/service-worker.js.
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/service-worker.js').catch(() => {});
+  });
+}
