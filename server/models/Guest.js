@@ -10,7 +10,17 @@ const guestSchema = new mongoose.Schema({
   phoneKey: { type: String, index: true },
   gender: { type: String, enum: ["Male", "Female", "Other"] },
   age: Number,
+  // Human-readable single-line address (kept for display / legacy records).
   address: String,
+  // Structured address parts — the source of truth the guest form reads/writes.
+  // Storing these avoids the lossy round-trip of parsing `address` back into
+  // fields by position (Aadhaar addresses have 6+ comma parts, which shifted
+  // pincode/district/state into the wrong boxes).
+  streetName: String,
+  area: String,
+  district: String,
+  state: String,
+  pincode: String,
   // Free String (not an enum): the value is copied from Booking.idCardType — the
   // authoritative enum the client dropdown matches (e.g. "Aadhaar Card", "PAN
   // Card", "Other") — whose spellings differ from the short list this once used,
@@ -18,6 +28,10 @@ const guestSchema = new mongoose.Schema({
   identityType: { type: String, default: "Aadhaar Card" },
   identityNumber: String,
   nationality: { type: String, default: "Indian" },
+  // Optional corporate/business details. gstNumber can auto-fetch the company's
+  // GST-registered address (see services/gstLookup.js) for business guests.
+  companyName: { type: String, trim: true },
+  gstNumber: { type: String, uppercase: true, trim: true },
   specialNotes: String
 }, { timestamps: true });
 

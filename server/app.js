@@ -309,6 +309,7 @@ import adminRoutes from "./routes/adminRoutes.js";
 import staffRoutes from "./routes/staffRoutes.js";
 import departmentRoutes from "./routes/departmentRoutes.js";
 import aadharRoutes from "./routes/aadhar.js";
+import gstRoutes from "./routes/gst.js";
 
 // Hotel operations
 import roomRoutes from "./routes/roomRoutes.js";
@@ -362,6 +363,7 @@ const apiRoutes = [
   ["/api/staff", staffRoutes],
   ["/api/departments", departmentRoutes],
   ["/api/admin/aadhar", aadharRoutes],
+  ["/api/admin/gst", gstRoutes],
 
   // Hotel operations (3rd element = resource label → mutation activity logging)
   ["/api/rooms", roomRoutes, "room"],

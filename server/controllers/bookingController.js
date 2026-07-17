@@ -243,9 +243,18 @@ export const createBooking = async (req, res) => {
         bookingData.state,
         bookingData.pincode
       ].filter(Boolean).join(', '),
+      // Also carry the structured parts so the guest form round-trips losslessly
+      // (the joined `address` above stays for display / legacy readers).
+      streetName: bookingData.streetName,
+      area: bookingData.area,
+      district: bookingData.district,
+      state: bookingData.state,
+      pincode: bookingData.pincode,
       identityType: bookingData.idCardType,
       identityNumber: bookingData.idCardNumber,
-      nationality: bookingData.nationality
+      nationality: bookingData.nationality,
+      companyName: bookingData.companyName,
+      gstNumber: bookingData.gstNumber
     };
 
     await upsertGuest(guestFields);

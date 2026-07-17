@@ -324,6 +324,10 @@ const api = {
     delete: (id) => axiosInstance.delete(`/guests/${id}`),
     search: (query) => axiosInstance.get(`/guests/search?q=${query}`),
   },
+  // GSTIN → registered company name + address (for corporate/business guests).
+  gst: {
+    lookup: (gstNumber) => axiosInstance.post('/admin/gst/lookup', { gstNumber }),
+  },
   users: {
     getAll: () => axiosInstance.get('/users'),
     getById: (id) => axiosInstance.get(`/users/${id}`),

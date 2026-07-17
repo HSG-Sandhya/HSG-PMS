@@ -113,6 +113,8 @@ const Bookings = ({ view = 'all', bookingType = null }) => {
     additionalServices: [],
     idCardType: 'Aadhaar Card',
     idCardNumber: '',
+    companyName: '',
+    gstNumber: '',
     streetName: '',
     area: '',
     district: '',
@@ -286,6 +288,8 @@ const Bookings = ({ view = 'all', bookingType = null }) => {
         age: '',
         gender: '',
         nationality: 'Indian',
+        companyName: '',
+        gstNumber: '',
         area: '',
         streetName: '',
         pincode: '',
@@ -1035,8 +1039,15 @@ const Bookings = ({ view = 'all', bookingType = null }) => {
       Aadhar: 'Aadhaar Card', Aadhaar: 'Aadhaar Card', Passport: 'Passport',
       DrivingLicense: 'Driving License', VoterID: 'Voter ID',
     };
-    // Guest address is stored as "street, area, district, state, pincode".
-    const addr = String(guest.address || '').split(',').map((s) => s.trim());
+    // Prefer the guest's structured address fields. For legacy records that only
+    // have the single-line `address` (Aadhaar gives 6+ comma parts), parse the
+    // tail from the RIGHT so pincode/state/district land in the right boxes.
+    const parts = String(guest.address || '').split(',').map((s) => s.trim()).filter(Boolean);
+    const legacyPincode = /^\d{6}$/.test(parts[parts.length - 1] || '') ? parts.pop() : '';
+    const legacyState = parts.length ? parts.pop() : '';
+    const legacyDistrict = parts.length ? parts.pop() : '';
+    const legacyArea = parts.length ? parts.pop() : '';
+    const legacyStreet = parts.join(', ');
     setFormData(prev => ({
       ...prev,
       guestName: guest.name || '',
@@ -1050,11 +1061,13 @@ const Bookings = ({ view = 'all', bookingType = null }) => {
       // Robust ID card type/number mapping
       idCardType: guest.idCardType || ID_TYPE_MAP[guest.identityType] || guest.identityType || guest.idType || 'Aadhaar Card',
       idCardNumber: guest.idCardNumber || guest.identityNumber || guest.idNumber || '',
-      streetName: guest.streetName || addr[0] || '',
-      area: guest.area || addr[1] || '',
-      district: guest.district || guest.city || addr[2] || '',
-      state: guest.state || addr[3] || '',
-      pincode: guest.pincode || guest.zipCode || addr[4] || '',
+      companyName: guest.companyName || '',
+      gstNumber: guest.gstNumber || '',
+      streetName: guest.streetName || legacyStreet,
+      area: guest.area || legacyArea,
+      district: guest.district || guest.city || legacyDistrict,
+      state: guest.state || legacyState,
+      pincode: guest.pincode || guest.zipCode || legacyPincode,
       bookingId: generateBookingId(),
     }));
     setSelectedBooking(null);

@@ -20,6 +20,8 @@ import {
   Home,
   Badge as BadgeIcon,
   EventNote as EventNoteIcon,
+  Business as BusinessIcon,
+  Search as SearchIcon,
 } from '@mui/icons-material';
 import PageLayout from '../../components/layout/PageLayout';
 import {
@@ -54,13 +56,33 @@ const lookupPincode = async (pincode) => {
   return null;
 };
 
-// Split a stored "street, area, district, state, pincode" address into parts.
+// Parse a stored one-line address back into structured parts. Anchored from the
+// RIGHT so it survives a variable number of comma parts: Aadhaar KYC produces
+// 6+ (house, street, area, sub-district, district, state, pincode), and the old
+// fixed-position [0..4] parse shoved the pincode/district/state into the wrong
+// fields. Here the reliable tail — pincode, then state, district, area — is
+// pulled off the end, and whatever remains is the street line.
 const parseAddress = (address) => {
-  const p = String(address || '').split(',').map((s) => s.trim());
-  return {
-    streetName: p[0] || '', area: p[1] || '', district: p[2] || '',
-    state: p[3] || '', pincode: p[4] || '',
-  };
+  const parts = String(address || '').split(',').map((s) => s.trim()).filter(Boolean);
+  const pincode = /^\d{6}$/.test(parts[parts.length - 1] || '') ? parts.pop() : '';
+  const state = parts.length ? parts.pop() : '';
+  const district = parts.length ? parts.pop() : '';
+  const area = parts.length ? parts.pop() : '';
+  const streetName = parts.join(', ');
+  return { streetName, area, district, state, pincode };
+};
+
+// Load the form's address fields for a guest. Prefer the structured fields when
+// present (new records round-trip losslessly); fall back to parsing the legacy
+// single-line `address` string for older records.
+const addressFields = (g) => {
+  if (g && (g.streetName || g.area || g.district || g.state || g.pincode)) {
+    return {
+      streetName: g.streetName || '', area: g.area || '', district: g.district || '',
+      state: g.state || '', pincode: g.pincode || '',
+    };
+  }
+  return parseAddress(g?.address);
 };
 
 // Join the structured address parts back into one stored string.
@@ -69,6 +91,9 @@ const joinAddress = (f) => [f.streetName, f.area, f.district, f.state, f.pincode
 
 // Keep only the 10-digit local part of a phone number (drops a +91 prefix).
 const phoneLocal = (phone) => String(phone || '').replace(/\D/g, '').slice(-10);
+
+// 15-character GSTIN: 2-digit state code + 10-char PAN + entity + Z + checksum.
+const GST_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
 
 const DetailItem = ({ label, value, isDarkMode, full }) => (
   <Grid
@@ -141,6 +166,8 @@ const initialFormData = {
   identityType: 'Aadhar',
   identityNumber: '',
   nationality: 'Indian',
+  companyName: '',
+  gstNumber: '',
   specialNotes: '',
 };
 
@@ -162,6 +189,7 @@ const Guests = ({ onSelectGuest }) => {
   const [detailsGuest, setDetailsGuest] = useState(null);
   const [filter, setFilter] = useState('');
   const [pincodeLoading, setPincodeLoading] = useState(false);
+  const [gstLoading, setGstLoading] = useState(false);
 
   const handleCloseDialog = useCallback(() => {
     setOpenDialog(false);
@@ -179,10 +207,12 @@ const Guests = ({ onSelectGuest }) => {
         phone: phoneLocal(guest.phone),
         gender: guest.gender || '',
         age: guest.age || '',
-        ...parseAddress(guest.address),
+        ...addressFields(guest),
         identityType: normalizeIdentityType(guest.identityType) || 'Aadhar',
         identityNumber: guest.identityNumber || '',
         nationality: guest.nationality || 'Indian',
+        companyName: guest.companyName || '',
+        gstNumber: guest.gstNumber || '',
         specialNotes: guest.specialNotes || '',
       });
     } else {
@@ -194,6 +224,48 @@ const Guests = ({ onSelectGuest }) => {
   const showSnackbar = useCallback((message, severity = 'success') => {
     setSnackbar({ open: true, message, severity });
   }, []);
+
+  // Look up the GSTIN → registered company name + address, then auto-fill the
+  // company field and the structured address fields. For a business guest the
+  // GST-registered address is the authoritative one, so it replaces whatever is
+  // in the address fields (the user can still edit afterwards).
+  const handleFetchGst = useCallback(async () => {
+    const gst = String(formData.gstNumber || '').replace(/\s+/g, '').toUpperCase();
+    if (!GST_REGEX.test(gst)) {
+      showSnackbar('Enter a valid 15-character GSTIN before fetching', 'error');
+      return;
+    }
+    setGstLoading(true);
+    try {
+      const { data } = await api.gst.lookup(gst);
+      const c = data?.data;
+      if (!data?.success || !c) {
+        throw new Error(data?.message || 'Could not fetch GST details');
+      }
+      const addr = c.address || {};
+      setFormData((prev) => ({
+        ...prev,
+        gstNumber: gst,
+        // Only fill the company name if the user hasn't typed one.
+        companyName: prev.companyName?.trim() ? prev.companyName : (c.tradeName || c.legalName || ''),
+        streetName: addr.street || prev.streetName,
+        area: addr.area || prev.area,
+        district: addr.district || prev.district,
+        state: addr.state || prev.state,
+        pincode: addr.pincode || prev.pincode,
+      }));
+      showSnackbar(
+        c.demo
+          ? 'Demo mode: sample company details filled (no GST provider configured)'
+          : `Fetched: ${c.legalName || c.tradeName || gst}`,
+        c.demo ? 'info' : 'success',
+      );
+    } catch (err) {
+      showSnackbar(err.response?.data?.message || err.message || 'Could not fetch GST details', 'error');
+    } finally {
+      setGstLoading(false);
+    }
+  }, [formData.gstNumber, showSnackbar]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -355,11 +427,13 @@ const Guests = ({ onSelectGuest }) => {
         phone: phoneLocal(selectedGuest.phone),
         gender: selectedGuest.gender || '',
         age: selectedGuest.age || '',
-        ...parseAddress(selectedGuest.address),
+        ...addressFields(selectedGuest),
         // Map the identity fields correctly and normalize values
         identityType: normalizeIdentityType(selectedGuest.identityType || selectedGuest.idType) || 'Aadhar',
         identityNumber: selectedGuest.identityNumber || selectedGuest.idNumber || '',
         nationality: selectedGuest.nationality || 'Indian',
+        companyName: selectedGuest.companyName || '',
+        gstNumber: selectedGuest.gstNumber || '',
         specialNotes: selectedGuest.specialNotes || selectedGuest.notes || '',
       });
     }
@@ -767,6 +841,78 @@ const Guests = ({ onSelectGuest }) => {
                 </Grid>
               </Box>
 
+              {/* Company / GST — optional; GSTIN auto-fetches the registered address */}
+              <Box sx={sectionCardSx(isDarkMode)}>
+                <Typography sx={sectionTitleSx(isDarkMode)}>
+                  <BusinessIcon fontSize="inherit" />
+                  Company / GST
+                </Typography>
+                <Grid container spacing={2.5}>
+                  <Grid
+                    size={{
+                      xs: 12,
+                      sm: 6
+                    }}>
+                    <TextField
+                      fullWidth
+                      label="Company Name"
+                      sx={textFieldSx(isDarkMode)}
+                      value={formData.companyName || ''}
+                      onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
+                      slotProps={{
+                        input: {
+                          startAdornment: <InputAdornment position="start"><BusinessIcon fontSize="small" sx={{ color: 'text.secondary' }} /></InputAdornment>,
+                        }
+                      }}
+                    />
+                  </Grid>
+                  <Grid
+                    size={{
+                      xs: 12,
+                      sm: 6
+                    }}>
+                    <TextField
+                      fullWidth
+                      label="GST Number"
+                      placeholder="15-character GSTIN"
+                      sx={textFieldSx(isDarkMode)}
+                      value={formData.gstNumber || ''}
+                      onChange={(e) => {
+                        const gst = e.target.value.replace(/\s+/g, '').toUpperCase().slice(0, 15);
+                        setFormData({ ...formData, gstNumber: gst });
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') { e.preventDefault(); handleFetchGst(); }
+                      }}
+                      error={!!formData.gstNumber && !GST_REGEX.test(formData.gstNumber)}
+                      helperText={
+                        formData.gstNumber && !GST_REGEX.test(formData.gstNumber)
+                          ? 'Enter a valid 15-character GSTIN'
+                          : "Fetches the company's registered address"
+                      }
+                      slotProps={{
+                        input: {
+                          endAdornment: (
+                            <InputAdornment position="end">
+                              <Button
+                                size="small"
+                                onClick={handleFetchGst}
+                                disabled={gstLoading || !GST_REGEX.test(String(formData.gstNumber || ''))}
+                                startIcon={gstLoading ? <CircularProgress size={14} /> : <SearchIcon fontSize="small" />}
+                                sx={{ textTransform: 'none', fontWeight: 600, borderRadius: 2, minWidth: 0, whiteSpace: 'nowrap' }}
+                              >
+                                {gstLoading ? 'Fetching' : 'Fetch'}
+                              </Button>
+                            </InputAdornment>
+                          ),
+                        },
+                        htmlInput: { maxLength: 15, style: { textTransform: 'uppercase' } }
+                      }}
+                    />
+                  </Grid>
+                </Grid>
+              </Box>
+
               {/* Additional */}
               <Box sx={sectionCardSx(isDarkMode)}>
                 <Typography sx={sectionTitleSx(isDarkMode)}>
@@ -975,6 +1121,8 @@ const Guests = ({ onSelectGuest }) => {
                     Additional Information
                   </Typography>
                   <Grid container spacing={2}>
+                    <DetailItem label="Company" value={detailsGuest.companyName} isDarkMode={isDarkMode} />
+                    <DetailItem label="GST Number" value={detailsGuest.gstNumber} isDarkMode={isDarkMode} />
                     <DetailItem label="Address" value={detailsGuest.address} isDarkMode={isDarkMode} full />
                     <DetailItem label="Special Notes" value={detailsGuest.specialNotes || detailsGuest.notes} isDarkMode={isDarkMode} full />
                   </Grid>

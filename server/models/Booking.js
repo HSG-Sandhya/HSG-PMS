@@ -35,6 +35,13 @@ const bookingSchema = new mongoose.Schema({
   travelMode: String,
   purposeOfVisit: String,
 
+  // Optional company / GST for a business guest. gstNumber can auto-fetch the
+  // company's registered address into the address block below (see the guest
+  // form's GST lookup). Distinct from the `company` object further down, which
+  // holds full corporate-billing details for bookingType === 'company'.
+  companyName: { type: String, trim: true },
+  gstNumber: { type: String, uppercase: true, trim: true },
+
   // Address
   streetName: String,
   area: String,
