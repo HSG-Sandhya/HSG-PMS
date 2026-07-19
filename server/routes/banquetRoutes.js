@@ -31,6 +31,17 @@ import {
   getMonthEvents,
 } from '../controllers/banquetController.js';
 
+import {
+  getAllQuotations,
+  getQuotationById,
+  createQuotation,
+  updateQuotation,
+  deleteQuotation,
+  duplicateQuotation,
+  printQuotation,
+  convertQuotation,
+} from '../controllers/quotationController.js';
+
 import { requireManage } from '../middleware/requireManage.js';
 const router = express.Router();
 
@@ -65,6 +76,16 @@ router.get('/utensil-items', getAllUtensilItems);
 router.post('/utensil-items', requireManage('manage_events'), createUtensilItem);
 router.put('/utensil-items/:id', requireManage('manage_events'), updateUtensilItem);
 router.delete('/utensil-items/:id', requireManage('manage_events'), deleteUtensilItem);
+
+// Sales quotations (standalone proposals, converted into bookings on acceptance)
+router.get('/quotations', getAllQuotations);
+router.post('/quotations', requireManage('manage_events'), createQuotation);
+router.get('/quotations/:id', getQuotationById);
+router.put('/quotations/:id', requireManage('manage_events'), updateQuotation);
+router.delete('/quotations/:id', requireManage('manage_events'), deleteQuotation);
+router.post('/quotations/:id/duplicate', requireManage('manage_events'), duplicateQuotation);
+router.post('/quotations/:id/print', printQuotation);
+router.post('/quotations/:id/convert', requireManage('manage_events'), convertQuotation);
 
 // Event calendar — bookings within a given month
 router.get('/calendar/:year/:month', getMonthEvents);

@@ -241,6 +241,22 @@ const buildBanquetItems = (booking) => {
     });
   }
 
+  // Miscellaneous flat extras (typically the optional facilities carried over
+  // from an accepted quotation). Amounts are already GST-inclusive.
+  (Array.isArray(booking.extraItems) ? booking.extraItems : []).forEach((it) => {
+    const amount = Number(it.amount) || 0;
+    if (amount <= 0) return;
+    const qty = Number(it.quantity) || 1;
+    items.push({
+      description: it.name || 'Additional facility',
+      detail: it.detail || 'Additional facility',
+      quantity: qty,
+      rate: Math.round(amount / qty),
+      amount,
+      category: 'extra',
+    });
+  });
+
   if (!items.length) {
     items.push({
       description: hallName,

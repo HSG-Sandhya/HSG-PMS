@@ -31,6 +31,7 @@ import EventPackagesManager from '../../components/banquet/EventPackagesManager'
 import CateringPackagesManager from '../../components/banquet/CateringPackagesManager';
 import DecorationPackagesManager from '../../components/banquet/DecorationPackagesManager';
 import UtensilsManager from '../../components/banquet/UtensilsManager';
+import QuotationsManager from '../../components/banquet/QuotationsManager';
 import AdvancePaymentsDialog from '../../components/banquet/AdvancePaymentsDialog';
 import FinalizeBillingDialog from '../../components/banquet/FinalizeBillingDialog';
 import PaymentsIcon from '@mui/icons-material/Payments';
@@ -38,6 +39,7 @@ import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import RestaurantMenuIcon from '@mui/icons-material/RestaurantMenu';
 import BrushOutlinedIcon from '@mui/icons-material/BrushOutlined';
 import BlenderOutlinedIcon from '@mui/icons-material/BlenderOutlined';
+import RequestQuoteOutlinedIcon from '@mui/icons-material/RequestQuoteOutlined';
 import {
   dialogPaperSx,
   dialogBackdropSx,
@@ -992,6 +994,7 @@ const BanquetHallBooking = () => {
     { value: 'overview', label: 'Overview', icon: <DashboardOutlinedIcon /> },
     { value: 'list', label: 'Bookings', icon: <EventSeatOutlinedIcon />, count: Array.isArray(bookings) ? bookings.length : 0 },
     { value: 'calendar', label: 'Calendar', icon: <CalendarIcon /> },
+    { value: 'quotations', label: 'Quotations', icon: <RequestQuoteOutlinedIcon /> },
     { value: 'packages', label: 'Packages', icon: <Inventory2OutlinedIcon /> },
     { value: 'catering', label: 'Catering', icon: <RestaurantMenuIcon /> },
     { value: 'decoration', label: 'Decoration', icon: <BrushOutlinedIcon /> },
@@ -1099,6 +1102,13 @@ const BanquetHallBooking = () => {
             onSelectBooking={(b) => handleOpenDialog(b)}
           />
         </Box>
+      ) : view === 'quotations' ? (
+        <QuotationsManager
+          halls={halls}
+          isDark={isDarkMode}
+          onNotify={showSnackbar}
+          onConverted={() => { fetchBookings(); setView('list'); }}
+        />
       ) : view === 'packages' ? (
         <EventPackagesManager halls={halls} onNotify={showSnackbar} />
       ) : view === 'catering' ? (

@@ -807,6 +807,17 @@ const api = {
     updateUtensilItem: (id, data) => axiosInstance.put(`/banquet/utensil-items/${id}`, data),
     deleteUtensilItem: (id) => axiosInstance.delete(`/banquet/utensil-items/${id}`),
 
+    // Sales quotations — standalone package proposals for an enquiry. An
+    // accepted quotation converts into a booking, which then bills as usual.
+    getQuotations: (params) => axiosInstance.get('/banquet/quotations', params ? { params } : undefined),
+    getQuotation: (id) => axiosInstance.get(`/banquet/quotations/${id}`),
+    createQuotation: (data) => axiosInstance.post('/banquet/quotations', data),
+    updateQuotation: (id, data) => axiosInstance.put(`/banquet/quotations/${id}`, data),
+    deleteQuotation: (id) => axiosInstance.delete(`/banquet/quotations/${id}`),
+    duplicateQuotation: (id) => axiosInstance.post(`/banquet/quotations/${id}/duplicate`),
+    printQuotation: (id) => axiosInstance.post(`/banquet/quotations/${id}/print`),
+    convertQuotation: (id, data) => axiosInstance.post(`/banquet/quotations/${id}/convert`, data),
+
     // Event calendar — bookings for a month
     getMonthEvents: (year, month) => axiosInstance.get(`/banquet/calendar/${year}/${month}`),
 

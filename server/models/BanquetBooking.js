@@ -243,6 +243,25 @@ const banquetBookingSchema = new mongoose.Schema({
   }],
   utensilsCost: { type: Number, default: 0, min: 0 },
 
+  // ── Miscellaneous chargeable extras ──────────────────────────────────────
+  // Flat-priced add-ons that don't belong to any of the typed buckets above —
+  // e.g. the "Additional facilities" (sound system, projector, Wi-Fi) a client
+  // takes off a quotation. Amounts are stored GROSS (GST already included, the
+  // way they were quoted). extrasCost is the sum, included in totalAmount.
+  extraItems: [{
+    name: { type: String, trim: true, default: '' },
+    detail: { type: String, trim: true, default: '' },
+    quantity: { type: Number, default: 1, min: 0 },
+    amount: { type: Number, default: 0, min: 0 },
+  }],
+  extrasCost: { type: Number, default: 0, min: 0 },
+
+  // ── Origin quotation ─────────────────────────────────────────────────────
+  // Set when the booking was created by converting an EventQuotation, so the
+  // sales trail from proposal → booking → invoice stays intact.
+  quotationId: { type: mongoose.Schema.Types.ObjectId, ref: 'EventQuotation', default: null },
+  quotationNumber: { type: String, trim: true, default: '' },
+
   // Status Management
   status: {
     type: String,

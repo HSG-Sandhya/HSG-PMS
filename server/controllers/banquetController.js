@@ -69,8 +69,10 @@ const fmtRange = (start, end) => {
   return s === e ? s : `${s} – ${e}`;
 };
 
-// Returns the first conflicting booking, or null. Blank/invalid dates skip the check.
-const findSlotConflict = async (data, excludeId = null) => {
+// Returns the first conflicting booking, or null. Blank/invalid dates skip the
+// check. Exported so other creation paths (e.g. converting a quotation into a
+// booking) enforce the same slot rules instead of writing their own.
+export const findSlotConflict = async (data, excludeId = null) => {
   if (!data?.eventDate) return null;
   const start = new Date(data.eventDate);
   const end = data.endDate ? new Date(data.endDate) : start;
