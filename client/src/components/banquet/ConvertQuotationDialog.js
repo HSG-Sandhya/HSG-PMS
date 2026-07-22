@@ -34,10 +34,13 @@ const ConvertQuotationDialog = ({ open, onClose, quotation, onConverted, onNotif
     const recommended = packages.findIndex((p) => p.recommended);
     const initial = accepted >= 0 ? accepted : (recommended >= 0 ? recommended : 0);
     setPackageIndex(initial);
-    setAddOnIndexes([]);
+    // Everything quoted is carried over by default — the client accepted the
+    // quotation as written. Staff untick only what was actually declined, which
+    // is a deliberate act; the reverse default silently under-bills the hotel.
+    setAddOnIndexes(addOns.map((_, i) => i));
     setQuantity(String(packages[initial]?.quantity || quotation.expectedGuests || ''));
     setStatus('Confirmed');
-  }, [open, quotation, packages]);
+  }, [open, quotation, packages, addOns]);
 
   const chosen = packages[packageIndex];
   const perHead = chosen && ['per person', 'per plate'].includes(chosen.priceBasis);
@@ -156,6 +159,14 @@ const ConvertQuotationDialog = ({ open, onClose, quotation, onConverted, onNotif
 
       {addOns.length > 0 && (
         <FormSection title="Facilities taken" icon={<EventAvailableOutlinedIcon fontSize="small" />} iconColor="#6366f1">
+          <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mb: 0.5 }}>
+            All quoted facilities are included — untick any the client declined.
+            {addOnIndexes.length < addOns.length && (
+              <Typography component="span" variant="caption" sx={{ color: 'warning.main', fontWeight: 700 }}>
+                {' '}{addOns.length - addOnIndexes.length} excluded from the bill.
+              </Typography>
+            )}
+          </Typography>
           <Stack sx={{ mt: 0.5 }}>
             {addOns.map((a, i) => (
               <FormControlLabel

@@ -20,6 +20,23 @@ const SERVER_OWNED_FIELDS = [
 // actually converting, so a stray value can't lock a quotation out of editing.
 const CLIENT_SETTABLE_STATUSES = ['Draft', 'Sent', 'Accepted', 'Declined', 'Expired'];
 
+// True when the quotation is tied to a booking that STILL EXISTS.
+//
+// A converted booking can be deleted afterwards (a cancelled event, or a test
+// run). If we trusted convertedBookingId alone, the quotation would be stranded
+// — not editable, not deletable and not re-convertible — so a dangling link is
+// healed back to "Accepted" and the quotation becomes usable again.
+const hasLiveBooking = async (quotation) => {
+  if (!quotation.convertedBookingId) return false;
+  const exists = await BanquetBooking.exists({ _id: quotation.convertedBookingId });
+  if (exists) return true;
+  quotation.convertedBookingId = null;
+  quotation.convertedAt = null;
+  if (quotation.status === 'Converted') quotation.status = 'Accepted';
+  await quotation.save();
+  return false;
+};
+
 export const getAllQuotations = async (req, res) => {
   try {
     const q = {};
@@ -73,7 +90,7 @@ export const updateQuotation = async (req, res) => {
   try {
     const quotation = await EventQuotation.findById(req.params.id);
     if (!quotation) return res.status(404).json({ success: false, message: 'Quotation not found' });
-    if (quotation.convertedBookingId) {
+    if (await hasLiveBooking(quotation)) {
       return res.status(409).json({ success: false, message: 'This quotation is already converted to a booking and can no longer be edited.' });
     }
     // Drop everything the server owns (the number is assigned once so the
@@ -95,8 +112,8 @@ export const deleteQuotation = async (req, res) => {
   try {
     const quotation = await EventQuotation.findById(req.params.id);
     if (!quotation) return res.status(404).json({ success: false, message: 'Quotation not found' });
-    if (quotation.convertedBookingId) {
-      return res.status(409).json({ success: false, message: 'This quotation has a booking against it — cancel the booking first.' });
+    if (await hasLiveBooking(quotation)) {
+      return res.status(409).json({ success: false, message: 'This quotation has a booking against it — delete the booking first.' });
     }
     await quotation.deleteOne();
     res.json({ success: true, message: 'Quotation deleted successfully' });
@@ -152,7 +169,7 @@ export const convertQuotation = async (req, res) => {
   try {
     const quotation = await EventQuotation.findById(req.params.id);
     if (!quotation) return res.status(404).json({ success: false, message: 'Quotation not found' });
-    if (quotation.convertedBookingId) {
+    if (await hasLiveBooking(quotation)) {
       return res.status(409).json({ success: false, message: 'This quotation has already been converted to a booking.' });
     }
 
@@ -207,7 +224,9 @@ export const convertQuotation = async (req, res) => {
       .filter(Boolean)
       .map((a) => ({
         name: a.name,
-        detail: [a.unit, a.gstPercent ? `incl. ${a.gstPercent}% GST` : ''].filter(Boolean).join(' · '),
+        detail: a.unit || '',
+        price: Number(a.price) || 0,
+        gstPercent: Number(a.gstPercent) || 0,
         quantity: Number(a.quantity) || 1,
         amount: addOnTotal(a),
       }));

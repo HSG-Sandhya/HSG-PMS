@@ -1,4 +1,9 @@
-const GST_RATE = 0.05; // 5% (2.5 CGST + 2.5 SGST) — base inclusive
+const GST_RATE = 0.05; // 5% (2.5 CGST + 2.5 SGST) — base inclusive (hotel/restaurant)
+
+// Banquet services are taxed at 18% (9% CGST + 9% SGST). Catering is priced
+// pre-GST (tax added on top); every other banquet line is priced GST-inclusive.
+const DEFAULT_BANQUET_GST = 18;
+const GST_EXCLUSIVE_CATEGORIES = new Set(['catering', 'meals']);
 
 const calculateNights = (booking) => {
   if (!booking) return 1;
@@ -241,18 +246,26 @@ const buildBanquetItems = (booking) => {
     });
   }
 
-  // Miscellaneous flat extras (typically the optional facilities carried over
-  // from an accepted quotation). Amounts are already GST-inclusive.
+  // Additional facilities (sound system, projector, Wi-Fi …). These are billed
+  // GST-INCLUSIVE — the stored amount already contains the tax — so we back the
+  // taxable value out rather than adding GST on top. `price` is the ex-GST unit
+  // rate when present (post-quotation bookings); legacy rows without it fall
+  // back to dividing the gross by (1 + rate).
   (Array.isArray(booking.extraItems) ? booking.extraItems : []).forEach((it) => {
-    const amount = Number(it.amount) || 0;
-    if (amount <= 0) return;
+    const gross = Number(it.amount) || 0;
+    if (gross <= 0) return;
     const qty = Number(it.quantity) || 1;
+    const rate = (Number(it.gstPercent) || DEFAULT_BANQUET_GST) / 100;
+    const taxable = Number(it.price) ? Number(it.price) * qty : Math.round(gross / (1 + rate));
     items.push({
       description: it.name || 'Additional facility',
-      detail: it.detail || 'Additional facility',
+      detail: it.detail || '',
       quantity: qty,
-      rate: Math.round(amount / qty),
-      amount,
+      rate: Number(it.price) || Math.round(taxable / qty),
+      taxable,
+      gstRate: rate,
+      gstAmount: gross - taxable,
+      amount: gross,
       category: 'extra',
     });
   });
@@ -268,10 +281,57 @@ const buildBanquetItems = (booking) => {
     });
   }
 
-  return items;
+  // Attach the GST split to every line so the invoice can show a Rate / GST /
+  // Amount column set and a CGST+SGST summary.
+  //   • Catering is quoted PRE-GST → tax is added on top (amount grows).
+  //   • Everything else is quoted GST-INCLUSIVE → tax is backed out of the
+  //     stored amount (amount unchanged). Facilities set their own split above
+  //     and are left as-is here.
+  return items.map((it) => {
+    if (it.taxable != null) return it; // already split (facilities)
+    const rate = DEFAULT_BANQUET_GST / 100;
+    if (GST_EXCLUSIVE_CATEGORIES.has(it.category)) {
+      const taxable = Number(it.amount) || 0;
+      const gstAmount = Math.round(taxable * rate);
+      return { ...it, gstRate: rate, taxable, gstAmount, amount: taxable + gstAmount };
+    }
+    const gross = Number(it.amount) || 0;
+    const taxable = Math.round(gross / (1 + rate));
+    return { ...it, gstRate: rate, taxable, gstAmount: gross - taxable };
+  });
 };
 
-const computeTotals = (items, booking) => {
+const computeTotals = (items, booking, isBanquet = false) => {
+  const round2 = (n) => Math.round(n * 100) / 100;
+  const paid = Number(booking.paidAmount || booking.amountPaid || booking.advanceAmount || 0);
+
+  // Banquet: the GST split is already computed per line (Rate / GST / Amount),
+  // so the totals are just sums of those — the item amounts ARE the source of
+  // truth (catering carries tax on top, everything else has it backed out).
+  if (isBanquet) {
+    const taxable = items.reduce((s, it) => s + Number(it.taxable || 0), 0);
+    const gst = items.reduce((s, it) => s + Number(it.gstAmount || 0), 0);
+    const gross = items.reduce((s, it) => s + Number(it.amount || 0), 0);
+    const discount = Number(booking.discount || 0);
+    const grandTotal = Math.max(0, gross - discount);
+    const balance = Math.max(0, grandTotal - paid);
+    // Split the tax into equal CGST/SGST halves as whole rupees that still add
+    // back to the full GST (avoids a stray ₹x.5 when the total is odd).
+    const cgst = Math.round(gst / 2);
+    return {
+      subtotal: round2(taxable),
+      cgst,
+      sgst: round2(gst - cgst),
+      igst: 0,
+      gstTotal: round2(gst),
+      discount,
+      total: round2(grandTotal),
+      paid: round2(paid),
+      balance: round2(balance),
+      status: balance <= 0 ? 'paid' : paid > 0 ? 'partial' : 'unpaid',
+    };
+  }
+
   const itemsTotal = items.reduce((sum, item) => sum + Number(item.amount || 0), 0);
   const declaredTotal = Number(booking.totalAmount || 0)
     + Number(booking.restaurantCharges || 0);
@@ -280,9 +340,6 @@ const computeTotals = (items, booking) => {
   const taxAmount = grandTotal - taxable;
   const cgst = taxAmount / 2;
   const sgst = taxAmount / 2;
-  // Banquet bookings track money received as advanceAmount (sum of payments);
-  // room bookings use paidAmount. Honour whichever is present.
-  const paid = Number(booking.paidAmount || booking.amountPaid || booking.advanceAmount || 0);
   const balance = Math.max(0, grandTotal - paid);
 
   return {
@@ -310,7 +367,7 @@ export const normalizeInvoiceContext = ({ booking, hotel, type, payment = null }
   const safeBooking = booking || {};
   const isBanquet = type === 'banquet';
   const items = isBanquet ? buildBanquetItems(safeBooking) : buildHotelItems(safeBooking);
-  const totals = computeTotals(items, safeBooking);
+  const totals = computeTotals(items, safeBooking, isBanquet);
 
   const customerName = safeBooking.customerName
     || safeBooking.guestName
@@ -320,12 +377,32 @@ export const normalizeInvoiceContext = ({ booking, hotel, type, payment = null }
       : '')
     || 'Guest';
 
+  // The client's GSTIN. Every model in the codebase (Booking, BanquetBooking,
+  // Guest, Company) names this field `gstNumber` — `customerGstin`/`gstin` are
+  // kept only as fallbacks for older callers that passed a pre-shaped object.
+  const customerGstin = safeBooking.gstNumber
+    || safeBooking.customerGstin
+    || safeBooking.customerId?.gstNumber
+    || safeBooking.customerId?.gstin
+    || safeBooking.companyId?.gstNumber
+    || '';
+
+  // Registered business name to print above the GSTIN on a B2B invoice. The
+  // banquet form stores it on eventDetails.organizationName (carried over from
+  // a converted quotation's client company).
+  const customerCompany = safeBooking.companyName
+    || safeBooking.companyId?.name
+    || safeBooking.eventDetails?.organizationName
+    || safeBooking.customerId?.companyName
+    || '';
+
   const customer = {
     name: customerName,
     phone: safeBooking.phone || safeBooking.customerPhone || safeBooking.customerId?.phone || '',
     email: safeBooking.email || safeBooking.customerEmail || safeBooking.customerId?.email || '',
     address: safeBooking.address || safeBooking.customerId?.address || '',
-    gstin: safeBooking.customerGstin || safeBooking.customerId?.gstin || '',
+    gstin: customerGstin,
+    company: customerCompany,
   };
 
   const stay = !isBanquet ? {
@@ -362,6 +439,7 @@ export const normalizeInvoiceContext = ({ booking, hotel, type, payment = null }
       logo: hotel?.logo || '',
       address: hotel?.address || '',
       phone: hotel?.contact?.phone || '',
+      landline: hotel?.contact?.landline || '',
       email: hotel?.contact?.email || '',
       website: hotel?.contact?.website || 'www.sandhyagrand.in',
       gstin: hotel?.gstin || '',

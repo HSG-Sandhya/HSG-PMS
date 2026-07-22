@@ -23,14 +23,24 @@ const ContactSchema = new Schema(
         message: 'Invalid mobile number format'
       }
     },
-    altPhone: { 
-      type: String, 
+    altPhone: {
+      type: String,
       trim: true,
       validate: {
         validator: function(v) {
           return !v || v.trim() === '' || phoneRegex.test(v);
         },
         message: 'Invalid alternate phone number format'
+      }
+    },
+    landline: {
+      type: String,
+      trim: true,
+      validate: {
+        validator: function(v) {
+          return !v || v.trim() === '' || phoneRegex.test(v);
+        },
+        message: 'Invalid landline number format'
       }
     },
     whatsappBusinessNumber: { 

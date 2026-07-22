@@ -15,6 +15,80 @@ export const docLabels = (docType) => (isQuote(docType)
   ? { title: 'Quotation', short: 'Quotation', kicker: 'Estimate for your event' }
   : { title: 'Invoice', short: 'Invoice', kicker: 'Invoice for services rendered' });
 
+// The letterhead contact lines, in print order: address, phone numbers,
+// email + website, then GSTIN. Rendered to the RIGHT of the logo in the compact
+// header every template now uses. Returns escaped HTML strings — join with <br>.
+export const letterheadLines = (hotel = {}) => {
+  const phones = [
+    hotel.phone ? `Mobile ${hotel.phone}` : '',
+    hotel.landline ? `Landline ${hotel.landline}` : '',
+  ].filter(Boolean).join(' · ');
+  const web = [hotel.email, hotel.website].filter(Boolean).join(' · ');
+  return [hotel.address, phones, web, hotel.gstin ? `GSTIN ${hotel.gstin}` : '']
+    .filter(Boolean)
+    .map((s) => e(s));
+};
+
+// The "Payment Details" panel: the hotel's bank account (for NEFT/IMPS) on the
+// left and a UPI "scan & pay" QR on the right. Data comes from Accounting via
+// ctx.bank (set in banquetIndex.js). Renders nothing when no account is set.
+//   pal = { accent, ink, muted, line, soft }
+export const paymentBlock = (ctx, pal) => {
+  const b = ctx.bank;
+  if (!b || (!b.accountNumber && !b.upiId)) return '';
+  const { accent, ink, muted, line, soft } = pal;
+  const rows = [
+    ['Account Holder', b.accountHolder],
+    ['Bank', b.bankName],
+    ['A/C No.', b.accountNumber],
+    ['IFSC', b.ifsc],
+    ['Branch', b.branch],
+  ].filter(([, v]) => v && String(v).trim());
+  const qr = b.qrSvg
+    ? `<div style="text-align:center">
+         ${b.qrSvg}
+         <div style="font-size:9px;color:${muted};margin-top:4px;letter-spacing:.02em">Scan &amp; pay with any UPI app</div>
+         ${b.upiId ? `<div style="font-size:10.5px;color:${ink};font-weight:700;margin-top:1px">${e(b.upiId)}</div>` : ''}
+       </div>`
+    : (b.upiId
+      ? `<div style="text-align:center"><div style="font-size:9px;color:${muted};letter-spacing:.12em;text-transform:uppercase">UPI</div><div style="font-size:11px;font-weight:700;color:${ink}">${e(b.upiId)}</div></div>`
+      : '');
+  return `
+  <section style="margin-top:14px;border:1px solid ${line};border-radius:10px;padding:12px 16px;background:${soft};break-inside:avoid;display:grid;grid-template-columns:1fr ${qr ? 'auto' : ''};gap:22px;align-items:center">
+    <div>
+      <div style="font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:${accent};font-weight:700;margin-bottom:8px">Payment Details</div>
+      <table style="border-collapse:collapse;font-size:11.5px">
+        ${rows.map(([k, v]) => `<tr><td style="color:${muted};padding:2px 14px 2px 0;white-space:nowrap;vertical-align:top">${e(k)}</td><td style="color:${ink};font-weight:600">${e(v)}</td></tr>`).join('')}
+      </table>
+    </div>
+    ${qr ? `<div>${qr}</div>` : ''}
+  </section>`;
+};
+
+// ── "Billed to" / "Prepared for" party block ────────────────────────────────
+// All six designs render this identically, so the content lives here and each
+// template only supplies its own wrapper classes.
+//
+// On a GST invoice the registered business is the billed party, so a company
+// name takes the headline and the individual drops to a contact line. The GSTIN
+// is emphasised — it is what the client's accountant looks for to claim input
+// credit, and an invoice missing it is not claimable.
+export const billedToTitle = (ctx) =>
+  ctx.customer?.company || ctx.customer?.name || 'Guest';
+
+export const billedToLines = (ctx) => {
+  const c = ctx.customer || {};
+  const parts = [];
+  if (c.company && c.name && c.name.trim() !== c.company.trim()) {
+    parts.push(`Attn: ${e(c.name)}`);
+  }
+  if (c.phone) parts.push(e(c.phone));
+  if (c.email) parts.push(e(c.email));
+  if (c.address) parts.push(e(c.address));
+  if (c.gstin) parts.push(`<strong>GSTIN ${e(c.gstin)}</strong>`);
+  return parts.join('<br>');
+};
+
 // Ordered [label, value] pairs describing the event — drives the "event card".
 export const eventFacts = (ctx) => {
   const ev = ctx.event || {};
@@ -37,6 +111,18 @@ export const validUntil = (ctx) => {
   return formatLongDate(new Date(base.getTime() + days * 24 * 60 * 60 * 1000));
 };
 
+// SAC (Service Accounting Code) per banquet line, for GST tax invoices. Banquet
+// event services sit under 9963xx; 996334 (catering / marriage / event /
+// conference services) is the sensible default, with reserved guest rooms billed
+// as accommodation (996311) and décor under 998596. Kept banquet-specific so it
+// never disturbs the room/restaurant SAC map in formatters.js.
+const BANQUET_SAC = {
+  hall: '996334', rooms: '996311', decoration: '998596',
+  catering: '996334', meals: '996334', side: '996334', extra: '996334',
+  photography: '998383',
+};
+export const banquetSac = (category) => BANQUET_SAC[category] || '996334';
+
 // Short human tag for a line-item category (used as a pill on some designs).
 export const categoryTag = (category) => ({
   hall: 'Venue',
@@ -52,6 +138,33 @@ export const categoryTag = (category) => ({
 // Sum of the line-item amounts (the pre-discount subtotal).
 export const itemsSum = (ctx) =>
   (ctx.items || []).reduce((s, it) => s + (Number(it.amount) || 0), 0);
+
+// The GST cell for one line in the items table. Shows the PER-UNIT tax (to match
+// the per-unit Rate beside it) — e.g. the GST on one plate, not the whole line —
+// so Rate + GST is the per-unit taxed price and × Qty gives the Amount. Blank
+// (an en dash) when the line carries no tax.
+export const gstCell = (it) => {
+  const gst = Number(it?.gstAmount) || 0;
+  if (!(gst > 0)) return '—';
+  const qty = Math.max(1, Number(it?.quantity) || 1);
+  return formatCurrency(Math.round(gst / qty));
+};
+
+// The tax-summary rows injected into a template's totals block on an INVOICE:
+// taxable value, then CGST and SGST (each half of the 18% total). Returns '' for
+// a quotation (which carries its own estimate breakdown) or when there is no
+// tax to show. Each row is a plain `<div class="r"><span>…</span><span>…</span></div>`
+// so it drops straight into every template's `.sum` list.
+export const taxSummaryRows = (ctx, docType) => {
+  if (isQuote(docType)) return '';
+  const t = ctx.totals || {};
+  const gst = Number(t.gstTotal != null ? t.gstTotal : (Number(t.cgst) || 0) + (Number(t.sgst) || 0));
+  if (!(gst > 0)) return '';
+  return `
+    <div class="r"><span>Taxable value</span><span>${formatCurrency(t.subtotal)}</span></div>
+    <div class="r"><span>CGST @ 9%</span><span>${formatCurrency(t.cgst)}</span></div>
+    <div class="r"><span>SGST @ 9%</span><span>${formatCurrency(t.sgst)}</span></div>`;
+};
 
 // ── Quotation-only building blocks ──────────────────────────────────────────
 

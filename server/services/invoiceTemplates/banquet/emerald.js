@@ -1,5 +1,5 @@
 import { escapeHtml as e, formatCurrency, formatLongDate, amountInWords } from '../formatters.js';
-import { isQuote, docLabels, eventFacts, validUntil, quotationExtras, itemsSum, categoryTag } from './shared.js';
+import { isQuote, docLabels, eventFacts, validUntil, quotationExtras, itemsSum, categoryTag, billedToTitle, billedToLines, gstCell, taxSummaryRows, letterheadLines, paymentBlock} from './shared.js';
 
 const PAL = { accent: '#1a7a4e', ink: '#233b32', muted: '#5c7268', line: '#dce7db', soft: '#f3f8f1' };
 
@@ -9,6 +9,7 @@ const rows = (items) => items.map((it) => `
     <td><span class="pill">${e(categoryTag(it.category))}</span></td>
     <td class="n">${e(it.quantity)}</td>
     <td class="n">${formatCurrency(it.rate)}</td>
+    <td class="n">${gstCell(it)}</td>
     <td class="n b">${formatCurrency(it.amount)}</td>
   </tr>`).join('');
 
@@ -74,18 +75,18 @@ export const render = (ctx, { docType = 'invoice' } = {}) => {
     <div class="top">
       <div class="brand">
         <div class="logo">${ctx.hotel.logo ? `<img src="${e(ctx.hotel.logo)}" alt="">` : e((ctx.hotel.name || 'H').charAt(0))}</div>
-        <div><div class="hname">${e(ctx.hotel.name)}</div><div class="hsub">${e(ctx.hotel.address)}${ctx.hotel.phone ? ` · ${e(ctx.hotel.phone)}` : ''}${ctx.hotel.gstin ? `<br>GSTIN ${e(ctx.hotel.gstin)}` : ''}</div></div>
+        <div><div class="hname">${e(ctx.hotel.name)}</div><div class="hsub">${letterheadLines(ctx.hotel).join('<br>')}</div></div>
       </div>
       <div class="badge"><div class="k">${e(L.title)}</div><div class="no">${e(ctx.invoice.number)}</div><div class="dt">Issued ${formatLongDate(ctx.invoice.issuedOn)}</div>${quote ? `<div class="dt">Valid until ${validUntil(ctx)}</div>` : ''}</div>
     </div>
   </div>
   <div class="body">
     <div class="cards">
-      <div class="card"><h4>${quote ? 'Prepared for' : 'Billed to'}</h4><div class="nm">${e(ctx.customer.name)}</div><div class="ln">${ctx.customer.phone ? `${e(ctx.customer.phone)}<br>` : ''}${ctx.customer.email ? `${e(ctx.customer.email)}<br>` : ''}${ctx.customer.address ? `${e(ctx.customer.address)}` : ''}${ctx.customer.gstin ? `<br>GSTIN ${e(ctx.customer.gstin)}` : ''}</div></div>
+      <div class="card"><h4>${quote ? 'Prepared for' : 'Billed to'}</h4><div class="nm">${e(billedToTitle(ctx))}</div><div class="ln">${billedToLines(ctx)}</div></div>
       <div class="card"><h4>Event details</h4><dl class="facts">${facts.map(([k, v]) => `<dt>${e(k)}</dt><dd>${e(v)}</dd>`).join('')}</dl></div>
     </div>
     <table>
-      <thead><tr><th>Description</th><th>Type</th><th class="n">Qty</th><th class="n">Rate</th><th class="n">Amount</th></tr></thead>
+      <thead><tr><th>Description</th><th>Type</th><th class="n">Qty</th><th class="n">Rate</th><th class="n">GST</th><th class="n">Amount</th></tr></thead>
       <tbody>${rows(ctx.items)}</tbody>
     </table>
     <div class="foot">
@@ -95,11 +96,13 @@ export const render = (ctx, { docType = 'invoice' } = {}) => {
       </div>
       <div class="sum">
         ${t.discount ? `<div class="r"><span>Subtotal</span><span>${formatCurrency(itemsSum(ctx))}</span></div><div class="r"><span>Discount</span><span>− ${formatCurrency(t.discount)}</span></div>` : ''}
+        ${taxSummaryRows(ctx, docType)}
         <div class="r grand"><span>${quote ? 'Estimated total' : 'Grand total'}</span><span>${formatCurrency(t.total)}</span></div>
         ${quote ? '' : `<div class="r"><span>Amount paid</span><span>${formatCurrency(t.paid)}</span></div><div class="r bal"><span>Balance due</span><span>${formatCurrency(t.balance)}</span></div>`}
       </div>
     </div>
     ${quote ? quotationExtras(ctx, PAL) : ''}
+    ${paymentBlock(ctx, PAL)}
   </div>
   <div class="end">
     <div>${quote ? 'We would be honoured to host your celebration.' : 'Thank you for celebrating with us.'}<br>${e(ctx.hotel.name)}${ctx.hotel.website ? ` · ${e(ctx.hotel.website)}` : ''}</div>

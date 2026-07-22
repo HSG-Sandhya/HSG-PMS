@@ -36,6 +36,7 @@ const emptyProfile = {
   contact: {
     phone: '',
     altPhone: '',
+    landline: '',
     email: '',
     website: '',
     whatsappBusinessNumber: '',
@@ -388,6 +389,13 @@ const HotelProfileSection = ({ onNotify }) => {
                 sm: 6
               }}>
               {phoneField('Alt phone', 'contact.altPhone', profile.contact.altPhone)}
+            </Grid>
+            <Grid
+              size={{
+                xs: 12,
+                sm: 6
+              }}>
+              {phoneField('Landline', 'contact.landline', profile.contact.landline)}
             </Grid>
             <Grid
               size={{

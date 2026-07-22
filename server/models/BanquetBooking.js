@@ -248,9 +248,14 @@ const banquetBookingSchema = new mongoose.Schema({
   // e.g. the "Additional facilities" (sound system, projector, Wi-Fi) a client
   // takes off a quotation. Amounts are stored GROSS (GST already included, the
   // way they were quoted). extrasCost is the sum, included in totalAmount.
+  // `price` and `gstPercent` are the ex-GST inputs kept so the line stays
+  // editable after the event ("₹2,000 + 18%"); `amount` is the GROSS total
+  // actually billed (price × quantity + GST) and is the field the invoice reads.
   extraItems: [{
     name: { type: String, trim: true, default: '' },
     detail: { type: String, trim: true, default: '' },
+    price: { type: Number, default: 0, min: 0 },
+    gstPercent: { type: Number, default: 0, min: 0, max: 28 },
     quantity: { type: Number, default: 1, min: 0 },
     amount: { type: Number, default: 0, min: 0 },
   }],

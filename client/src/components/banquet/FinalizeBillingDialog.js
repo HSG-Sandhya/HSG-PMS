@@ -13,10 +13,15 @@ const fmtDate = (d) => {
 };
 
 const days = (it) => Math.max(1, Number(it?.days) || 1);
-// Catering line amount at a given plate count.
+// Catering line amount (PRE-GST) at a given plate count.
 const lineAmount = (perPlate, plates, d) =>
   (Number(perPlate) || 0) * (parseInt(plates, 10) || 0) * Math.max(1, Number(d) || 1);
 const estAmount = (it) => lineAmount(it?.perPlate, it?.plates, it?.days);
+// Catering is billed with 18% GST added on top. `booking.totalAmount` includes
+// this GST, so the catering figures here must be gross too or "other charges"
+// (total − catering) would wrongly absorb the tax. Mirrors the invoice + form.
+const BANQUET_GST_RATE = 0.18;
+const withGst = (base) => (Number(base) || 0) + Math.round((Number(base) || 0) * BANQUET_GST_RATE);
 
 /**
  * Post-event billing for one banquet booking. Catering is quoted on estimated
@@ -49,13 +54,14 @@ const FinalizeBillingDialog = ({ open, onClose, booking, onUpdated }) => {
 
   if (!booking) return null;
 
-  // The catering amount currently baked into totalAmount (stored amount, or the
-  // estimate if a line has none). Everything else in the total is "other charges".
-  const currentCateringSum = items.reduce((s, it) => s + (Number(it.amount) || estAmount(it)), 0);
+  // The catering amount (GST-inclusive) currently baked into totalAmount.
+  // Everything else in the total is "other charges" — venue, décor, facilities,
+  // all of which are already GST-inclusive and stay put.
+  const currentCateringSum = items.reduce((s, it) => s + withGst(Number(it.amount) || estAmount(it)), 0);
   const total = Number(booking.totalAmount) || 0;
   const nonCatering = total - currentCateringSum;
 
-  const newCateringSum = items.reduce((s, it, i) => s + lineAmount(it.perPlate, actuals[i], it.days), 0);
+  const newCateringSum = items.reduce((s, it, i) => s + withGst(lineAmount(it.perPlate, actuals[i], it.days)), 0);
   const newTotal = Math.max(0, nonCatering + newCateringSum);
 
   const collected = (Array.isArray(booking.payments) && booking.payments.length)
@@ -193,7 +199,7 @@ const FinalizeBillingDialog = ({ open, onClose, booking, onUpdated }) => {
       <FormSection title="Revised bill">
         <Grid container spacing={1.5}>
           <Summary label="Other charges" value={fmt(nonCatering)} />
-          <Summary label="Catering (actual)" value={fmt(newCateringSum)} color="#6366f1" />
+          <Summary label="Catering (actual, incl. 18% GST)" value={fmt(newCateringSum)} color="#6366f1" />
           <Summary label="New total" value={fmt(newTotal)} color="#0f7fc9" />
           <Summary label="Collected" value={fmt(collected)} color="#059669" />
           <Summary label="Balance due" value={fmt(newBalance)} color={newBalance > 0 ? '#dc2626' : '#059669'} />

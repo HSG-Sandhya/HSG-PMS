@@ -3,6 +3,7 @@ import Booking from '../models/Booking.js';
 import Order from '../models/Order.js';
 import Room from '../models/Room.js';
 import BanquetHall from '../models/BanquetHall.js';
+import Account from '../models/Account.js';
 import Settings from '../models/Settings.js';
 import BanquetHallInvoiceTemplate from './templates/BanquetHallInvoiceTemplate.js';
 import HotelRoomInvoiceTemplate from './templates/HotelRoomInvoiceTemplate.js';
@@ -26,16 +27,28 @@ class InvoiceService {
       // Inline the configured logo as a data URI so it renders in the detached
       // print window (a relative /api/images/<id> URL would not resolve there).
       const logo = await resolveLogo(settings.logo || '');
+      // Build a single-line address from the structured fields the profile
+      // actually stores (line1/line2/city/state/postalCode). The locality (area)
+      // is intentionally omitted to keep the printed address concise. NOTE: the
+      // old code read `street`/`pincode`/`full`, which this schema never had, so
+      // the address silently collapsed to just "City, State" on every invoice.
+      const addr = settings.address || {};
+      const cityStatePin = [
+        [addr.city, addr.state].filter(Boolean).join(', '),
+        addr.postalCode,
+      ].filter(Boolean).join('-'); // "Munger, Bihar-811201"
+      const addressLine = [addr.line1, addr.line2, cityStatePin].filter(Boolean).join(', ')
+        || 'Bari Bazaar, Near Punjab National Bank, Munger, Bihar-811201';
       const hotelInfo = {
         name: hotelName,
         logo,
         contact: {
-          phone: settings.contact?.phone || '9431419196',
-          email: settings.contact?.email || 'reservations@sandhyagrand.in'
+          phone: settings.contact?.phone || '+91 9431419196',
+          landline: settings.contact?.landline || '',
+          email: settings.contact?.email || 'reservations@sandhyagrand.in',
+          website: settings.contact?.website || 'www.sandhyagrand.in',
         },
-        address: settings.address?.full ||
-                 `${settings.address?.street || ''}, ${settings.address?.city || ''}, ${settings.address?.state || ''}, ${settings.address?.pincode || ''}`.replace(/^,\s*|,\s*$/g, '') ||
-                 'Bari Bazaar, Near Punjab National Bank, Town Hall, Munger, Bihar, 811201',
+        address: addressLine,
         gstin: hotelGstin,
         // Food bill prints under this identity when the restaurant has its
         // own GST registration; falls back to the hotel name + GSTIN.
@@ -53,10 +66,12 @@ class InvoiceService {
       return {
         name: 'Hotel Sandhya Grand & Marriage Hall',
         contact: {
-          phone: '9431419196',
-          email: 'reservations@sandhyagrand.in'
+          phone: '+91 9431419196',
+          landline: '+91 6344-469175',
+          email: 'reservations@sandhyagrand.in',
+          website: 'www.sandhyagrand.in',
         },
-        address: 'Bari Bazaar, Near Punjab National Bank, Town Hall, Munger, Bihar, 811201',
+        address: 'Bari Bazaar, Near Punjab National Bank, Munger, Bihar-811201',
         gstin: '10ASQPM7914B3ZW',
         restaurant: {
           name: 'Hotel Sandhya Grand & Marriage Hall',
@@ -64,6 +79,34 @@ class InvoiceService {
           fssai: '',
         },
       };
+    }
+  }
+
+  /**
+   * The bank account to print on invoices for the customer to pay into — the
+   * primary active account from Accounting (bank details + UPI). Returns null
+   * when none is configured, so the payment block simply doesn't render.
+   */
+  static async getBankAccount() {
+    try {
+      const acct = await Account.findOne({
+        isActive: true,
+        $or: [
+          { accountNumber: { $nin: [null, ''] } },
+          { upi: { $nin: [null, ''] } },
+        ],
+      }).sort({ createdAt: 1 }).lean();
+      if (!acct) return null;
+      return {
+        accountHolder: acct.name || '',
+        bankName: acct.bankName || '',
+        accountNumber: acct.accountNumber || '',
+        ifsc: acct.ifsc || '',
+        branch: acct.branch || '',
+        upiId: acct.upi || '',
+      };
+    } catch {
+      return null;
     }
   }
 
@@ -138,12 +181,20 @@ class InvoiceService {
       // Banquet documents use the dedicated banquet template set; the single
       // selection renders both the quotation and the invoice (docType switches).
       if (bookingType === 'banquet') {
-        const banquetTemplateId = invoiceSection?.banquetTemplate || DEFAULT_BANQUET_TEMPLATE_ID;
+        // Corporate-style events always print on the clean "Corporate" template;
+        // weddings and social events use whatever decorative template is chosen
+        // in Settings. This lets one venue run both looks without re-selecting.
+        const CORPORATE_EVENTS = ['Meeting', 'Conference', 'Corporate'];
+        const banquetTemplateId = CORPORATE_EVENTS.includes(bookingObject.eventType)
+          ? 'corporate'
+          : (invoiceSection?.banquetTemplate || DEFAULT_BANQUET_TEMPLATE_ID);
+        const bankAccount = await this.getBankAccount();
         return renderBanquetDocument({
           booking: bookingObject,
           hotel: hotelInfo,
           templateId: banquetTemplateId,
           docType: docType === 'quotation' ? 'quotation' : 'invoice',
+          bankAccount,
         });
       }
 

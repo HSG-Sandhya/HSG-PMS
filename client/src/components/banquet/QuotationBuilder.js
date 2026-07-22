@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, memo } from 'react';
 import {
   Box, Grid, Typography, Button, IconButton, Chip, Stack, Divider,
   TextField, MenuItem, Tooltip, InputAdornment, Autocomplete, Switch, FormControlLabel,
@@ -31,15 +31,170 @@ const SECTION_TITLE_SUGGESTIONS = [
   'Lunch (Buffet)', 'Dinner (Buffet)', 'Audio Visual', 'Accommodation', 'Decoration',
 ];
 
-const datePickerSlots = (extra = {}) => ({
-  textField: { fullWidth: true, ...extra },
-  popper: { sx: { '& .MuiPaper-root': { backgroundColor: 'white', opacity: 1, boxShadow: '0 4px 20px rgba(0,0,0,0.15)' } } },
-});
+// Hoisted so they keep a stable identity across renders — a fresh object or
+// array literal on every render makes MUI re-render the whole picker/
+// autocomplete underneath it, which is what made this form stutter while typing.
+const POPPER_SX = { sx: { '& .MuiPaper-root': { backgroundColor: 'white', opacity: 1, boxShadow: '0 4px 20px rgba(0,0,0,0.15)' } } };
+const DATE_SLOTS = { textField: { fullWidth: true }, popper: POPPER_SX };
+const NO_OPTIONS = [];
+
+const datePickerSlots = (extra) => (extra
+  ? { textField: { fullWidth: true, ...extra }, popper: POPPER_SX }
+  : DATE_SLOTS);
 
 // Dates round-trip as ISO strings from the API and as Date objects from the
 // pickers — normalise both ways at the edges.
 const toDate = (v) => (!v ? null : typeof v === 'string' ? parseISO(v) : v);
 const toISO = (d) => (d ? format(d, 'yyyy-MM-dd') : null);
+
+/**
+ * One package column in the builder. Memoised and driven by index-based
+ * callbacks that never change identity, so typing in the client details — or in
+ * a *different* package — does not re-render this card. Without this the dialog
+ * re-rendered every Autocomplete in the form on each keystroke.
+ */
+const PackageCard = memo(function PackageCard({
+  pkg, index, guests, onPatch, onClone, onRemove, onPatchSection, onAddSection, onRemoveSection,
+}) {
+  const sections = pkg.sections || [];
+  return (
+    <Box sx={{ border: '1px solid', borderColor: pkg.recommended ? 'warning.main' : 'divider', borderRadius: 3, p: 2 }}>
+      <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
+        <Typography sx={{ fontWeight: 800, color: 'var(--app-primary)' }}>Package {index + 1}</Typography>
+        <Stack direction="row" spacing={0.5}>
+          <Tooltip title="Duplicate package" arrow>
+            <IconButton size="small" onClick={() => onClone(index)}><ContentCopyIcon fontSize="small" /></IconButton>
+          </Tooltip>
+          <Tooltip title="Remove package" arrow>
+            <IconButton size="small" onClick={() => onRemove(index)} sx={{ color: '#ef4444' }}><DeleteIcon fontSize="small" /></IconButton>
+          </Tooltip>
+        </Stack>
+      </Stack>
+      <Grid container spacing={2}>
+        <Grid size={{ xs: 12, sm: 5 }}>
+          <TextField fullWidth required label="Package name" value={pkg.name}
+            onChange={(e) => onPatch(index, { name: e.target.value })} />
+        </Grid>
+        <Grid size={{ xs: 12, sm: 7 }}>
+          <TextField fullWidth label="Tagline" value={pkg.tagline}
+            onChange={(e) => onPatch(index, { tagline: e.target.value })}
+            placeholder="8 hours · 09:30 AM – 05:30 PM" />
+        </Grid>
+        <Grid size={{ xs: 6, sm: 3 }}>
+          <TextField fullWidth type="number" label="Price" value={pkg.price}
+            onChange={(e) => onPatch(index, { price: e.target.value })}
+            slotProps={{ input: { startAdornment: <InputAdornment position="start">{currencySym()}</InputAdornment> } }} />
+        </Grid>
+        <Grid size={{ xs: 6, sm: 3 }}>
+          <TextField select fullWidth label="Charged" value={pkg.priceBasis}
+            onChange={(e) => onPatch(index, { priceBasis: e.target.value })}>
+            {PRICE_BASES.map((b) => <MenuItem key={b} value={b}>{b}</MenuItem>)}
+          </TextField>
+        </Grid>
+        <Grid size={{ xs: 6, sm: 2 }}>
+          <TextField fullWidth type="number" label="Qty" value={pkg.quantity}
+            onChange={(e) => onPatch(index, { quantity: e.target.value })}
+            disabled={pkg.priceBasis === 'lump sum'}
+            helperText={pkg.priceBasis === 'lump sum' ? 'n/a' : `default ${guests || 0}`} />
+        </Grid>
+        <Grid size={{ xs: 6, sm: 2 }}>
+          <TextField fullWidth type="number" label="Days" value={pkg.days}
+            onChange={(e) => onPatch(index, { days: e.target.value })} />
+        </Grid>
+        <Grid size={{ xs: 12, sm: 2 }}>
+          <FormControlLabel
+            control={<Switch checked={!!pkg.recommended} onChange={(e) => onPatch(index, { recommended: e.target.checked })} />}
+            label={<Typography variant="caption" sx={{ fontWeight: 700 }}>Recommend</Typography>}
+          />
+        </Grid>
+      </Grid>
+
+      <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mt: 1.5, mb: 1 }}>
+        <Typography variant="caption" sx={{ fontWeight: 800, letterSpacing: '.08em', textTransform: 'uppercase', color: 'text.secondary' }}>
+          Inclusions
+        </Typography>
+        <Chip size="small" label={`Estimate ${currencySym()}${packageTotal(pkg, guests).toLocaleString('en-IN')}`}
+          sx={{ fontWeight: 800, bgcolor: 'rgba(16,185,129,.12)', color: '#059669' }} />
+      </Stack>
+      <Stack spacing={1.5}>
+        {sections.map((sec, si) => (
+          <Grid container spacing={1.5} key={si} sx={{ alignItems: 'flex-start' }}>
+            <Grid size={{ xs: 12, sm: 4 }}>
+              <Autocomplete
+                freeSolo options={SECTION_TITLE_SUGGESTIONS}
+                inputValue={sec.title || ''}
+                onInputChange={(e, val) => onPatchSection(index, si, { title: val })}
+                renderInput={(params) => <TextField {...params} fullWidth size="small" label="Block title" />}
+              />
+            </Grid>
+            <Grid size={{ xs: 11, sm: 7 }}>
+              <Autocomplete
+                multiple freeSolo options={NO_OPTIONS}
+                value={sec.items || NO_OPTIONS}
+                onChange={(e, val) => onPatchSection(index, si, { items: val })}
+                renderInput={(params) => (
+                  <TextField {...params} fullWidth size="small" label="Items" placeholder="Type an item, press Enter" />
+                )}
+              />
+            </Grid>
+            <Grid size={{ xs: 1 }}>
+              <IconButton size="small" onClick={() => onRemoveSection(index, si)} sx={{ color: '#ef4444', mt: 0.5 }}>
+                <DeleteIcon fontSize="small" />
+              </IconButton>
+            </Grid>
+          </Grid>
+        ))}
+      </Stack>
+      <Stack direction="row" spacing={1} sx={{ mt: 1.5, alignItems: 'center' }}>
+        <Button size="small" startIcon={<AddIcon />} onClick={() => onAddSection(index)} sx={{ textTransform: 'none', fontWeight: 700 }}>
+          Add inclusion block
+        </Button>
+      </Stack>
+      <TextField fullWidth size="small" label="Package note" value={pkg.notes} sx={{ mt: 1.5 }}
+        onChange={(e) => onPatch(index, { notes: e.target.value })}
+        placeholder="e.g. Above 25 pax billed at ₹450 per additional delegate." />
+    </Box>
+  );
+});
+
+/** One optional-facility row. Memoised for the same reason as PackageCard. */
+const AddOnRow = memo(function AddOnRow({ addOn, index, onPatch, onRemove }) {
+  return (
+    <Grid container spacing={1.5} sx={{ alignItems: 'flex-start' }}>
+      <Grid size={{ xs: 12, sm: 3 }}>
+        <TextField fullWidth size="small" label="Facility" value={addOn.name}
+          onChange={(e) => onPatch(index, { name: e.target.value })} />
+      </Grid>
+      <Grid size={{ xs: 6, sm: 2 }}>
+        <TextField fullWidth size="small" type="number" label="Price" value={addOn.price}
+          onChange={(e) => onPatch(index, { price: e.target.value })}
+          slotProps={{ input: { startAdornment: <InputAdornment position="start">{currencySym()}</InputAdornment> } }} />
+      </Grid>
+      <Grid size={{ xs: 6, sm: 2 }}>
+        <TextField fullWidth size="small" label="Unit" value={addOn.unit}
+          onChange={(e) => onPatch(index, { unit: e.target.value })} placeholder="per event" />
+      </Grid>
+      <Grid size={{ xs: 4, sm: 1.5 }}>
+        <TextField fullWidth size="small" type="number" label="Qty" value={addOn.quantity}
+          onChange={(e) => onPatch(index, { quantity: e.target.value })} />
+      </Grid>
+      <Grid size={{ xs: 4, sm: 1.5 }}>
+        <TextField fullWidth size="small" type="number" label="GST %" value={addOn.gstPercent}
+          onChange={(e) => onPatch(index, { gstPercent: e.target.value })} />
+      </Grid>
+      <Grid size={{ xs: 3, sm: 1.5 }}>
+        <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', mt: 1.2, fontWeight: 700 }}>
+          {currencySym()}{addOnTotal(addOn).toLocaleString('en-IN')}
+        </Typography>
+      </Grid>
+      <Grid size={{ xs: 1, sm: 0.5 }}>
+        <IconButton size="small" onClick={() => onRemove(index)} sx={{ color: '#ef4444', mt: 0.5 }}>
+          <DeleteIcon fontSize="small" />
+        </IconButton>
+      </Grid>
+    </Grid>
+  );
+});
 
 const QuotationBuilder = ({ open, onClose, onSaved, editing, halls = [], onNotify }) => {
   const [form, setForm] = useState(emptyQuotation);
@@ -60,7 +215,7 @@ const QuotationBuilder = ({ open, onClose, onSaved, editing, halls = [], onNotif
       : emptyQuotation());
   }, [open, editing]);
 
-  const set = (k, v) => setForm((p) => ({ ...p, [k]: v }));
+  const set = useCallback((k, v) => setForm((p) => ({ ...p, [k]: v })), []);
 
   // Applying a preset replaces the offer (packages / add-ons / terms) but keeps
   // whatever client and event details have already been typed.
@@ -80,29 +235,49 @@ const QuotationBuilder = ({ open, onClose, onSaved, editing, halls = [], onNotif
   };
 
   // ── Package list helpers ──────────────────────────────────────────────────
-  const patchPackage = (i, patch) => setForm((p) => ({
+  // All of these update through the functional form of setForm and capture
+  // nothing, so their identity is stable for the life of the dialog. That is
+  // what lets PackageCard's memo skip untouched cards while typing.
+  const patchPackage = useCallback((i, patch) => setForm((p) => ({
     ...p, packages: p.packages.map((pkg, idx) => (idx === i ? { ...pkg, ...patch } : pkg)),
-  }));
-  const addPackage = () => setForm((p) => ({ ...p, packages: [...p.packages, emptyPackage()] }));
-  const clonePackage = (i) => setForm((p) => {
+  })), []);
+  const addPackage = useCallback(() => setForm((p) => ({ ...p, packages: [...p.packages, emptyPackage()] })), []);
+  const clonePackage = useCallback((i) => setForm((p) => {
     const copy = { ...p.packages[i], name: `${p.packages[i].name} (copy)`, recommended: false };
-    copy.sections = copy.sections.map((s) => ({ ...s, items: [...s.items] }));
+    copy.sections = (copy.sections || []).map((s) => ({ ...s, items: [...s.items] }));
     return { ...p, packages: [...p.packages.slice(0, i + 1), copy, ...p.packages.slice(i + 1)] };
-  });
-  const removePackage = (i) => setForm((p) => ({ ...p, packages: p.packages.filter((_, idx) => idx !== i) }));
+  }), []);
+  const removePackage = useCallback((i) => setForm((p) => ({
+    ...p, packages: p.packages.filter((_, idx) => idx !== i),
+  })), []);
 
-  const patchSection = (pi, si, patch) => patchPackage(pi, {
-    sections: form.packages[pi].sections.map((s, idx) => (idx === si ? { ...s, ...patch } : s)),
-  });
-  const addSection = (pi) => patchPackage(pi, { sections: [...form.packages[pi].sections, emptySection()] });
-  const removeSection = (pi, si) => patchPackage(pi, { sections: form.packages[pi].sections.filter((_, idx) => idx !== si) });
+  const patchSection = useCallback((pi, si, patch) => setForm((p) => ({
+    ...p,
+    packages: p.packages.map((pkg, idx) => (idx !== pi ? pkg : {
+      ...pkg, sections: (pkg.sections || []).map((s, sIdx) => (sIdx === si ? { ...s, ...patch } : s)),
+    })),
+  })), []);
+  const addSection = useCallback((pi) => setForm((p) => ({
+    ...p,
+    packages: p.packages.map((pkg, idx) => (idx !== pi ? pkg : {
+      ...pkg, sections: [...(pkg.sections || []), emptySection()],
+    })),
+  })), []);
+  const removeSection = useCallback((pi, si) => setForm((p) => ({
+    ...p,
+    packages: p.packages.map((pkg, idx) => (idx !== pi ? pkg : {
+      ...pkg, sections: (pkg.sections || []).filter((_, sIdx) => sIdx !== si),
+    })),
+  })), []);
 
   // ── Add-on helpers ────────────────────────────────────────────────────────
-  const patchAddOn = (i, patch) => setForm((p) => ({
+  const patchAddOn = useCallback((i, patch) => setForm((p) => ({
     ...p, addOns: p.addOns.map((a, idx) => (idx === i ? { ...a, ...patch } : a)),
-  }));
-  const addAddOn = () => setForm((p) => ({ ...p, addOns: [...p.addOns, emptyAddOn()] }));
-  const removeAddOn = (i) => setForm((p) => ({ ...p, addOns: p.addOns.filter((_, idx) => idx !== i) }));
+  })), []);
+  const addAddOn = useCallback(() => setForm((p) => ({ ...p, addOns: [...p.addOns, emptyAddOn()] })), []);
+  const removeAddOn = useCallback((i) => setForm((p) => ({
+    ...p, addOns: p.addOns.filter((_, idx) => idx !== i),
+  })), []);
 
   const handleSave = async (e) => {
     if (e?.preventDefault) e.preventDefault();
@@ -284,105 +459,18 @@ const QuotationBuilder = ({ open, onClose, onSaved, editing, halls = [], onNotif
         </Typography>
         <Stack spacing={2}>
           {form.packages.map((pkg, pi) => (
-            <Box key={pi} sx={{ border: '1px solid', borderColor: pkg.recommended ? 'warning.main' : 'divider', borderRadius: 3, p: 2 }}>
-              <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
-                <Typography sx={{ fontWeight: 800, color: 'var(--app-primary)' }}>
-                  Package {pi + 1}
-                </Typography>
-                <Stack direction="row" spacing={0.5}>
-                  <Tooltip title="Duplicate package" arrow>
-                    <IconButton size="small" onClick={() => clonePackage(pi)}><ContentCopyIcon fontSize="small" /></IconButton>
-                  </Tooltip>
-                  <Tooltip title="Remove package" arrow>
-                    <IconButton size="small" onClick={() => removePackage(pi)} sx={{ color: '#ef4444' }}><DeleteIcon fontSize="small" /></IconButton>
-                  </Tooltip>
-                </Stack>
-              </Stack>
-              <Grid container spacing={2}>
-                <Grid size={{ xs: 12, sm: 5 }}>
-                  <TextField fullWidth required label="Package name" value={pkg.name}
-                    onChange={(e) => patchPackage(pi, { name: e.target.value })} />
-                </Grid>
-                <Grid size={{ xs: 12, sm: 7 }}>
-                  <TextField fullWidth label="Tagline" value={pkg.tagline}
-                    onChange={(e) => patchPackage(pi, { tagline: e.target.value })}
-                    placeholder="8 hours · 09:30 AM – 05:30 PM" />
-                </Grid>
-                <Grid size={{ xs: 6, sm: 3 }}>
-                  <TextField fullWidth type="number" label="Price" value={pkg.price}
-                    onChange={(e) => patchPackage(pi, { price: e.target.value })}
-                    slotProps={{ input: { startAdornment: <InputAdornment position="start">{currencySym()}</InputAdornment> } }} />
-                </Grid>
-                <Grid size={{ xs: 6, sm: 3 }}>
-                  <TextField select fullWidth label="Charged" value={pkg.priceBasis}
-                    onChange={(e) => patchPackage(pi, { priceBasis: e.target.value })}>
-                    {PRICE_BASES.map((b) => <MenuItem key={b} value={b}>{b}</MenuItem>)}
-                  </TextField>
-                </Grid>
-                <Grid size={{ xs: 6, sm: 2 }}>
-                  <TextField fullWidth type="number" label="Qty" value={pkg.quantity}
-                    onChange={(e) => patchPackage(pi, { quantity: e.target.value })}
-                    disabled={pkg.priceBasis === 'lump sum'}
-                    helperText={pkg.priceBasis === 'lump sum' ? 'n/a' : `default ${guests || 0}`} />
-                </Grid>
-                <Grid size={{ xs: 6, sm: 2 }}>
-                  <TextField fullWidth type="number" label="Days" value={pkg.days}
-                    onChange={(e) => patchPackage(pi, { days: e.target.value })} />
-                </Grid>
-                <Grid size={{ xs: 12, sm: 2 }}>
-                  <FormControlLabel
-                    control={<Switch checked={!!pkg.recommended} onChange={(e) => patchPackage(pi, { recommended: e.target.checked })} />}
-                    label={<Typography variant="caption" sx={{ fontWeight: 700 }}>Recommend</Typography>}
-                  />
-                </Grid>
-              </Grid>
-
-              <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mt: 1.5, mb: 1 }}>
-                <Typography variant="caption" sx={{ fontWeight: 800, letterSpacing: '.08em', textTransform: 'uppercase', color: 'text.secondary' }}>
-                  Inclusions
-                </Typography>
-                <Chip size="small" label={`Estimate ${currencySym()}${packageTotal(pkg, guests).toLocaleString('en-IN')}`}
-                  sx={{ fontWeight: 800, bgcolor: 'rgba(16,185,129,.12)', color: '#059669' }} />
-              </Stack>
-              <Stack spacing={1.5}>
-                {(pkg.sections || []).map((sec, si) => (
-                  <Grid container spacing={1.5} key={si} sx={{ alignItems: 'flex-start' }}>
-                    <Grid size={{ xs: 12, sm: 4 }}>
-                      <Autocomplete
-                        freeSolo options={SECTION_TITLE_SUGGESTIONS}
-                        inputValue={sec.title || ''}
-                        onInputChange={(e, val) => patchSection(pi, si, { title: val })}
-                        renderInput={(params) => <TextField {...params} fullWidth size="small" label="Block title" />}
-                      />
-                    </Grid>
-                    <Grid size={{ xs: 11, sm: 7 }}>
-                      <Autocomplete
-                        multiple freeSolo options={[]}
-                        value={sec.items || []}
-                        onChange={(e, val) => patchSection(pi, si, { items: val })}
-                        renderInput={(params) => (
-                          <TextField {...params} fullWidth size="small" label="Items"
-                            placeholder="Type an item, press Enter" />
-                        )}
-                      />
-                    </Grid>
-                    <Grid size={{ xs: 1 }}>
-                      <IconButton size="small" onClick={() => removeSection(pi, si)} sx={{ color: '#ef4444', mt: 0.5 }}>
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
-                    </Grid>
-                  </Grid>
-                ))}
-              </Stack>
-              <Stack direction="row" spacing={1} sx={{ mt: 1.5, alignItems: 'center' }}>
-                <Button size="small" startIcon={<AddIcon />} onClick={() => addSection(pi)} sx={{ textTransform: 'none', fontWeight: 700 }}>
-                  Add inclusion block
-                </Button>
-              </Stack>
-              <TextField fullWidth size="small" label="Package note" value={pkg.notes} sx={{ mt: 1.5 }}
-                onChange={(e) => patchPackage(pi, { notes: e.target.value })}
-                placeholder="e.g. Above 25 pax billed at ₹450 per additional delegate." />
-            </Box>
+            <PackageCard
+              key={pi}
+              pkg={pkg}
+              index={pi}
+              guests={guests}
+              onPatch={patchPackage}
+              onClone={clonePackage}
+              onRemove={removePackage}
+              onPatchSection={patchSection}
+              onAddSection={addSection}
+              onRemoveSection={removeSection}
+            />
           ))}
         </Stack>
         <Button startIcon={<AddIcon />} onClick={addPackage} sx={{ mt: 2, textTransform: 'none', fontWeight: 700 }}>
@@ -396,39 +484,7 @@ const QuotationBuilder = ({ open, onClose, onSaved, editing, halls = [], onNotif
         </Typography>
         <Stack spacing={1.5}>
           {form.addOns.map((a, i) => (
-            <Grid container spacing={1.5} key={i} sx={{ alignItems: 'flex-start' }}>
-              <Grid size={{ xs: 12, sm: 3 }}>
-                <TextField fullWidth size="small" label="Facility" value={a.name}
-                  onChange={(e) => patchAddOn(i, { name: e.target.value })} />
-              </Grid>
-              <Grid size={{ xs: 6, sm: 2 }}>
-                <TextField fullWidth size="small" type="number" label="Price" value={a.price}
-                  onChange={(e) => patchAddOn(i, { price: e.target.value })}
-                  slotProps={{ input: { startAdornment: <InputAdornment position="start">{currencySym()}</InputAdornment> } }} />
-              </Grid>
-              <Grid size={{ xs: 6, sm: 2 }}>
-                <TextField fullWidth size="small" label="Unit" value={a.unit}
-                  onChange={(e) => patchAddOn(i, { unit: e.target.value })} placeholder="per event" />
-              </Grid>
-              <Grid size={{ xs: 4, sm: 1.5 }}>
-                <TextField fullWidth size="small" type="number" label="Qty" value={a.quantity}
-                  onChange={(e) => patchAddOn(i, { quantity: e.target.value })} />
-              </Grid>
-              <Grid size={{ xs: 4, sm: 1.5 }}>
-                <TextField fullWidth size="small" type="number" label="GST %" value={a.gstPercent}
-                  onChange={(e) => patchAddOn(i, { gstPercent: e.target.value })} />
-              </Grid>
-              <Grid size={{ xs: 3, sm: 1.5 }}>
-                <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', mt: 1.2, fontWeight: 700 }}>
-                  {currencySym()}{addOnTotal(a).toLocaleString('en-IN')}
-                </Typography>
-              </Grid>
-              <Grid size={{ xs: 1, sm: 0.5 }}>
-                <IconButton size="small" onClick={() => removeAddOn(i)} sx={{ color: '#ef4444', mt: 0.5 }}>
-                  <DeleteIcon fontSize="small" />
-                </IconButton>
-              </Grid>
-            </Grid>
+            <AddOnRow key={i} addOn={a} index={i} onPatch={patchAddOn} onRemove={removeAddOn} />
           ))}
         </Stack>
         <Button startIcon={<AddIcon />} onClick={addAddOn} sx={{ mt: 1.5, textTransform: 'none', fontWeight: 700 }}>
@@ -440,7 +496,7 @@ const QuotationBuilder = ({ open, onClose, onSaved, editing, halls = [], onNotif
         <Grid container spacing={2} sx={{ mt: 0 }}>
           <Grid size={12}>
             <Autocomplete
-              multiple freeSolo options={[]}
+              multiple freeSolo options={NO_OPTIONS}
               value={form.complimentary}
               onChange={(e, val) => set('complimentary', val)}
               renderInput={(params) => (
@@ -452,7 +508,7 @@ const QuotationBuilder = ({ open, onClose, onSaved, editing, halls = [], onNotif
           </Grid>
           <Grid size={12}>
             <Autocomplete
-              multiple freeSolo options={[]}
+              multiple freeSolo options={NO_OPTIONS}
               value={form.terms}
               onChange={(e, val) => set('terms', val)}
               renderInput={(params) => (

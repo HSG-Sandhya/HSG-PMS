@@ -6,7 +6,7 @@ import {
   TextField, InputAdornment, FormControl, InputLabel, Select, MenuItem,
   Snackbar, Alert, CircularProgress, Chip,
   Divider, Stack, useTheme,
-  Checkbox, FormControlLabel, FormGroup,
+  Checkbox, FormControlLabel, FormGroup, Autocomplete,
   Stepper, Step, StepButton,
 } from '@mui/material';
 import { DatePicker, TimePicker } from '@mui/x-date-pickers';
@@ -40,6 +40,7 @@ import RestaurantMenuIcon from '@mui/icons-material/RestaurantMenu';
 import BrushOutlinedIcon from '@mui/icons-material/BrushOutlined';
 import BlenderOutlinedIcon from '@mui/icons-material/BlenderOutlined';
 import RequestQuoteOutlinedIcon from '@mui/icons-material/RequestQuoteOutlined';
+import TuneOutlinedIcon from '@mui/icons-material/TuneOutlined';
 import {
   dialogPaperSx,
   dialogBackdropSx,
@@ -69,6 +70,8 @@ import {
   emptyCateringItem,
   emptyDecorationItem,
   emptyUtensilItem,
+  emptyFacilityItem,
+  FACILITY_SUGGESTIONS,
   MEAL_OPTIONS,
   initialFormData,
 } from './banquet/bookingConstants';
@@ -82,6 +85,9 @@ import {
   sumDecorationItems,
   utensilItemAmount,
   sumUtensilItems,
+  sumFacilityItems,
+  facilityItemAmount,
+  cateringGst,
 } from './banquet/bookingPricing';
 import HkKpiCard from '../operations/housekeeping/HkKpiCard';
 import BanquetHeader from './banquet/BanquetHeader';
@@ -353,9 +359,20 @@ const BanquetHallBooking = () => {
     const utensilsCost = sumUtensilItems(formData.utensilItems);
 
     // Vendor extras (photography + entertainment) add to the billed total.
-    const extrasCost = (parseFloat(formData.photographyAmount) || 0) + (parseFloat(formData.entertainmentCost) || 0);
+    const vendorExtras = (parseFloat(formData.photographyAmount) || 0) + (parseFloat(formData.entertainmentCost) || 0);
 
-    const totalAmount = floorCost + roomsCost + decorationCost + cateringCost + utensilsCost + extrasCost;
+    // Additional facilities (sound system, projector, Wi-Fi …) — stored GROSS,
+    // so the GST is already inside these amounts. Carried over when a quotation
+    // is converted, and editable on the form. This MUST be in the total: without
+    // it, editing a converted booking would silently drop the facilities.
+    const extrasCost = sumFacilityItems(formData.extraItems);
+
+    // 18% GST on the catering value — catering is priced pre-GST, so it is added
+    // on top to reach the billed total (every other line is GST-inclusive). This
+    // keeps the tracked total in step with the printed tax invoice.
+    const cateringGstAmount = cateringGst(cateringCost);
+
+    const totalAmount = floorCost + roomsCost + decorationCost + cateringCost + cateringGstAmount + utensilsCost + vendorExtras + extrasCost;
 
     const advanceAmount = parseFloat(formData.advanceAmount) || 0;
     const remainingAmount = calculateRemainingAmount(totalAmount, advanceAmount);
@@ -368,13 +385,14 @@ const BanquetHallBooking = () => {
       decorationCost,
       menuCost: cateringCost,
       utensilsCost,
+      extrasCost,
       numberOfDays,
       totalAmount,
       remainingAmount,
       eventDuration,
     }));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [formData.selectedFloors, formData.rooms, formData.complimentaryRooms, formData.decorationItems, formData.cateringItems, formData.utensilItems, formData.guestCount, formData.packageId, formData.packageBasePrice, formData.packageDecorationCost, formData.advanceAmount, formData.eventType, formData.eventDate, formData.endDate, formData.startTime, formData.endTime, formData.photographyAmount, formData.entertainmentCost]);
+  }, [formData.selectedFloors, formData.rooms, formData.complimentaryRooms, formData.decorationItems, formData.cateringItems, formData.utensilItems, formData.extraItems, formData.guestCount, formData.packageId, formData.packageBasePrice, formData.packageDecorationCost, formData.advanceAmount, formData.eventType, formData.eventDate, formData.endDate, formData.startTime, formData.endTime, formData.photographyAmount, formData.entertainmentCost]);
 
   // Remember when the Payment (final) step was shown, for the submit guard.
   useEffect(() => {
@@ -495,6 +513,22 @@ const BanquetHallBooking = () => {
           }))
           : [],
         utensilsCost: booking.utensilsCost || 0,
+
+        // Additional facilities. Legacy rows (written before price/gstPercent
+        // existed) only carry the gross amount — surface that as a 0% GST line
+        // so the figure is preserved exactly rather than silently recomputed.
+        extraItems: Array.isArray(booking.extraItems)
+          ? booking.extraItems.map((it) => ({
+            name: it.name || '',
+            detail: it.detail || '',
+            price: it.price != null && it.price !== 0
+              ? it.price
+              : (Number(it.amount) || 0) / Math.max(1, Number(it.quantity) || 1),
+            gstPercent: it.price != null && it.price !== 0 ? (it.gstPercent || 0) : 0,
+            quantity: it.quantity != null ? it.quantity : 1,
+          }))
+          : [],
+        extrasCost: booking.extrasCost || 0,
 
         endDate: booking.endDate ? format(parseISO(new Date(booking.endDate).toISOString()), 'yyyy-MM-dd') : '',
         daysWithMeals: booking.daysWithMeals !== undefined && booking.daysWithMeals !== null && booking.daysWithMeals !== '' ? String(booking.daysWithMeals) : String(getNumberOfDays(booking.eventDate, booking.endDate)),
@@ -686,6 +720,20 @@ const BanquetHallBooking = () => {
         });
       const utensilsCost = utensilItems.reduce((s, it) => s + it.amount, 0);
 
+      // Additional facilities — keep the ex-GST inputs AND the gross amount the
+      // invoice bills, so the line stays editable and the money stays exact.
+      const extraItems = (formData.extraItems || [])
+        .filter((it) => (it.name || '').trim() && facilityItemAmount(it) > 0)
+        .map((it) => ({
+          name: it.name.trim(),
+          detail: (it.detail || '').trim(),
+          price: Number(it.price) || 0,
+          gstPercent: Number(it.gstPercent) || 0,
+          quantity: parseInt(it.quantity, 10) || 1,
+          amount: facilityItemAmount(it),
+        }));
+      const extrasCost = extraItems.reduce((s, it) => s + it.amount, 0);
+
       const firstCatering = cateringItems[0] || null;
       const totalPlates = cateringItems.reduce((s, it) => s + it.plates, 0);
       const maxMealDays = cateringItems.reduce((m, it) => Math.max(m, it.days), 0);
@@ -706,6 +754,8 @@ const BanquetHallBooking = () => {
         decorationItems,
         utensilItems,
         utensilsCost,
+        extraItems,
+        extrasCost,
         eventDetails,
         guestCount: parseInt(formData.guestCount, 10) || 0,
         advanceAmount: parseFloat(formData.advanceAmount) || 0,
@@ -877,6 +927,20 @@ const BanquetHallBooking = () => {
     ...prev,
     utensilItems: (prev.utensilItems || []).map((it, i) => (i === idx ? { ...it, ...patch } : it)),
   }));
+  // ── Repeatable additional-facility line items ─────────────────────────────
+  const addFacilityItem = () => setFormData((prev) => ({
+    ...prev,
+    extraItems: [...(prev.extraItems || []), { ...emptyFacilityItem }],
+  }));
+  const removeFacilityItem = (idx) => setFormData((prev) => ({
+    ...prev,
+    extraItems: (prev.extraItems || []).filter((_, i) => i !== idx),
+  }));
+  const updateFacilityItem = (idx, patch) => setFormData((prev) => ({
+    ...prev,
+    extraItems: (prev.extraItems || []).map((it, i) => (i === idx ? { ...it, ...patch } : it)),
+  }));
+
   // Picking a utensil from the catalog fills the row's name, unit and per-unit cost.
   const applyUtensilToItem = (idx, itemId) => {
     const it = utensilCatalog.find((u) => u._id === itemId);
@@ -2414,6 +2478,87 @@ const BanquetHallBooking = () => {
                       />
                     ))}
                   </FormGroup>
+                </Box>
+
+                {/* Additional Facilities — chargeable extras (billed gross) */}
+                <Box sx={sectionCardSx(isDarkMode)}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1 }}>
+                    <Typography sx={sectionTitleSx(isDarkMode)}>
+                      <TuneOutlinedIcon sx={{ color: '#6366f1' }} /> Additional Facilities
+                    </Typography>
+                    <Button size="small" startIcon={<AddIcon />} onClick={addFacilityItem} sx={{ textTransform: 'none', borderRadius: '999px' }}>
+                      Add facility
+                    </Button>
+                  </Box>
+                  <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mb: 1.5 }}>
+                    Sound system, projector, Wi-Fi and similar chargeable extras. Enter the price
+                    excluding GST — the line total below is what gets billed, GST included.
+                    Facilities taken from an accepted quotation appear here automatically.
+                  </Typography>
+                  {(formData.extraItems || []).length === 0 ? (
+                    <Typography variant="body2" sx={{ color: 'text.secondary' }}>No additional facilities.</Typography>
+                  ) : (
+                    <Stack spacing={1.5}>
+                      {formData.extraItems.map((item, idx) => {
+                        const lineTotal = facilityItemAmount(item);
+                        return (
+                          <Grid container spacing={1.5} key={idx} sx={{ alignItems: 'center' }}>
+                            <Grid size={{ xs: 12, sm: 4 }}>
+                              <Autocomplete
+                                freeSolo
+                                options={FACILITY_SUGGESTIONS}
+                                inputValue={item.name || ''}
+                                onInputChange={(e, val) => updateFacilityItem(idx, { name: val })}
+                                renderInput={(params) => (
+                                  <TextField {...params} fullWidth size="small" label="Facility" placeholder="Sound System" />
+                                )}
+                              />
+                            </Grid>
+                            <Grid size={{ xs: 6, sm: 2 }}>
+                              <TextField fullWidth size="small" type="number" label={`Price (${currencySym()})`}
+                                value={item.price}
+                                onChange={(e) => updateFacilityItem(idx, { price: Math.max(0, parseFloat(e.target.value) || 0) })}
+                                helperText="Excluding GST"
+                                slotProps={{ htmlInput: { min: 0 } }} />
+                            </Grid>
+                            <Grid size={{ xs: 6, sm: 1.5 }}>
+                              <TextField fullWidth size="small" type="number" label="Qty"
+                                value={item.quantity}
+                                onChange={(e) => { if (/^\d*$/.test(e.target.value)) { updateFacilityItem(idx, { quantity: e.target.value }); } }}
+                                slotProps={{ htmlInput: { min: 0 } }} />
+                            </Grid>
+                            <Grid size={{ xs: 6, sm: 1.5 }}>
+                              <TextField fullWidth size="small" type="number" label="GST %"
+                                value={item.gstPercent}
+                                onChange={(e) => updateFacilityItem(idx, { gstPercent: Math.max(0, Math.min(28, parseFloat(e.target.value) || 0)) })}
+                                slotProps={{ htmlInput: { min: 0, max: 28 } }} />
+                            </Grid>
+                            <Grid size={{ xs: 6, sm: 2 }}>
+                              <TextField fullWidth size="small" label="Note" placeholder="per day"
+                                value={item.detail || ''}
+                                onChange={(e) => updateFacilityItem(idx, { detail: e.target.value })} />
+                            </Grid>
+                            <Grid size={{ xs: 6, sm: 1 }}>
+                              <IconButton size="small" onClick={() => removeFacilityItem(idx)} sx={{ color: '#ef4444' }}>
+                                <DeleteIcon fontSize="small" />
+                              </IconButton>
+                            </Grid>
+                            <Grid size={12}>
+                              <Typography variant="body2" sx={{ fontWeight: 700, color: 'var(--app-primary)' }}>
+                                Line total: {currencySym()}{lineTotal.toLocaleString('en-IN')}
+                                <Typography component="span" variant="caption" sx={{ color: 'text.secondary', fontWeight: 500 }}>
+                                  {' '}(incl. {Number(item.gstPercent) || 0}% GST)
+                                </Typography>
+                              </Typography>
+                            </Grid>
+                          </Grid>
+                        );
+                      })}
+                      <Typography variant="body2" sx={{ fontWeight: 800, textAlign: 'right', color: 'var(--app-primary)' }}>
+                        Facilities total: {currencySym()}{sumFacilityItems(formData.extraItems).toLocaleString('en-IN')}
+                      </Typography>
+                    </Stack>
+                  )}
                 </Box>
 
                 {/* Decoration Add-ons & Vendor Section */}

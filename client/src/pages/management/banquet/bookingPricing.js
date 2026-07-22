@@ -16,6 +16,14 @@ export const calculateFloorCost = (selectedFloors) => {
 export const calculateCateringCost = (perPlate, numberOfPlates, days) =>
   (Number(perPlate) || 0) * (parseInt(numberOfPlates, 10) || 0) * Math.max(1, parseInt(days, 10) || 1);
 
+// Banquet GST. Catering is priced PRE-GST, so 18% is added on top of the
+// catering value to reach the billed amount; every other line (venue, décor,
+// facilities …) is priced GST-inclusive and does not grow. This mirrors the
+// invoice renderer (server/services/invoiceTemplates/normalize.js) so the
+// booking total the PMS tracks equals the total the invoice prints.
+export const BANQUET_GST_RATE = 0.18;
+export const cateringGst = (cateringCost) => Math.round((Number(cateringCost) || 0) * BANQUET_GST_RATE);
+
 // One catering line item's amount: per-plate × plates × days.
 //  • After the event, the ACTUAL plates consumed (actualPlates) drive the amount.
 //  • Before that, the quoted `plates` estimate applies.
@@ -44,6 +52,19 @@ export const utensilItemAmount = (item) =>
 // Sum of every utensil line item on the booking (rented cookware charge).
 export const sumUtensilItems = (items = []) =>
   (items || []).reduce((total, it) => total + utensilItemAmount(it), 0);
+
+// One additional-facility line's amount: (ex-GST price × qty) + GST.
+// Facilities are quoted ex-GST ("₹2,000 + 18% GST") but BILLED GROSS, so the
+// stored amount already contains the tax and nothing is added on top later.
+// Mirrors addOnTotal() in server/services/quotationPricing.js — keep in step.
+export const facilityItemAmount = (item) => {
+  const base = (Number(item?.price) || 0) * (parseInt(item?.quantity, 10) || 1);
+  return Math.round(base * (1 + (Number(item?.gstPercent) || 0) / 100));
+};
+
+// Sum of every additional-facility line on the booking.
+export const sumFacilityItems = (items = []) =>
+  (items || []).reduce((total, it) => total + facilityItemAmount(it), 0);
 
 export const calculateTotalAmount = ({
   floorCost,

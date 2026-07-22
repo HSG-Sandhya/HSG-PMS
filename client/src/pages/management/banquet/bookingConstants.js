@@ -201,6 +201,19 @@ export const emptyDecorationItem = {
 export const emptyUtensilItem = {
   utensilItemId: '', name: '', unit: 'piece', cost: 0, quantity: '',
 };
+// Chargeable extras beyond the typed buckets — sound system, projector, Wi-Fi.
+// Quoted ex-GST and billed gross; carried over automatically when a quotation
+// is converted, and editable here for anything added on the event day.
+export const emptyFacilityItem = {
+  name: '', detail: '', price: 0, gstPercent: 18, quantity: 1,
+};
+
+// Common facilities, offered as suggestions on the booking form.
+export const FACILITY_SUGGESTIONS = [
+  'Sound System', 'Wireless Mic', 'LED Projector & Screen', 'Wi-Fi (120 Mbps)',
+  'Podium & Wireless Mic', 'Stage Backdrop / Branding', 'Generator Backup',
+  'Extra Lighting', 'Live Streaming Setup',
+];
 
 export const initialFormData = {
   customerName: '',
@@ -256,6 +269,7 @@ export const initialFormData = {
   cateringItems: [],   // [{ cateringPackageId, name, category, perPlate, plates, days }]
   decorationItems: [],  // [{ decorationPackageId, name, category, cost, details }]
   utensilItems: [],     // [{ utensilItemId, name, unit, cost, quantity }] — rented cookware
+  extraItems: [],       // [{ name, detail, price, gstPercent, quantity }] — additional facilities
   utensilsCost: 0,      // computed sum of utensil line amounts
 
   menuCost: 0, // computed catering total (kept for invoice compatibility)

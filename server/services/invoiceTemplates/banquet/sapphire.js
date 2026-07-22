@@ -1,5 +1,5 @@
 import { escapeHtml as e, formatCurrency, formatLongDate, amountInWords } from '../formatters.js';
-import { isQuote, docLabels, eventFacts, validUntil, quotationExtras, itemsSum } from './shared.js';
+import { isQuote, docLabels, eventFacts, validUntil, quotationExtras, itemsSum, billedToTitle, billedToLines, gstCell, taxSummaryRows, letterheadLines, paymentBlock} from './shared.js';
 
 const PAL = { accent: '#1e40af', ink: '#0f172a', muted: '#64748b', line: '#e2e8f0', soft: '#f8faff' };
 
@@ -9,6 +9,7 @@ const rows = (items) => items.map((it, i) => `
     <td><div class="d">${e(it.description)}</div>${it.detail ? `<div class="s">${e(it.detail)}</div>` : ''}</td>
     <td class="n">${e(it.quantity)}</td>
     <td class="n">${formatCurrency(it.rate)}</td>
+    <td class="n">${gstCell(it)}</td>
     <td class="n b">${formatCurrency(it.amount)}</td>
   </tr>`).join('');
 
@@ -71,16 +72,16 @@ export const render = (ctx, { docType = 'invoice' } = {}) => {
   <div class="hdr">
     <div class="brand">
       <div class="logo">${ctx.hotel.logo ? `<img src="${e(ctx.hotel.logo)}" alt="">` : e((ctx.hotel.name || 'H').charAt(0))}</div>
-      <div><div class="hname">${e(ctx.hotel.name)}</div><div class="hsub">${e(ctx.hotel.address)}${ctx.hotel.phone ? ` · ${e(ctx.hotel.phone)}` : ''}${ctx.hotel.email ? ` · ${e(ctx.hotel.email)}` : ''}${ctx.hotel.gstin ? `<br>GSTIN ${e(ctx.hotel.gstin)}` : ''}</div></div>
+      <div><div class="hname">${e(ctx.hotel.name)}</div><div class="hsub">${letterheadLines(ctx.hotel).join('<br>')}</div></div>
     </div>
     <div class="doc"><div class="k">${e(L.title).toUpperCase()}</div><div class="no">${e(ctx.invoice.number)}</div><div class="dt">Issued ${formatLongDate(ctx.invoice.issuedOn)}</div>${quote ? `<div class="dt">Valid until ${validUntil(ctx)}</div>` : ''}</div>
   </div>
   <div class="meta">
-    <div class="mcell"><h4>${quote ? 'Prepared for' : 'Billed to'}</h4><div class="nm">${e(ctx.customer.name)}</div><div class="ln">${ctx.customer.phone ? `${e(ctx.customer.phone)}<br>` : ''}${ctx.customer.email ? `${e(ctx.customer.email)}<br>` : ''}${ctx.customer.address ? `${e(ctx.customer.address)}` : ''}${ctx.customer.gstin ? `<br>GSTIN ${e(ctx.customer.gstin)}` : ''}</div></div>
+    <div class="mcell"><h4>${quote ? 'Prepared for' : 'Billed to'}</h4><div class="nm">${e(billedToTitle(ctx))}</div><div class="ln">${billedToLines(ctx)}</div></div>
     <div class="mcell"><h4>Event details</h4><dl class="facts">${facts.map(([k, v]) => `<dt>${e(k)}</dt><dd>${e(v)}</dd>`).join('')}</dl></div>
   </div>
   <table>
-    <thead><tr><th class="c">#</th><th>Description</th><th class="n">Qty</th><th class="n">Rate</th><th class="n">Amount</th></tr></thead>
+    <thead><tr><th class="c">#</th><th>Description</th><th class="n">Qty</th><th class="n">Rate</th><th class="n">GST</th><th class="n">Amount</th></tr></thead>
     <tbody>${rows(ctx.items)}</tbody>
   </table>
   <div class="foot">
@@ -91,12 +92,14 @@ export const render = (ctx, { docType = 'invoice' } = {}) => {
     <div class="rgt">
       <div class="sum">
         ${t.discount ? `<div class="r"><span>Subtotal</span><span>${formatCurrency(itemsSum(ctx))}</span></div><div class="r"><span>Discount</span><span>− ${formatCurrency(t.discount)}</span></div>` : ''}
+        ${taxSummaryRows(ctx, docType)}
         <div class="r grand"><span>${quote ? 'Estimate' : 'Total'}</span><span>${formatCurrency(t.total)}</span></div>
         ${quote ? '' : `<div class="r"><span>Amount paid</span><span>${formatCurrency(t.paid)}</span></div><div class="r bal"><span>Balance due</span><span>${formatCurrency(t.balance)}</span></div>`}
       </div>
     </div>
   </div>
   ${quote ? `<div class="extras">${quotationExtras(ctx, PAL)}</div>` : ''}
+  ${paymentBlock(ctx, PAL)}
   <div class="end">
     <div>${quote ? 'This is a quotation and not a demand for payment.' : 'Computer-generated invoice.'}<br>${e(ctx.hotel.name)}${ctx.hotel.website ? ` · ${e(ctx.hotel.website)}` : ''}</div>
     <div class="sign"><div class="l"></div><div class="t">For ${e(ctx.hotel.name)}</div></div>
