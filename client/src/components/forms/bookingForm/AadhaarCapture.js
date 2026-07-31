@@ -3,7 +3,7 @@
 // deselects anything wrong, then applies it to the booking form. Nothing is
 // auto-overwritten without confirmation. There is no UIDAI lookup; all data is
 // read off the uploaded card images.
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Box, Grid, Stack, Typography, Button, IconButton, TextField, Checkbox,
   Chip, LinearProgress, FormControlLabel,
@@ -83,8 +83,17 @@ const REVIEW_ROWS = [
 
 // ── Single drop tile ─────────────────────────────────────────────────────────
 const DropTile = ({ label, file, onPick, onClear }) => {
-  const url = useMemo(() => (file instanceof File ? URL.createObjectURL(file) : null), [file]);
-  useEffect(() => () => { if (url) URL.revokeObjectURL(url); }, [url]);
+  // Create the object URL inside the effect (not useMemo) and revoke it in the
+  // same effect's cleanup. Under React.StrictMode the old useMemo pattern got
+  // its URL revoked on the simulated mount/unmount without being recreated, so
+  // the <img> pointed at a dead blob URL and the preview never appeared.
+  const [url, setUrl] = useState(null);
+  useEffect(() => {
+    if (!(file instanceof File)) { setUrl(null); return undefined; }
+    const objectUrl = URL.createObjectURL(file);
+    setUrl(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [file]);
 
   return (
     <Box

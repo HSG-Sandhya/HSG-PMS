@@ -22,19 +22,32 @@ const statusMeta = (free, room, banquetBlocked) => {
   return { label: 'Available', color: '#22c55e', bg: 'rgba(34,197,94,0.12)' };
 };
 
-const RoomSelectionGrid = ({ rooms = [], value, onSelect, checkInDate, checkOutDate }) => {
+// Single-select: pass `value` + `onSelect`. Multi-select (book several rooms in
+// one go, one guest per room): pass `multiple`, `selectedIds` (array) + `onToggle`.
+const RoomSelectionGrid = ({
+  rooms = [], value, onSelect, checkInDate, checkOutDate,
+  multiple = false, selectedIds = [], onToggle,
+}) => {
   const sym = currencySym();
   const [typeFilter, setTypeFilter] = useState('all');
   const [query, setQuery] = useState('');
   // Rooms held by a banquet/marriage event for the chosen window (not bookable).
   const blockedIds = useBanquetBlocked(checkInDate, checkOutDate);
 
-  // If the room currently picked becomes event-held (e.g. dates changed), drop
-  // the selection so the operator can't submit it into a 409.
+  const selectedList = multiple ? selectedIds : (value ? [value] : []);
+  const isSelected = (id) => (multiple ? selectedIds.includes(id) : value === id);
+  const pick = (id) => (multiple ? onToggle?.(id) : onSelect?.(id));
+
+  // If a picked room becomes event-held (e.g. dates changed), drop it so the
+  // operator can't submit it into a 409. In multi mode, drop just that room.
   useEffect(() => {
-    if (value && blockedIds.has(String(value))) onSelect('');
+    if (multiple) {
+      selectedIds.forEach((id) => { if (blockedIds.has(String(id))) onToggle?.(id); });
+    } else if (value && blockedIds.has(String(value))) {
+      onSelect?.('');
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [blockedIds, value]);
+  }, [blockedIds, value, selectedIds, multiple]);
 
   const types = useMemo(() => ['all', ...Array.from(new Set(rooms.map((r) => r.type).filter(Boolean)))], [rooms]);
 
@@ -76,6 +89,10 @@ const RoomSelectionGrid = ({ rooms = [], value, onSelect, checkInDate, checkOutD
           {types.map((t) => <ToggleButton key={t} value={t}>{t === 'all' ? 'All rooms' : t}</ToggleButton>)}
         </ToggleButtonGroup>
         <Box sx={{ flexGrow: 1 }} />
+        {multiple && selectedList.length > 0 && (
+          <Chip size="small" label={`${selectedList.length} selected`}
+            sx={{ fontWeight: 800, background: 'rgba(var(--app-primary-rgb),0.14)', color: 'var(--app-primary)' }} />
+        )}
         <Chip size="small" label={`${availableCount} available`} sx={{ fontWeight: 700, background: 'rgba(34,197,94,0.12)', color: '#16a34a' }} />
         <TextField
           size="small" placeholder="Find room…" value={query} onChange={(e) => setQuery(e.target.value)}
@@ -94,7 +111,8 @@ const RoomSelectionGrid = ({ rooms = [], value, onSelect, checkInDate, checkOutD
       ) : (
         <Grid container spacing={1.5}>
           {filtered.map(({ room, free, banquetBlocked }) => {
-            const selected = value === room._id;
+            const selected = isSelected(room._id);
+            const order = multiple ? selectedIds.indexOf(room._id) + 1 : 0;
             const meta = statusMeta(free, room, banquetBlocked);
             const cap = (room.capacity?.adults || 0) + (room.capacity?.children || 0);
             const selectable = free;
@@ -108,7 +126,7 @@ const RoomSelectionGrid = ({ rooms = [], value, onSelect, checkInDate, checkOutD
                 }}>
                 <Box
                   role="button"
-                  onClick={() => selectable && onSelect(room._id)}
+                  onClick={() => selectable && pick(room._id)}
                   sx={{
                     cursor: selectable ? 'pointer' : 'not-allowed',
                     opacity: selectable ? 1 : 0.55,
@@ -126,7 +144,15 @@ const RoomSelectionGrid = ({ rooms = [], value, onSelect, checkInDate, checkOutD
                   }}
                 >
                   {selected && (
-                    <CheckCircleIcon sx={{ position: 'absolute', top: 10, right: 10, fontSize: 20, color: 'var(--app-primary)' }} />
+                    multiple ? (
+                      <Box sx={{ position: 'absolute', top: 8, right: 8, minWidth: 22, height: 22, px: 0.5,
+                        borderRadius: '999px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 12, fontWeight: 800, color: '#fff', background: 'var(--app-primary)' }}>
+                        {order}
+                      </Box>
+                    ) : (
+                      <CheckCircleIcon sx={{ position: 'absolute', top: 10, right: 10, fontSize: 20, color: 'var(--app-primary)' }} />
+                    )
                   )}
                   <Stack
                     direction="row"

@@ -7,7 +7,8 @@ import {
   generatePayrollPDF,
   approvePayroll,
   markPayrollAsPaid,
-  getPayrollSummary
+  getPayrollSummary,
+  getLivePayroll
 } from "../controllers/payrollController.js";
 import { requireAuth } from "../middleware/auth.js";
 
@@ -77,6 +78,11 @@ router.get('/', getAllPayrolls);
 // @desc    Get payroll summary statistics
 // @access  Private (Admin/System Admin only)
 router.get('/summary', getPayrollSummary);
+
+// @route   GET /api/payroll/live
+// @desc    Live-computed payroll for every eligible staff member (month/year)
+// @access  Private (Admin/System Admin only)
+router.get('/live', getLivePayroll);
 
 // @route   POST /api/payroll/generate
 // @desc    Generate payroll for staff

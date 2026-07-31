@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 
+import { registerModel } from "../db/modelRegistry.js";
 // A reusable event package — a named bundle of hall + decoration + per-plate
 // catering + inclusions at a set price, so staff define it once and apply it
 // to a booking to prefill the financials.
@@ -25,4 +26,4 @@ const eventPackageSchema = new mongoose.Schema({
   isActive: { type: Boolean, default: true },
 }, { timestamps: true });
 
-export default mongoose.model('EventPackage', eventPackageSchema);
+export default registerModel('EventPackage', eventPackageSchema);

@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { registerModel } from "../db/modelRegistry.js";
 import { normalizePhone } from "../utils/phone.js";
 
 const guestSchema = new mongoose.Schema({
@@ -59,4 +60,4 @@ function applyPhoneKeyToUpdate() {
 guestSchema.pre("findOneAndUpdate", applyPhoneKeyToUpdate);
 guestSchema.pre("updateOne", applyPhoneKeyToUpdate);
 
-export default mongoose.model("Guest", guestSchema);
+export default registerModel("Guest", guestSchema);

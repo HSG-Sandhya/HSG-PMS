@@ -28,9 +28,14 @@ const Line = ({ label, value, negative, muted }) => (
 );
 
 const ReservationSummary = ({
-  formData, room, onSave, onConfirm, onCancel, onWhatsApp, saving,
+  formData, room, party = [], onSave, onConfirm, onCancel, onWhatsApp, saving,
 }) => {
   const nights = nightsBetween(formData.checkInDate || formData.checkIn, formData.checkOutDate || formData.checkOut);
+  const roomCount = party.length || (room ? 1 : 0);
+  const multiRoom = roomCount > 1;
+  const roomTitle = multiRoom
+    ? `${roomCount} rooms · ${party.map((r) => r.roomNumber).join(', ')}`
+    : (room ? `Room ${room.roomNumber} · ${room.type}` : 'No room selected');
   const total = Number(formData.totalAmount || 0);
   const paid = Number(formData.paidAmount || 0);
   const balance = Math.max(0, total - paid);
@@ -65,10 +70,12 @@ const ReservationSummary = ({
           </Box>
           <Box sx={{ minWidth: 0 }}>
             <Typography sx={{ fontWeight: 800, lineHeight: 1.2 }} noWrap>
-              {room ? `Room ${room.roomNumber} · ${room.type}` : 'No room selected'}
+              {roomTitle}
             </Typography>
             <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.65)' }}>
-              {nights} night{nights === 1 ? '' : 's'} · {formData.adults || 1} adult(s){formData.children ? `, ${formData.children} child` : ''}
+              {nights} night{nights === 1 ? '' : 's'}{multiRoom
+                ? ` · one guest per room`
+                : ` · ${formData.adults || 1} adult(s)${formData.children ? `, ${formData.children} child` : ''}`}
             </Typography>
           </Box>
         </Stack>
@@ -124,7 +131,7 @@ const ReservationSummary = ({
             background: 'var(--app-primary)', boxShadow: '0 10px 24px -10px rgba(var(--app-primary-rgb),0.8)',
             '&:hover': { background: 'var(--app-primary)', filter: 'brightness(1.05)' } }}
         >
-          {saving ? 'Saving…' : 'Confirm Booking'}
+          {saving ? 'Saving…' : (multiRoom ? `Confirm ${roomCount} Bookings` : 'Confirm Booking')}
         </Button>
         <Button
           onClick={onSave} disabled={saving} fullWidth variant="outlined" startIcon={<SaveOutlinedIcon />}

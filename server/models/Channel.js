@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 
+import { registerModel } from "../db/modelRegistry.js";
 const channelSchema = new mongoose.Schema({
   name: {
     type: String,
@@ -191,4 +192,4 @@ channelSchema.statics.getChannelsReadyForSync = function() {
   });
 };
 
-export default mongoose.model('Channel', channelSchema);
+export default registerModel('Channel', channelSchema);

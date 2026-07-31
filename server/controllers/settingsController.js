@@ -4,6 +4,7 @@ import Department from '../models/Department.js';
 import Role from '../models/Role.js';
 import User from '../models/User.js';
 import Image from '../models/Image.js';
+import { modelFor } from '../db/modelRegistry.js';
 import { optimizeImage } from '../utils/imageOptimizer.js';
 import { PERMISSION_CATALOG } from '../config/permissions.js';
 import { sendOtp, verifyOtp, isVerified } from '../services/otpService.js';
@@ -84,6 +85,33 @@ function normalizeCategory(payload) {
 }
 
 // === CORE SETTINGS OPERATIONS ===
+
+// GET /api/settings/public/branding - Hotel identity for the login screen, NO
+// auth required. Multi-tenant: resolves to the hotel of the request's subdomain,
+// so each hotel's login shows its own name, tagline and logo. Nothing sensitive.
+export const getPublicBranding = async (req, res) => {
+  try {
+    const settings = await Settings.getSettings();
+    const hp = settings?.hotelProfile || {};
+    return res.status(200).json({
+      success: true,
+      data: {
+        hotelName: hp.hotelName || settings?.hotelName || '',
+        tagline: hp.description || settings?.description || '',
+        // A stored "/api/images/<id>" ref resolves same-origin on the login page
+        // (it hits this hotel's DB), so pass it through as-is.
+        logo: hp.logo || '',
+      },
+      message: 'Branding retrieved successfully',
+    });
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch branding',
+      error: err.message,
+    });
+  }
+};
 
 // GET /api/settings/public/theme - Theme section only, NO auth required.
 // The login screen renders before any user is signed in but must still follow
@@ -1188,32 +1216,32 @@ const createManualBackup = async (req, res) => {
       
       // Import and backup other models if they exist
       try {
-        const Room = mongoose.model('Room');
+        const Room = modelFor('Room');
         backupData.data.rooms = await Room.find({}).lean();
       } catch (e) { /* Room model not registered */ }
       
       try {
-        const Guest = mongoose.model('Guest');
+        const Guest = modelFor('Guest');
         backupData.data.guests = await Guest.find({}).lean();
       } catch (e) { /* Guest model not registered */ }
       
       try {
-        const Booking = mongoose.model('Booking');
+        const Booking = modelFor('Booking');
         backupData.data.bookings = await Booking.find({}).lean();
       } catch (e) { /* Booking model not registered */ }
       
       try {
-        const BanquetBooking = mongoose.model('BanquetBooking');
+        const BanquetBooking = modelFor('BanquetBooking');
         backupData.data.banquetBookings = await BanquetBooking.find({}).lean();
       } catch (e) { /* BanquetBooking model not registered */ }
       
       try {
-        const BanquetHall = mongoose.model('BanquetHall');
+        const BanquetHall = modelFor('BanquetHall');
         backupData.data.banquetHalls = await BanquetHall.find({}).lean();
       } catch (e) { /* BanquetHall model not registered */ }
       
       try {
-        const Housekeeping = mongoose.model('Housekeeping');
+        const Housekeeping = modelFor('Housekeeping');
         backupData.data.housekeeping = await Housekeeping.find({}).lean();
       } catch (e) { /* Housekeeping model not registered */ }
       
@@ -1589,6 +1617,7 @@ const sectionHandler = (sectionName, method) => (req, res) => {
 
 export default {
   getPublicTheme,
+  getPublicBranding,
   getAllSettings,
   getSettingsSection,
   updateSettingsSection,

@@ -7,6 +7,7 @@
 import Booking from '../models/Booking.js';
 import Room from '../models/Room.js';
 import { getOps } from '../config/operationalConfig.js';
+import { forEachTenant } from '../db/forEachTenant.js';
 
 export const releaseExpiredHolds = async () => {
   const { frontDesk } = await getOps();
@@ -34,10 +35,15 @@ export const releaseExpiredHolds = async () => {
 };
 
 // Run the sweep once now, then on a fixed interval. Returns the timer handle.
+// The sweep runs for every hotel (base + each active tenant), each in its own
+// tenant context so releaseExpiredHolds() hits the right database.
 export const scheduleHoldExpirySweep = (intervalMinutes = 30) => {
   const run = () =>
-    releaseExpiredHolds()
-      .then((r) => { if (r.released) console.log(`[holdExpiry] released ${r.released} expired hold(s)`); })
+    forEachTenant(() => releaseExpiredHolds())
+      .then((results) => {
+        const total = results.reduce((n, r) => n + (r?.released || 0), 0);
+        if (total) console.log(`[holdExpiry] released ${total} expired hold(s)`);
+      })
       .catch((e) => console.error('[holdExpiry] sweep failed:', e.message));
   run();
   const timer = setInterval(run, Math.max(1, intervalMinutes) * 60 * 1000);

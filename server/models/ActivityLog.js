@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 
+import { registerModel } from "../db/modelRegistry.js";
 // A single audit / activity record. General user actions land here; the
 // security-sensitive ones (role & permission changes, user management, logins)
 // are flagged `audit: true` so they also surface in the Audit Trail view.
@@ -33,4 +34,4 @@ const activityLogSchema = new mongoose.Schema({
 
 activityLogSchema.index({ createdAt: -1 });
 
-export default mongoose.model('ActivityLog', activityLogSchema);
+export default registerModel('ActivityLog', activityLogSchema);

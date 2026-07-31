@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 
+import { registerModel } from "../db/modelRegistry.js";
 const transactionSchema = new mongoose.Schema({
   type: {
     type: String,
@@ -104,4 +105,4 @@ transactionSchema.statics.getAccountBalance = async function(accountId) {
   return income - expense;
 };
 
-export default mongoose.model('Transaction', transactionSchema);
+export default registerModel('Transaction', transactionSchema);

@@ -1,33 +1,39 @@
 import Razorpay from 'razorpay';
 import crypto from 'crypto';
 import Settings from '../models/Settings.js';
+import { getCurrentTenant } from '../db/tenantContext.js';
+
+// Multi-tenant payments: every hotel has its own Razorpay credentials in its own
+// Settings doc, so the gateway client must be resolved per hotel — never a single
+// shared singleton. We cache one resolved config per tenant slug and rebuild it
+// on demand (and when that hotel saves its Payments settings, via reload()).
+//
+// The current tenant comes from the request's tenant context (AsyncLocalStorage),
+// so `Settings.findOne()` here reads the right hotel's document automatically.
 
 class PaymentService {
   constructor() {
-    this.razorpayInstance = null;
-    this.keySecret = null;
-    this.environment = 'test';
-    this.enabled = false;
-    this.isDemo = true;
     this.demoSettings = {
       keyId: 'rzp_test_demo_key',
       environment: 'test',
       enabled: true,
     };
-    // NOTE: do NOT read Settings here. This singleton is constructed at module
-    // import time — before server.js awaits connectDB() — so a Settings.findOne()
-    // in the constructor buffers and times out ("buffering timed out after
-    // 10000ms"). The constructor leaves the service in safe demo mode; server.js
-    // calls initializeRazorpay() once Mongoose is connected.
+    // tenant slug → { razorpayInstance, keySecret, environment, enabled, isDemo }
+    this.byTenant = new Map();
+    // NOTE: do NOT read Settings in the constructor. This singleton is built at
+    // import time — before connectDB() — so a query here would buffer and time
+    // out. Configs are built lazily on first use per tenant.
   }
 
-  /**
-   * Re-read Razorpay credentials from the Settings doc and rebuild the
-   * client. Called once at boot and again whenever the back-office
-   * Settings → Payments section is saved so live keys take effect
-   * without a server restart.
-   */
-  async initializeRazorpay() {
+  // Build a fresh config for `slug` by reading the current tenant's Settings.
+  async buildConfig(slug) {
+    const demo = {
+      razorpayInstance: null,
+      keySecret: null,
+      environment: 'test',
+      enabled: false,
+      isDemo: true,
+    };
     try {
       const settings = await Settings.findOne();
       const razor = settings?.payment?.razorpay;
@@ -40,43 +46,64 @@ class PaymentService {
           keyId.includes('YOUR_KEY_ID') || keySecret.includes('YOUR_KEY_SECRET');
 
         if (!isPlaceholder) {
-          this.razorpayInstance = new Razorpay({ key_id: keyId, key_secret: keySecret });
-          this.keySecret = keySecret;
-          this.environment = razor.environment || 'test';
-          this.enabled = true;
-          this.isDemo = false;
-          console.log(`✅ Payment Service: Razorpay initialised in ${this.environment.toUpperCase()} mode`);
-          return;
+          return {
+            razorpayInstance: new Razorpay({ key_id: keyId, key_secret: keySecret }),
+            keySecret,
+            environment: razor.environment || 'test',
+            enabled: true,
+            isDemo: false,
+          };
         }
+        // Enabled but still on placeholder keys → treat as demo (but "enabled").
+        return { ...demo, enabled: true };
       }
 
-      // Either gateway disabled or credentials still placeholder → demo mode.
-      this.razorpayInstance = null;
-      this.keySecret = null;
-      this.environment = 'test';
-      this.enabled = !!razor?.enabled;
-      this.isDemo = true;
-      console.log('💡 Payment Service: Running in DEMO mode (no real Razorpay credentials)');
+      return demo;
     } catch (error) {
-      console.error('Error initializing Razorpay:', error);
-      this.razorpayInstance = null;
-      this.keySecret = null;
-      this.isDemo = true;
+      console.error(`Error initializing Razorpay for tenant "${slug}":`, error);
+      return demo;
     }
   }
 
-  /** Public alias used by the settings controller after a save. */
+  // Resolve (and cache) the current tenant's Razorpay config.
+  async getConfig() {
+    const slug = getCurrentTenant().slug;
+    const cached = this.byTenant.get(slug);
+    if (cached) return cached;
+    const cfg = await this.buildConfig(slug);
+    this.byTenant.set(slug, cfg);
+    return cfg;
+  }
+
+  /**
+   * Drop and rebuild the CURRENT tenant's cached config. Called from the settings
+   * controller after that hotel saves its Payments section, so new keys take
+   * effect immediately without a restart and without touching other hotels.
+   */
   async reload() {
-    return this.initializeRazorpay();
+    this.byTenant.delete(getCurrentTenant().slug);
+    return this.getConfig();
+  }
+
+  /** Pre-warm the current tenant's config (server.js calls this at boot for the
+   *  base hotel). Kept for compatibility; getConfig() is otherwise lazy. */
+  async initializeRazorpay() {
+    const slug = getCurrentTenant().slug;
+    this.byTenant.delete(slug);
+    const cfg = await this.getConfig();
+    if (cfg.isDemo) {
+      console.log(`💡 Payment Service [${slug}]: DEMO mode (no real Razorpay credentials)`);
+    } else {
+      console.log(`✅ Payment Service [${slug}]: Razorpay initialised in ${cfg.environment.toUpperCase()} mode`);
+    }
+    return cfg;
   }
 
   async createOrder(amount, currency = 'INR', receipt = null) {
-    if (!this.razorpayInstance && !this.isDemo) {
-      await this.initializeRazorpay();
-    }
+    const cfg = await this.getConfig();
 
     // Demo mode - return mock order
-    if (this.isDemo) {
+    if (cfg.isDemo) {
       const mockOrder = {
         id: `order_demo_${Date.now()}`,
         entity: 'order',
@@ -87,13 +114,13 @@ class PaymentService {
         receipt: receipt || `order_${Date.now()}`,
         status: 'created',
         attempts: 0,
-        created_at: Math.floor(Date.now() / 1000)
+        created_at: Math.floor(Date.now() / 1000),
       };
       console.log('💡 Demo Mode: Created mock order:', mockOrder.id);
       return mockOrder;
     }
 
-    if (!this.razorpayInstance) {
+    if (!cfg.razorpayInstance) {
       throw new Error('Razorpay not configured. Please check payment settings.');
     }
 
@@ -105,35 +132,36 @@ class PaymentService {
     };
 
     try {
-      const order = await this.razorpayInstance.orders.create(options);
-      return order;
+      return await cfg.razorpayInstance.orders.create(options);
     } catch (error) {
       console.error('Error creating Razorpay order:', error);
       throw new Error('Failed to create payment order');
     }
   }
 
-  /** Whether the service is running without real gateway credentials. */
-  isDemoMode() {
-    return this.isDemo;
+  /** Whether the current tenant is running without real gateway credentials. */
+  async isDemoMode() {
+    return (await this.getConfig()).isDemo;
   }
 
-  verifyPaymentSignature(orderId, paymentId, signature) {
-    // Demo mode (no real gateway keys configured) always verifies. We must NOT
-    // treat a client-supplied "demo" order id as demo here: in live mode that
-    // would let a forged `order_demo_*` id skip the real HMAC check entirely.
-    if (this.isDemo) {
+  async verifyPaymentSignature(orderId, paymentId, signature) {
+    const cfg = await this.getConfig();
+
+    // Demo mode (no real gateway keys) always verifies. We must NOT treat a
+    // client-supplied "demo" order id as demo here: in live mode that would let a
+    // forged `order_demo_*` id skip the real HMAC check entirely.
+    if (cfg.isDemo) {
       console.log('💡 Demo Mode: Payment verification (always successful)');
       return true;
     }
 
-    if (!this.razorpayInstance) {
+    if (!cfg.razorpayInstance) {
       throw new Error('Razorpay not configured');
     }
 
-    // Use the cached key secret loaded by initializeRazorpay(); fall back
-    // to the env var as a last resort so legacy deployments still work.
-    const keySecret = this.keySecret || process.env.RAZORPAY_KEY_SECRET;
+    // Use the tenant's key secret; fall back to the env var as a last resort so
+    // legacy single-tenant deployments still work.
+    const keySecret = cfg.keySecret || process.env.RAZORPAY_KEY_SECRET;
     if (!keySecret) {
       throw new Error('Razorpay key secret not configured');
     }
@@ -148,13 +176,13 @@ class PaymentService {
   }
 
   async getPaymentDetails(paymentId) {
-    if (!this.razorpayInstance) {
-      await this.initializeRazorpay();
+    const cfg = await this.getConfig();
+    if (!cfg.razorpayInstance) {
+      throw new Error('Razorpay not configured');
     }
 
     try {
-      const payment = await this.razorpayInstance.payments.fetch(paymentId);
-      return payment;
+      return await cfg.razorpayInstance.payments.fetch(paymentId);
     } catch (error) {
       console.error('Error fetching payment details:', error);
       throw new Error('Failed to fetch payment details');
@@ -162,22 +190,17 @@ class PaymentService {
   }
 
   async refundPayment(paymentId, amount = null, reason = 'Customer request') {
-    if (!this.razorpayInstance) {
-      await this.initializeRazorpay();
+    const cfg = await this.getConfig();
+    if (!cfg.razorpayInstance) {
+      throw new Error('Razorpay not configured');
     }
 
     try {
-      const refundOptions = {
-        payment_id: paymentId,
-        reason: reason
-      };
-
+      const refundOptions = { payment_id: paymentId, reason };
       if (amount) {
         refundOptions.amount = Math.round(amount * 100); // Convert to paise
       }
-
-      const refund = await this.razorpayInstance.payments.refund(paymentId, refundOptions);
-      return refund;
+      return await cfg.razorpayInstance.payments.refund(paymentId, refundOptions);
     } catch (error) {
       console.error('Error processing refund:', error);
       throw new Error('Failed to process refund');
@@ -186,8 +209,8 @@ class PaymentService {
 
   async getSettings() {
     try {
-      // Return demo settings if in demo mode
-      if (this.isDemo) {
+      const cfg = await this.getConfig();
+      if (cfg.isDemo) {
         return this.demoSettings;
       }
 
@@ -199,7 +222,7 @@ class PaymentService {
       return {
         keyId: settings.payment.razorpay.keyId,
         environment: settings.payment.razorpay.environment,
-        enabled: settings.payment.razorpay.enabled
+        enabled: settings.payment.razorpay.enabled,
       };
     } catch (error) {
       console.error('Error fetching payment settings:', error);

@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 
+import { registerModel } from "../db/modelRegistry.js";
 const banquetHallSchema = new mongoose.Schema({
   name: {
     type: String,
@@ -54,4 +55,4 @@ const banquetHallSchema = new mongoose.Schema({
   timestamps: true
 });
 
-export default mongoose.model('BanquetHall', banquetHallSchema);
+export default registerModel('BanquetHall', banquetHallSchema);

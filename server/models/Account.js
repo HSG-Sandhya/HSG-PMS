@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 
+import { registerModel } from "../db/modelRegistry.js";
 const accountSchema = new mongoose.Schema({
   name: { type: String, required: true },
   type: { type: String, enum: ['savings', 'current', 'credit', 'cash', 'other'], default: 'savings' },
@@ -71,4 +72,4 @@ accountSchema.methods.updateBalance = async function(amount) {
   return this.save();
 };
 
-export default mongoose.model('Account', accountSchema);
+export default registerModel('Account', accountSchema);

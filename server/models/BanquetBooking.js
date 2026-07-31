@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 
+import { registerModel } from "../db/modelRegistry.js";
 const banquetBookingSchema = new mongoose.Schema({
   // Hall reference (optional for non-hall events)
   hallId: {
@@ -449,4 +450,4 @@ banquetBookingSchema.methods.isMultiDay = function() {
   return this.endDate && this.endDate > this.eventDate;
 };
 
-export default mongoose.model('BanquetBooking', banquetBookingSchema);
+export default registerModel('BanquetBooking', banquetBookingSchema);

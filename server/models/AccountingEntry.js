@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 
+import { registerModel } from "../db/modelRegistry.js";
 // A single accounting ledger entry. Every income or expense the hotel records
 // lives here; all six accounting reports (Income & Expense, Cash Book, Ledger,
 // GST, Profit & Loss, Balance Sheet) are derived from this one collection.
@@ -60,4 +61,4 @@ accountingEntrySchema.index(
   { unique: true, partialFilterExpression: { auto: true } },
 );
 
-export default mongoose.model('AccountingEntry', accountingEntrySchema);
+export default registerModel('AccountingEntry', accountingEntrySchema);

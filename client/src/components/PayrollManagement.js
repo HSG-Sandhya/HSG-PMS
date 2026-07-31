@@ -30,6 +30,7 @@ import {
 import {
   Add as AddIcon,
   Refresh as RefreshIcon,
+  Cached as RecalcIcon,
   CheckCircle as ApproveIcon,
   Payment as PayIcon,
   PictureAsPdf as PdfIcon,
@@ -51,7 +52,10 @@ const STATUS_STYLES = {
   approved: { bg: 'rgba(16,185,129,0.16)', color: '#10b981' },
   paid: { bg: 'rgba(139,92,246,0.16)', color: '#8b5cf6' },
   cancelled: { bg: 'rgba(239,68,68,0.16)', color: '#ef4444' },
+  not_generated: { bg: 'rgba(245,158,11,0.14)', color: '#b45309' },
 };
+
+const STATUS_LABEL = { not_generated: 'PENDING' };
 
 const StatCard = ({ icon: Icon, label, value, color, isDarkMode }) => (
   <Box
@@ -124,7 +128,9 @@ const StatCard = ({ icon: Icon, label, value, color, isDarkMode }) => (
 const PayrollManagement = () => {
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === 'dark';
-  const [payrolls, setPayrolls] = useState([]);
+  const [liveRows, setLiveRows] = useState([]);
+  const [liveTotals, setLiveTotals] = useState({ netSalary: 0, pendingCount: 0 });
+  const [generatingId, setGeneratingId] = useState(null);
   const [staff, setStaff] = useState([]);
   const [loading, setLoading] = useState(false);
   const [generateDialog, setGenerateDialog] = useState(false);
@@ -169,13 +175,29 @@ const PayrollManagement = () => {
   const fetchPayrolls = async () => {
     try {
       setLoading(true);
-      const response = await api.payroll.getAll(filters);
-      setPayrolls(response.data.data || []);
+      const liveRes = await api.payroll.getLive({ month: filters.month, year: filters.year });
+      setLiveRows(liveRes.data.data?.rows || []);
+      setLiveTotals(liveRes.data.data?.totals || { netSalary: 0, pendingCount: 0 });
     } catch (error) {
       showSnackbar('Error fetching payrolls', 'error');
       console.error('Error fetching payrolls:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Generate (persist) payroll for one staff member from their live row.
+  const handleGenerateForStaff = async (staffId) => {
+    try {
+      setGeneratingId(staffId);
+      const res = await api.payroll.generatePayroll({ staffId, month: filters.month, year: filters.year });
+      showSnackbar(res.data?.message || 'Payroll generated', 'success');
+      fetchPayrolls();
+      fetchSummary();
+    } catch (error) {
+      showSnackbar(error.response?.data?.message || 'Error generating payroll', 'error');
+    } finally {
+      setGeneratingId(null);
     }
   };
 
@@ -316,6 +338,13 @@ const PayrollManagement = () => {
   };
 
   const periodLabel = `${new Date(2024, filters.month - 1).toLocaleString('default', { month: 'long' })} ${filters.year}`;
+
+  // The live table shows every eligible staff member; the Status / Staff filters
+  // narrow it down client-side (the live endpoint always returns everyone).
+  const filteredRows = liveRows.filter((r) =>
+    (!filters.status || r.status === filters.status) &&
+    (!filters.staff || r.staffId === filters.staff)
+  );
 
   return (
     <Box>
@@ -526,22 +555,6 @@ const PayrollManagement = () => {
               md: 2
             }}>
             <Button
-              variant="contained"
-              startIcon={<AddIcon />}
-              onClick={() => setGenerateDialog(true)}
-              fullWidth
-              sx={{ ...primaryButtonSx, px: 2 }}
-            >
-              Generate
-            </Button>
-          </Grid>
-          <Grid
-            size={{
-              xs: 12,
-              sm: 6,
-              md: 2
-            }}>
-            <Button
               variant="outlined"
               startIcon={<RefreshIcon />}
               onClick={fetchPayrolls}
@@ -566,12 +579,20 @@ const PayrollManagement = () => {
           WebkitBackdropFilter: 'var(--app-blur)',
         }}
       >
-        <Box sx={{ px: 3, py: 2.25, borderBottom: '1px solid', borderColor: 'divider' }}>
-          <Typography variant="subtitle1" sx={{
-            fontWeight: 700
-          }}>
-            Payroll Records · {periodLabel}
-          </Typography>
+        <Box sx={{ px: 3, py: 2.25, borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1 }}>
+          <Box>
+            <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+              Live Payroll · {periodLabel}
+            </Typography>
+            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+              All eligible staff, calculated live from salary, attendance, advances &amp; recharges
+              {liveTotals.pendingCount > 0 ? ` · ${liveTotals.pendingCount} not generated yet` : ' · all generated'}
+            </Typography>
+          </Box>
+          <Chip
+            label={`Total net · ${currencySym()}${Math.round(liveTotals.netSalary || 0).toLocaleString('en-IN')}`}
+            sx={{ fontWeight: 800, bgcolor: 'rgba(var(--app-primary-rgb),0.12)', color: ACCENT }}
+          />
         </Box>
 
         {loading ? (
@@ -613,46 +634,40 @@ const PayrollManagement = () => {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {payrolls.map((payroll) => {
-                  const ss = STATUS_STYLES[payroll.status] || STATUS_STYLES.draft;
+                {filteredRows.map((row) => {
+                  const ss = STATUS_STYLES[row.status] || STATUS_STYLES.draft;
                   return (
                     <TableRow
-                      key={payroll._id}
+                      key={row.staffId}
                       sx={{
                         '& td': { borderBottom: '1px solid', borderColor: isDarkMode ? 'rgba(148,163,184,0.1)' : 'rgba(226,232,240,0.7)' },
                         transition: 'background-color .15s ease',
                         '&:hover': { backgroundColor: isDarkMode ? 'rgba(var(--app-primary-rgb),0.08)' : 'rgba(var(--app-primary-rgb),0.05)' },
                         '&:last-child td': { borderBottom: 'none' },
+                        // Un-generated rows sit slightly muted so the "live estimate" reads clearly.
+                        opacity: row.persisted ? 1 : 0.92,
                       }}
                     >
-                      <TableCell sx={{ fontWeight: 600 }}>
-                        {payroll.staff?.profile?.employeeId || 'N/A'}
-                      </TableCell>
-                      <TableCell>
-                        {payroll.staff?.firstName} {payroll.staff?.lastName}
-                      </TableCell>
-                      <TableCell sx={{ color: 'text.secondary' }}>
-                        {payroll.payrollPeriodDisplay}
+                      <TableCell sx={{ fontWeight: 600 }}>{row.employeeId}</TableCell>
+                      <TableCell>{row.name}</TableCell>
+                      <TableCell sx={{ color: 'text.secondary' }}>{periodLabel}</TableCell>
+                      <TableCell align="right">
+                        {currencySym()}{Math.round(row.basicSalary).toLocaleString('en-IN')}
                       </TableCell>
                       <TableCell align="right">
-                        {currencySym()}{payroll.salary.basic.toLocaleString()}
-                      </TableCell>
-                      <TableCell align="right">
-                        {currencySym()}{payroll.earnings.totalEarnings.toLocaleString()}
+                        {currencySym()}{Math.round(row.totalEarnings).toLocaleString('en-IN')}
                       </TableCell>
                       <TableCell align="right" sx={{ color: '#ef4444' }}>
-                        −{currencySym()}{payroll.deductions.totalDeductions.toLocaleString()}
+                        −{currencySym()}{Math.round(row.totalDeductions).toLocaleString('en-IN')}
                       </TableCell>
                       <TableCell align="right">
-                        <Typography variant="body2" sx={{
-                          fontWeight: 800
-                        }}>
-                          {currencySym()}{payroll.netSalary.toLocaleString()}
+                        <Typography variant="body2" sx={{ fontWeight: 800 }}>
+                          {currencySym()}{Math.round(row.netSalary).toLocaleString('en-IN')}
                         </Typography>
                       </TableCell>
                       <TableCell>
                         <Chip
-                          label={payroll.status.toUpperCase()}
+                          label={STATUS_LABEL[row.status] || row.status.toUpperCase()}
                           size="small"
                           sx={{
                             fontWeight: 700,
@@ -665,58 +680,76 @@ const PayrollManagement = () => {
                         />
                       </TableCell>
                       <TableCell align="center">
-                        <Stack direction="row" spacing={0.5} sx={{
-                          justifyContent: "center"
-                        }}>
-                          <Tooltip title="Download PDF">
-                            <IconButton
-                              size="small"
-                              onClick={() => handleDownloadPDF(
-                                payroll._id,
-                                `${payroll.staff?.firstName}-${payroll.staff?.lastName}`
-                              )}
-                              sx={{ color: ACCENT, bgcolor: 'rgba(var(--app-primary-rgb),0.08)' }}
-                            >
-                              <PdfIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-
-                          {payroll.status === 'calculated' && (
-                            <Tooltip title="Approve Payroll">
+                        {!row.persisted ? (
+                          <Button
+                            size="small"
+                            variant="contained"
+                            startIcon={<AddIcon />}
+                            disabled={generatingId === row.staffId}
+                            onClick={() => handleGenerateForStaff(row.staffId)}
+                            sx={{ ...primaryButtonSx, py: 0.4, px: 1.5, fontSize: 12, whiteSpace: 'nowrap' }}
+                          >
+                            {generatingId === row.staffId ? 'Generating…' : 'Generate'}
+                          </Button>
+                        ) : (
+                          <Stack direction="row" spacing={0.5} sx={{ justifyContent: "center" }}>
+                            <Tooltip title="Download PDF">
                               <IconButton
                                 size="small"
-                                onClick={() => handleApprovePayroll(payroll._id)}
-                                sx={{ color: '#10b981', bgcolor: 'rgba(16,185,129,0.1)' }}
+                                onClick={() => handleDownloadPDF(row.payrollId, row.name.replace(/\s+/g, '-'))}
+                                sx={{ color: ACCENT, bgcolor: 'rgba(var(--app-primary-rgb),0.08)' }}
                               >
-                                <ApproveIcon fontSize="small" />
+                                <PdfIcon fontSize="small" />
                               </IconButton>
                             </Tooltip>
-                          )}
-
-                          {payroll.status === 'approved' && (
-                            <Tooltip title="Mark as Paid">
-                              <IconButton
-                                size="small"
-                                onClick={() => openPaymentDialog(payroll)}
-                                sx={{ color: '#8b5cf6', bgcolor: 'rgba(139,92,246,0.1)' }}
-                              >
-                                <PayIcon fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                          )}
-                        </Stack>
+                            {row.status === 'calculated' && (
+                              <Tooltip title="Recalculate (apply latest salary, attendance & policy)">
+                                <IconButton
+                                  size="small"
+                                  disabled={generatingId === row.staffId}
+                                  onClick={() => handleGenerateForStaff(row.staffId)}
+                                  sx={{ color: ACCENT, bgcolor: 'rgba(var(--app-primary-rgb),0.08)' }}
+                                >
+                                  <RecalcIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            )}
+                            {row.status === 'calculated' && (
+                              <Tooltip title="Approve Payroll">
+                                <IconButton
+                                  size="small"
+                                  onClick={() => handleApprovePayroll(row.payrollId)}
+                                  sx={{ color: '#10b981', bgcolor: 'rgba(16,185,129,0.1)' }}
+                                >
+                                  <ApproveIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            )}
+                            {row.status === 'approved' && (
+                              <Tooltip title="Mark as Paid">
+                                <IconButton
+                                  size="small"
+                                  onClick={() => openPaymentDialog({ _id: row.payrollId, netSalary: row.netSalary, staff: { firstName: row.name, lastName: '' } })}
+                                  sx={{ color: '#8b5cf6', bgcolor: 'rgba(139,92,246,0.1)' }}
+                                >
+                                  <PayIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            )}
+                          </Stack>
+                        )}
                       </TableCell>
                     </TableRow>
                   );
                 })}
-                {payrolls.length === 0 && (
+                {filteredRows.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={9} sx={{ borderBottom: 'none' }}>
                       <Box sx={{ textAlign: 'center', py: 6 }}>
                         <ReceiptIcon sx={{ fontSize: 44, color: 'text.disabled', mb: 1 }} />
                         <Typography sx={{
                           color: "text.secondary"
-                        }}>No payroll records for {periodLabel}.</Typography>
+                        }}>No eligible staff for {periodLabel}.</Typography>
                       </Box>
                     </TableCell>
                   </TableRow>

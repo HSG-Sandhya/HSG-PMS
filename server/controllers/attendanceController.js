@@ -34,28 +34,30 @@ const toAttendanceDate = (input) => {
 
 // Helper to ensure a target staff member is eligible (not admin / system admin / inactive).
 const ensureEligibleStaff = async (staffId) => {
-  const staff = await User.findById(staffId).populate('role');
+  const staff = await User.findById(staffId).populate('role department');
   if (!staff) return { ok: false, status: 404, message: 'Staff member not found' };
   if (!staff.isActive) return { ok: false, status: 400, message: 'Staff member is inactive' };
   if (staff.isSystemAdmin) {
     return { ok: false, status: 400, message: 'Cannot mark attendance for system administrators' };
   }
-  if (staff.role && ['Admin', 'System Administrator'].includes(staff.role.name)) {
-    return { ok: false, status: 400, message: 'Cannot mark attendance for Admin or System Administrator' };
+  if (['Admin', 'System Administrator', 'Owner'].includes(staff.role?.name)
+    || (staff.department?.name || '') === 'System Administration') {
+    return { ok: false, status: 400, message: 'Cannot mark attendance for an admin / owner account' };
   }
   return { ok: true, staff };
 };
 
 // Helper function to get eligible staff (excluding admin and system admin)
 const getEligibleStaff = async () => {
-  return await User.find({
-    isSystemAdmin: false,
-    isActive: true
-  })
-  .populate('role')
-  .then(users => users.filter(user =>
-    !user.role || !['Admin', 'System Administrator'].includes(user.role.name)
-  ));
+  const users = await User.find({ isSystemAdmin: false, isActive: true })
+    .populate('role department');
+  // Also drop admin/owner accounts: the Admin/System Administrator/Owner roles
+  // and anyone in the "System Administration" department are not operational
+  // staff and must not appear in attendance / payroll.
+  return users.filter((user) =>
+    !['Admin', 'System Administrator', 'Owner'].includes(user.role?.name) &&
+    (user.department?.name || '') !== 'System Administration'
+  );
 };
 
 // Whitelist of fields that can be modified via PUT /:id.
@@ -79,12 +81,6 @@ const pickUpdatableFields = (input = {}) => {
   }
   return out;
 };
-
-const sendDuplicate = (res) =>
-  res.status(409).json({
-    success: false,
-    message: 'Attendance already marked for this date',
-  });
 
 // @desc    Get all attendance records with filtering
 // @route   GET /api/attendance
@@ -261,34 +257,56 @@ export const markAttendance = async (req, res) => {
 
     const attendanceDate = toAttendanceDate(date);
 
-    const attendanceData = {
-      staff,
-      date: attendanceDate,
+    // Marking is an UPSERT: one (staff, date) record that clicking "mark" both
+    // creates and updates — the UI itself says "mark or update attendance". The
+    // single endpoint used to insert-only and 409 on any existing record, which
+    // is what surfaced the "Attendance already marked" error; the bulk endpoint
+    // already upserted, so this brings the two in line.
+    const set = {
       status,
       notes,
       approvedBy: req.user?._id || null,
       approvedAt: new Date(),
     };
-    if (clockIn) {
-      attendanceData.clockIn = { time: new Date(clockIn), method: 'manual', ipAddress: req.ip };
-    }
-    if (clockOut) {
-      attendanceData.clockOut = { time: new Date(clockOut), method: 'manual', ipAddress: req.ip };
-    }
-    if (shift) attendanceData.shift = shift;
+    const unset = {};
+    if (clockIn) set.clockIn = { time: new Date(clockIn), method: 'manual', ipAddress: req.ip };
+    if (clockOut) set.clockOut = { time: new Date(clockOut), method: 'manual', ipAddress: req.ip };
+    if (shift) set.shift = shift;
     if (status === 'leave') {
-      attendanceData.leaveType = leaveType;
-      attendanceData.leaveReason = leaveReason;
+      set.leaveType = leaveType;
+      set.leaveReason = leaveReason;
+    } else {
+      // Switching away from leave — drop the now-irrelevant leave fields.
+      unset.leaveType = '';
+      unset.leaveReason = '';
     }
 
-    const attendance = new Attendance(attendanceData);
-    if (clockIn && clockOut) attendance.calculateWorkHours();
+    const update = { $set: set, $setOnInsert: { staff, date: attendanceDate } };
+    if (Object.keys(unset).length) update.$unset = unset;
 
+    let attendance;
     try {
-      await attendance.save();
+      attendance = await Attendance.findOneAndUpdate(
+        { staff, date: attendanceDate },
+        update,
+        { new: true, upsert: true, setDefaultsOnInsert: true, runValidators: true },
+      );
     } catch (saveErr) {
-      if (saveErr?.code === 11000) return sendDuplicate(res);
-      throw saveErr;
+      // A rare race between two concurrent upserts can still throw 11000; the
+      // record now exists, so retry as a plain update.
+      if (saveErr?.code === 11000) {
+        attendance = await Attendance.findOneAndUpdate(
+          { staff, date: attendanceDate }, { $set: set, ...(Object.keys(unset).length ? { $unset: unset } : {}) }, { new: true, runValidators: true },
+        );
+      } else {
+        throw saveErr;
+      }
+    }
+
+    // Recompute worked hours whenever the merged record has both punches.
+    if (attendance.clockIn?.time && attendance.clockOut?.time) {
+      attendance.calculateWorkHours();
+      await attendance.save();
     }
 
     await attendance.populate([
@@ -296,7 +314,7 @@ export const markAttendance = async (req, res) => {
       { path: 'approvedBy', select: 'firstName lastName' },
     ]);
 
-    res.status(201).json({
+    res.status(200).json({
       success: true,
       message: "Attendance marked successfully",
       data: attendance,

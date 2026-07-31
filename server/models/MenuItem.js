@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 
+import { registerModel } from "../db/modelRegistry.js";
 const menuItemSchema = new mongoose.Schema({
   name: {
     type: String,
@@ -73,4 +74,4 @@ menuItemSchema.statics.getAvailableItems = function() {
   return this.find({ isAvailable: true }).populate('category');
 };
 
-export default mongoose.model('MenuItem', menuItemSchema);
+export default registerModel('MenuItem', menuItemSchema);

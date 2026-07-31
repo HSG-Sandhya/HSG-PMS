@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { registerModel } from "../db/modelRegistry.js";
 import { OPERATIONS_DEFAULTS } from "../config/operationalDefaults.js";
 
 const HK = OPERATIONS_DEFAULTS.housekeeping;
@@ -98,4 +99,4 @@ housekeepingSchema.statics.ensureCleaningTask = async function ({ roomId, hallId
   });
 };
 
-export default mongoose.models.Housekeeping || mongoose.model("Housekeeping", housekeepingSchema);
+export default registerModel("Housekeeping", housekeepingSchema);

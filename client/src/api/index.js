@@ -528,6 +528,8 @@ const api = {
     getSection: (section) => axiosInstance.get(`/settings/section/${section}`),
     // No auth — used by the login screen to follow the app theme.
     getPublicTheme: () => axiosInstance.get('/settings/public/theme'),
+    // No auth — hotel identity (name/tagline/logo) for the branded login screen.
+    getPublicBranding: () => axiosInstance.get('/settings/public/branding'),
     updateSection: (section, data) => axiosInstance.put(`/settings/section/${section}`, data),
     // Authentication
     login: (credentials) => axiosInstance.post('/auth/login', credentials),
@@ -883,7 +885,11 @@ const api = {
   payroll: {
     // Get all payrolls
     getAll: (params) => axiosInstance.get('/payroll', { params }),
-    
+
+    // Live payroll for every eligible staff member for a month/year (computed
+    // on the fly for staff whose payroll isn't generated yet).
+    getLive: (params) => axiosInstance.get('/payroll/live', { params }),
+
     // Get payroll by ID
     getById: (id) => axiosInstance.get(`/payroll/${id}`),
     

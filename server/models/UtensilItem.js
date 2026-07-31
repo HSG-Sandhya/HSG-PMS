@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 
+import { registerModel } from "../db/modelRegistry.js";
 // A rentable utensil / cookware item the hall owns and hires out to guests who
 // cook their own food (e.g. steel plates, water jars, cooking pots, gas
 // cylinders). Staff define each item once with a per-unit rental cost and the
@@ -30,4 +31,4 @@ const utensilItemSchema = new mongoose.Schema({
   isActive: { type: Boolean, default: true },
 }, { timestamps: true });
 
-export default mongoose.model('UtensilItem', utensilItemSchema);
+export default registerModel('UtensilItem', utensilItemSchema);

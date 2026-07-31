@@ -8,6 +8,7 @@ const router = express.Router();
 // Public — declared BEFORE the auth gate. The login page needs the appearance
 // settings (mode, colours, background, darkness) before anyone is signed in.
 router.get('/public/theme', settingsController.getPublicTheme);
+router.get('/public/branding', settingsController.getPublicBranding);
 
 router.use(permissionMiddleware.authenticateToken);
 

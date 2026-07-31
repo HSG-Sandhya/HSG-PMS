@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { registerModel } from "../db/modelRegistry.js";
 import mongoosePaginate from "mongoose-paginate-v2";
 
 const attendanceSchema = new mongoose.Schema({
@@ -273,4 +274,4 @@ attendanceSchema.index({ payrollProcessed: 1 });
 // Hard guard against duplicate (staff, date-day) records — DB-level race protection.
 attendanceSchema.index({ staff: 1, date: 1 }, { unique: true });
 
-export default mongoose.model("Attendance", attendanceSchema);
+export default registerModel("Attendance", attendanceSchema);

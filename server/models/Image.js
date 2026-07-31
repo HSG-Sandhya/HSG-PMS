@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 
+import { registerModel } from "../db/modelRegistry.js";
 const ImageSchema = new mongoose.Schema(
   {
     data: { type: Buffer, required: true },
@@ -14,4 +15,4 @@ const ImageSchema = new mongoose.Schema(
 
 ImageSchema.index({ category: 1, createdAt: -1 });
 
-export default mongoose.model('Image', ImageSchema);
+export default registerModel('Image', ImageSchema);

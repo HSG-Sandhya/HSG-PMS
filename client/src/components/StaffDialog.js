@@ -351,9 +351,13 @@ const StaffDialog = ({ open, onClose, onSuccess, editingStaff, roles: propRoles,
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (!formData.firstName || !formData.lastName || !formData.email || 
-        !formData.phone || !formData.roleId || !formData.departmentId) {
+    if (!formData.firstName || !formData.phone || !formData.roleId || !formData.departmentId) {
       setError('Please fill in all required fields');
+      return;
+    }
+    // Email is optional, but must be valid when provided.
+    if (formData.email && !/\S+@\S+\.\S+/.test(formData.email)) {
+      setError('Please enter a valid email address, or leave it blank');
       return;
     }
 
@@ -451,9 +455,8 @@ const StaffDialog = ({ open, onClose, onSuccess, editingStaff, roles: propRoles,
   // Live "section done" cues — only the sections with required fields.
   const basicComplete = Boolean(
     formData.firstName.trim() &&
-    formData.lastName.trim() &&
-    /\S+@\S+\.\S+/.test(formData.email) &&
-    formData.phone.length === 10
+    formData.phone.length === 10 &&
+    (!formData.email || /\S+@\S+\.\S+/.test(formData.email))
   );
   const roleComplete = Boolean(formData.roleId && formData.departmentId);
 
@@ -499,7 +502,6 @@ const StaffDialog = ({ open, onClose, onSuccess, editingStaff, roles: propRoles,
               label="Last Name"
               value={formData.lastName}
               onChange={(e) => handleInputChange('lastName', e.target.value)}
-              required
             />
           </Grid>
           <Grid
@@ -513,7 +515,6 @@ const StaffDialog = ({ open, onClose, onSuccess, editingStaff, roles: propRoles,
               type="email"
               value={formData.email}
               onChange={(e) => handleInputChange('email', e.target.value)}
-              required
             />
           </Grid>
           <Grid

@@ -5,7 +5,10 @@
 const overlaps = (aStart, aEnd, bStart, bEnd) =>
   new Date(aStart) < new Date(bEnd) && new Date(aEnd) > new Date(bStart);
 
-const ACTIVE = new Set(['Confirmed', 'Pending']);
+// A booking holds the room when it's confirmed, pending, tentatively held, or
+// the guest is already checked in. Draft/Rejected/Cancelled/Completed do NOT
+// block (Cancelled/Completed are filtered out upstream too).
+const ACTIVE = new Set(['Confirmed', 'Pending', 'Tentative', 'Checked-In']);
 
 /**
  * Is `room` free for [checkIn, checkOut)? `room.bookings` is the list the

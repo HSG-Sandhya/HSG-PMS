@@ -1,6 +1,7 @@
 import User from '../models/User.js';
 import jwt from 'jsonwebtoken';
 import logger from '../config/logger.js';
+import { tokenMatchesCurrentTenant } from '../db/tenantContext.js';
 
 const JWT_ALGORITHMS = process.env.JWT_ALGORITHMS
   ? process.env.JWT_ALGORITHMS.split(",").map((a) => a.trim()).filter(Boolean)
@@ -33,6 +34,8 @@ const extractUserFromToken = async (token) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET, {
       algorithms: JWT_ALGORITHMS,
     });
+    // Token issued for another hotel → treat as no user.
+    if (!tokenMatchesCurrentTenant(decoded)) return null;
     const user = await User.findById(decoded.id || decoded.userId)
       .populate('role', 'name permissions hierarchy accessLevel')
       .populate('department', 'name');
@@ -66,7 +69,15 @@ const authenticateToken = async (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET, {
       algorithms: JWT_ALGORITHMS,
     });
-    
+
+    // Reject a token issued for a different hotel.
+    if (!tokenMatchesCurrentTenant(decoded)) {
+      return res.status(401).json({
+        success: false,
+        message: 'Your session is not valid for this hotel. Please sign in again.'
+      });
+    }
+
     // Validate user ID format before database query
     const userId = decoded.id || decoded.userId;
     if (!userId || !userId.match(/^[0-9a-fA-F]{24}$/)) {

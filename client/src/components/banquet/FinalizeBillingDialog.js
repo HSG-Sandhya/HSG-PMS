@@ -54,12 +54,20 @@ const FinalizeBillingDialog = ({ open, onClose, booking, onUpdated }) => {
 
   if (!booking) return null;
 
-  // The catering amount (GST-inclusive) currently baked into totalAmount.
-  // Everything else in the total is "other charges" — venue, décor, facilities,
-  // all of which are already GST-inclusive and stay put.
-  const currentCateringSum = items.reduce((s, it) => s + withGst(Number(it.amount) || estAmount(it)), 0);
-  const total = Number(booking.totalAmount) || 0;
-  const nonCatering = total - currentCateringSum;
+  // Fixed (non-catering) charges stay as quoted. Take them straight from the
+  // booking's own components — venue, rooms, décor, utensils, facilities and
+  // vendor extras, all already GST-inclusive. Deriving this as `total − catering`
+  // was fragile: an older booking whose stored total didn't yet include the 18%
+  // catering GST produced a NEGATIVE "other charges" and left the new total wrong.
+  const nonCatering =
+    (Number(booking.floorCost) || 0) +
+    (Number(booking.roomsCost) || 0) +
+    (Number(booking.decorationCost) || 0) +
+    (Number(booking.utensilsCost) || 0) +
+    (Number(booking.extrasCost) || 0) +
+    (Number(booking.photographyAmount) || 0) +
+    (Number(booking.entertainmentCost) || 0);
+  const total = Number(booking.totalAmount) || 0; // stored "quoted" total (reference)
 
   const newCateringSum = items.reduce((s, it, i) => s + withGst(lineAmount(it.perPlate, actuals[i], it.days)), 0);
   const newTotal = Math.max(0, nonCatering + newCateringSum);

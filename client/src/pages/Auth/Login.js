@@ -9,10 +9,20 @@ import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import PersonOutlineIcon from '@mui/icons-material/PersonOutlined';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
+import ApartmentIcon from '@mui/icons-material/Apartment';
 import { useAuth } from '../../contexts/AuthContext';
 import api from '../../api';
 
 const MotionBox = motion.create(Box);
+
+// The login screen is served per-hotel (one subdomain each), so its name/logo
+// must come from that hotel — not be hardcoded. We cache the last-seen branding
+// per origin (localStorage is per-subdomain) so repeat visits paint instantly
+// while the fresh copy loads.
+const BRAND_CACHE_KEY = 'pms:login-branding';
+const readBrandCache = () => {
+  try { return JSON.parse(localStorage.getItem(BRAND_CACHE_KEY)) || null; } catch { return null; }
+};
 
 // Fresh per-channel OTP state (email / phone).
 const OTP_INIT = { sent: false, code: '', verified: false, sending: false, verifying: false, error: '', cooldown: 0, dev: '' };
@@ -173,6 +183,11 @@ const Login = () => {
   const { login, loading, error } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
 
+  // Hotel identity for this subdomain (name / tagline / logo), seeded from cache.
+  const [branding, setBranding] = useState(
+    () => readBrandCache() || { hotelName: '', tagline: '', logo: '' }
+  );
+
   // First-run setup: when the database has no users, the login screen turns
   // into a "create the first admin" form instead. The backend closes this the
   // instant any account exists, so it only ever appears on a fresh install.
@@ -205,6 +220,26 @@ const Login = () => {
       .catch(() => { /* If the check fails, fall back to the normal login form. */ });
     return () => { active = false; };
   }, []);
+
+  // Fetch this hotel's public branding (resolved from the subdomain server-side).
+  useEffect(() => {
+    let active = true;
+    api.settings.getPublicBranding()
+      .then((res) => {
+        const b = res?.data?.data;
+        if (!active || !b || typeof b !== 'object') return;
+        const next = { hotelName: b.hotelName || '', tagline: b.tagline || '', logo: b.logo || '' };
+        setBranding(next);
+        try { localStorage.setItem(BRAND_CACHE_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+      })
+      .catch(() => { /* keep cached / neutral branding */ });
+    return () => { active = false; };
+  }, []);
+
+  // Reflect the hotel name in the browser tab.
+  useEffect(() => {
+    if (branding.hotelName) document.title = `${branding.hotelName} — Sign in`;
+  }, [branding.hotelName]);
 
   // Tick down the resend cooldown once per second while either channel is waiting.
   useEffect(() => {
@@ -473,45 +508,73 @@ const Login = () => {
             }}
           />
 
-          {/* Top — brand name */}
+          {/* Top — brand name (per-hotel) */}
           <Box sx={{ position: 'relative', zIndex: 1 }}>
             <Typography
               sx={{
                 fontWeight: 800,
                 fontSize: { md: '1.7rem', lg: '2rem' },
-                whiteSpace: 'nowrap',
                 letterSpacing: '0.01em',
                 lineHeight: 1.1,
                 mb: 1,
                 textShadow: '0 2px 16px rgba(0,0,0,0.18)',
               }}
             >
-              Hotel Sandhya Grand
+              {branding.hotelName || ' '}
             </Typography>
-            <Typography sx={{ opacity: 0.92, fontSize: 16 }}>
-              &amp; Marriage Hall — where every stay feels grand.
-            </Typography>
+            {branding.tagline && (
+              <Typography sx={{ opacity: 0.92, fontSize: 16 }}>
+                {branding.tagline}
+              </Typography>
+            )}
           </Box>
 
-          {/* Middle — big logo */}
-          <Box
-            component="img"
-            src="/images/sandhya-logo.png"
-            alt="Hotel Sandhya Grand"
-            sx={{
-              position: 'relative',
-              zIndex: 1,
-              width: { md: 240, lg: 280 },
-              height: { md: 240, lg: 280 },
-              objectFit: 'contain',
-              borderRadius: 5,
-              p: 2,
-              background: 'rgba(255,255,255,0.18)',
-              backdropFilter: 'blur(6px)',
-              border: '1px solid rgba(255,255,255,0.3)',
-              boxShadow: '0 16px 44px rgba(0,0,0,0.25)',
-            }}
-          />
+          {/* Middle — big logo (falls back to the hotel's initial / a glyph) */}
+          {branding.logo ? (
+            <Box
+              component="img"
+              src={branding.logo}
+              alt={branding.hotelName || 'Hotel logo'}
+              sx={{
+                position: 'relative',
+                zIndex: 1,
+                width: { md: 240, lg: 280 },
+                height: { md: 240, lg: 280 },
+                objectFit: 'contain',
+                borderRadius: 5,
+                p: 2,
+                background: 'rgba(255,255,255,0.18)',
+                backdropFilter: 'blur(6px)',
+                border: '1px solid rgba(255,255,255,0.3)',
+                boxShadow: '0 16px 44px rgba(0,0,0,0.25)',
+              }}
+            />
+          ) : (
+            <Box
+              sx={{
+                position: 'relative',
+                zIndex: 1,
+                width: { md: 240, lg: 280 },
+                height: { md: 240, lg: 280 },
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: 'rgba(255,255,255,0.18)',
+                backdropFilter: 'blur(6px)',
+                border: '1px solid rgba(255,255,255,0.3)',
+                boxShadow: '0 16px 44px rgba(0,0,0,0.25)',
+              }}
+            >
+              {branding.hotelName ? (
+                <Typography sx={{ fontSize: { md: 110, lg: 130 }, fontWeight: 800, color: '#fff', lineHeight: 1 }}>
+                  {branding.hotelName.trim().charAt(0).toUpperCase()}
+                </Typography>
+              ) : (
+                <ApartmentIcon sx={{ fontSize: { md: 120, lg: 140 }, color: 'rgba(255,255,255,0.92)' }} />
+              )}
+            </Box>
+          )}
 
           {/* Bottom — PMS label */}
           <Box sx={{ position: 'relative', zIndex: 1, width: '100%' }}>
@@ -561,6 +624,20 @@ const Login = () => {
               variants={{ hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0 } }}
               sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mb: 3 }}
             >
+              {branding.hotelName && (
+                <Typography
+                  sx={{
+                    display: { xs: 'block', md: 'none' },
+                    fontWeight: 800,
+                    fontSize: '1.2rem',
+                    color: 'var(--app-primary)',
+                    textAlign: 'center',
+                    mb: 1,
+                  }}
+                >
+                  {branding.hotelName}
+                </Typography>
+              )}
               <Typography
                 component="h1"
                 variant="h4"
@@ -831,7 +908,7 @@ const Login = () => {
               variant="caption"
               sx={{ display: 'block', textAlign: 'center', mt: 3, color: 'text.secondary' }}
             >
-              © {new Date().getFullYear()} Hotel Sandhya Grand. All rights reserved.
+              © {new Date().getFullYear()} {branding.hotelName || 'Property Management System'}. All rights reserved.
             </Typography>
           </MotionBox>
         </Box>

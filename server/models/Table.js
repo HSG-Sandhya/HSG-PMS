@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 
+import { registerModel } from "../db/modelRegistry.js";
 const tableSchema = new mongoose.Schema({
   number: {
     type: String,
@@ -79,4 +80,4 @@ tableSchema.methods.canBeOccupied = function() {
   return this.status === 'Available' && this.isActive;
 };
 
-export default mongoose.model('Table', tableSchema);
+export default registerModel('Table', tableSchema);

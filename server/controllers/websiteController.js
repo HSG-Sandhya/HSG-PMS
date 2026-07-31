@@ -330,7 +330,7 @@ export const createRoomBooking = async (req, res) => {
 
       let signatureValid = false;
       try {
-        signatureValid = paymentService.verifyPaymentSignature(
+        signatureValid = await paymentService.verifyPaymentSignature(
           razorpayOrderId,
           razorpayPaymentId,
           razorpaySignature
@@ -346,7 +346,7 @@ export const createRoomBooking = async (req, res) => {
       // In live mode, confirm with the gateway that the payment was actually
       // captured and covers the booking total. Skipped only when the service has
       // no real keys (demo mode), where there is no gateway payment to fetch.
-      if (!paymentService.isDemoMode()) {
+      if (!(await paymentService.isDemoMode())) {
         try {
           const payment = await paymentService.getPaymentDetails(razorpayPaymentId);
           const expectedPaise = Math.round(Number(bookingData.totalAmount || 0) * 100);
@@ -912,7 +912,7 @@ export const verifyRazorpayPayment = async (req, res) => {
       });
     }
 
-    const isValid = paymentService.verifyPaymentSignature(
+    const isValid = await paymentService.verifyPaymentSignature(
       razorpay_order_id,
       razorpay_payment_id,
       razorpay_signature
@@ -968,7 +968,7 @@ export const processPayment = async (req, res) => {
       razorpay_signature,
     } = req.body;
 
-    const isValid = paymentService.verifyPaymentSignature(
+    const isValid = await paymentService.verifyPaymentSignature(
       razorpay_order_id,
       razorpay_payment_id,
       razorpay_signature

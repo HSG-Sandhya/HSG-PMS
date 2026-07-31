@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 
+import { registerModel } from "../db/modelRegistry.js";
 const orderItemSchema = new mongoose.Schema({
   itemId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -160,4 +161,4 @@ orderSchema.statics.getOrdersByStatus = function(status) {
   return this.find({ status }).populate('tableId').populate('roomId').populate('servedBy');
 };
 
-export default mongoose.model('Order', orderSchema);
+export default registerModel('Order', orderSchema);

@@ -65,19 +65,29 @@ export const generatePayroll = async (req, res) => {
       'payrollPeriod.year': year
     });
 
+    let payroll;
     if (existingPayroll) {
-      return res.status(400).json({
-        success: false,
-        message: `Payroll already exists for this staff member for ${month}/${year}. Please check the payroll management section.`,
-        data: {
-          existingPayrollId: existingPayroll._id,
-          status: existingPayroll.status,
-          createdAt: existingPayroll.createdAt
-        }
-      });
+      // Approved or paid payrolls are locked — don't silently overwrite an
+      // amount that's already been signed off or disbursed.
+      if (!['draft', 'calculated'].includes(existingPayroll.status)) {
+        return res.status(400).json({
+          success: false,
+          message: `Payroll for ${month}/${year} is already ${existingPayroll.status} and cannot be recalculated.`,
+          data: {
+            existingPayrollId: existingPayroll._id,
+            status: existingPayroll.status,
+            createdAt: existingPayroll.createdAt
+          }
+        });
+      }
+      // Recalculate the existing draft/calculated record in place so the latest
+      // salary, attendance and advances (and current payroll policy) are applied.
+      await existingPayroll.calculatePayroll();
+      payroll = existingPayroll;
+    } else {
+      payroll = await Payroll.generateForStaff(staffId, month, year);
     }
 
-    const payroll = await Payroll.generateForStaff(staffId, month, year);
     payroll.calculatedBy = req.user?._id || null;
     await payroll.save();
 
@@ -86,9 +96,9 @@ export const generatePayroll = async (req, res) => {
       { path: 'calculatedBy', select: 'firstName lastName' }
     ]);
 
-    res.status(201).json({
+    res.status(existingPayroll ? 200 : 201).json({
       success: true,
-      message: "Payroll generated successfully",
+      message: existingPayroll ? "Payroll recalculated successfully" : "Payroll generated successfully",
       data: payroll
     });
   } catch (error) {
@@ -97,6 +107,95 @@ export const generatePayroll = async (req, res) => {
       success: false,
       message: error.message || "Server error while generating payroll"
     });
+  }
+};
+
+// @desc    Live payroll for every eligible staff member for a month/year.
+//          Rows already generated show their persisted figures + status; the
+//          rest are computed on the fly (not saved) so the dashboard reflects
+//          each staff member's current salary, advances and deductions before
+//          payroll is generated. The row's `persisted` flag drives whether the
+//          UI shows a "Generate" button or the approve/pay/PDF actions.
+// @route   GET /api/payroll/live?month=&year=
+// @access  Private (Admin/System Admin only)
+export const getLivePayroll = async (req, res) => {
+  try {
+    if (!canManagePayroll(req.user)) {
+      return res.status(403).json({ success: false, message: "Access denied." });
+    }
+    const month = parseInt(req.query.month, 10);
+    const year = parseInt(req.query.year, 10);
+    if (!month || !year) {
+      return res.status(400).json({ success: false, message: "month and year are required" });
+    }
+
+    // Eligible staff = active, non-admin users. Admin/Owner roles and anyone in
+    // the "System Administration" department are excluded (they aren't paid via
+    // this payroll), matching the operational staff list.
+    const staffList = await User.find({ isSystemAdmin: false, isActive: true }).populate('role department');
+    const eligible = staffList.filter((u) =>
+      !['Admin', 'System Administrator', 'Owner'].includes(u.role?.name) &&
+      (u.department?.name || '') !== 'System Administration'
+    );
+
+    // Any payroll already generated for this period, keyed by staff id.
+    const existing = await Payroll.find({ 'payrollPeriod.month': month, 'payrollPeriod.year': year });
+    const persistedByStaff = new Map(existing.map((p) => [String(p.staff), p]));
+
+    const rows = [];
+    for (const staff of eligible) {
+      const base = {
+        staffId: String(staff._id),
+        employeeId: staff.profile?.employeeId || 'N/A',
+        name: `${staff.firstName || ''} ${staff.lastName || ''}`.trim(),
+      };
+      const persisted = persistedByStaff.get(String(staff._id));
+      if (persisted) {
+        rows.push({
+          ...base,
+          basicSalary: persisted.salary.basic,
+          totalEarnings: persisted.earnings.totalEarnings,
+          totalDeductions: persisted.deductions.totalDeductions,
+          netSalary: persisted.netSalary,
+          status: persisted.status,
+          persisted: true,
+          payrollId: String(persisted._id),
+        });
+        continue;
+      }
+      try {
+        const preview = await Payroll.previewForStaff(staff._id, month, year, staff);
+        rows.push({
+          ...base,
+          basicSalary: preview.salary.basic,
+          totalEarnings: preview.earnings.totalEarnings,
+          totalDeductions: preview.deductions.totalDeductions,
+          netSalary: preview.netSalary,
+          status: 'not_generated',
+          persisted: false,
+        });
+      } catch (err) {
+        rows.push({
+          ...base,
+          basicSalary: staff.profile?.salary || 0,
+          totalEarnings: 0, totalDeductions: 0, netSalary: 0,
+          status: 'not_generated', persisted: false, error: err.message,
+        });
+      }
+    }
+
+    rows.sort((a, b) => a.name.localeCompare(b.name));
+    const totals = rows.reduce((acc, r) => ({
+      netSalary: acc.netSalary + (r.netSalary || 0),
+      totalEarnings: acc.totalEarnings + (r.totalEarnings || 0),
+      totalDeductions: acc.totalDeductions + (r.totalDeductions || 0),
+      pendingCount: acc.pendingCount + (r.persisted ? 0 : 1),
+    }), { netSalary: 0, totalEarnings: 0, totalDeductions: 0, pendingCount: 0 });
+
+    res.json({ success: true, data: { rows, totals, count: rows.length, month, year } });
+  } catch (error) {
+    console.error('Live payroll error:', error);
+    res.status(500).json({ success: false, message: "Error computing live payroll" });
   }
 };
 
@@ -410,14 +509,12 @@ export const generatePayrollPDF = async (req, res) => {
       .map((r) => [r[0], fmt(r[1])]);
     earnRows.push(['TOTAL EARNINGS', fmt(totalEarnings)]);
 
+    // No statutory (PF/ESI/TDS) or attendance-penalty (absent/late) deductions —
+    // salary is attendance-based, so only advances, recharges and any manual
+    // loan/other deductions are recovered.
     const dedAll = [
       ['Advance Payment', totalAdvanceAmount, true],
       ['Mobile Recharge', totalRechargeAmount, true],
-      ['Provident Fund', payroll.deductions.pf],
-      ['ESI', payroll.deductions.esi],
-      ['TDS', payroll.deductions.tds],
-      ['Absent Deduction', payroll.deductions.absentDeduction],
-      ['Late Deduction', payroll.deductions.lateDeduction],
       ['Loan', payroll.deductions.loan],
       ['Other Deductions', payroll.deductions.other],
     ];

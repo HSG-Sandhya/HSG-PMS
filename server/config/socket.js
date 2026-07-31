@@ -1,9 +1,16 @@
 import { Server } from 'socket.io';
 import jwt from 'jsonwebtoken';
 import logger from './logger.js';
+import { getCurrentTenant } from '../db/tenantContext.js';
+import { resolveTenantForHost } from '../middleware/resolveTenant.js';
 
 // ── Module singleton ────────────────────────────────────────────────────────
 let io = null;
+
+// Live events are isolated per hotel: staff only ever join their own tenant's
+// rooms, and emit helpers target the room for whichever hotel is in context.
+const staffRoom = (slug) => `staff:${slug}`;
+const housekeepingRoom = (slug) => `housekeeping:${slug}`;
 
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
@@ -40,25 +47,56 @@ export const initSocket = (httpServer) => {
     },
   });
 
-  // JWT handshake guard.
-  io.use((socket, next) => {
+  // JWT + tenant handshake guard. A valid signature isn't enough: the token must
+  // have been issued for the same hotel the socket is connecting to (resolved
+  // from the connection's host), or a hotel-A token could subscribe to hotel-B's
+  // live events. The JWT secret is shared across hotels, so this check is what
+  // enforces isolation.
+  io.use(async (socket, next) => {
     const token = socket.handshake.auth?.token || socket.handshake.query?.token;
     if (!token || !process.env.JWT_SECRET) {
       return next(new Error('unauthorized'));
     }
+
+    let decoded;
     try {
-      socket.user = jwt.verify(token, process.env.JWT_SECRET, { algorithms: JWT_ALGORITHMS });
-      return next();
+      decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: JWT_ALGORITHMS });
     } catch {
       return next(new Error('unauthorized'));
     }
+
+    const host =
+      socket.handshake.headers['x-forwarded-host'] || socket.handshake.headers.host || '';
+    let tenantSlug;
+    try {
+      const result = await resolveTenantForHost(host);
+      if (result.error) return next(new Error('unknown tenant'));
+      tenantSlug = result.tenant.slug;
+    } catch (err) {
+      logger.warn('Socket tenant resolution failed', { host, error: err.message });
+      return next(new Error('tenant resolution failed'));
+    }
+
+    if ((decoded.tenant || 'base') !== tenantSlug) {
+      logger.warn('Socket rejected: token tenant mismatch', {
+        tokenTenant: decoded.tenant || 'base',
+        host,
+      });
+      return next(new Error('tenant mismatch'));
+    }
+
+    socket.user = decoded;
+    socket.tenantSlug = tenantSlug;
+    return next();
   });
 
   io.on('connection', (socket) => {
-    socket.join('staff');
-    socket.join('housekeeping');
+    const slug = socket.tenantSlug || 'base';
+    socket.join(staffRoom(slug));
+    socket.join(housekeepingRoom(slug));
     logger.info('Socket connected', {
       id: socket.id,
+      tenant: slug,
       user: socket.user?.username || socket.user?.id || 'unknown',
     });
     socket.on('disconnect', () => logger.info('Socket disconnected', { id: socket.id }));
@@ -79,19 +117,20 @@ export const closeSocket = () => {
 
 // ── Safe emit helpers (no-op when sockets aren't initialized) ────────────────
 
+// Emit to a base room name, scoped to the current hotel (from tenant context).
 export const emitToRoom = (room, event, payload) => {
   if (!io) return;
-  io.to(room).emit(event, payload);
+  io.to(`${room}:${getCurrentTenant().slug}`).emit(event, payload);
 };
 
 /**
- * Broadcast a freshly-submitted website booking to all logged-in staff so the
- * back-office can pop a live alert. No-op when sockets aren't initialized.
+ * Broadcast a freshly-submitted website booking to the current hotel's staff so
+ * the back-office can pop a live alert. No-op when sockets aren't initialized.
  * @param {object} payload  Flat, display-ready booking summary.
  */
 export const emitNewWebsiteBooking = (payload) => {
   if (!io || !payload) return;
-  io.to('staff').emit('booking:new-website', payload);
+  io.to(staffRoom(getCurrentTenant().slug)).emit('booking:new-website', payload);
 };
 
 /**
@@ -102,7 +141,7 @@ export const emitNewWebsiteBooking = (payload) => {
 export const emitHousekeepingTask = (task, room) => {
   if (!io || !task) return;
   const roomNumber = room?.roomNumber || task.roomNumber || null;
-  io.to('housekeeping').emit('housekeeping:new-task', {
+  io.to(housekeepingRoom(getCurrentTenant().slug)).emit('housekeeping:new-task', {
     taskId: task._id?.toString?.() ?? null,
     roomNumber,
     taskType: task.taskType || 'Regular Cleaning',

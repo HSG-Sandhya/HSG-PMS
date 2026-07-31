@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 
+import { registerModel } from "../db/modelRegistry.js";
 const categorySchema = new mongoose.Schema({
   name: {
     type: String,
@@ -48,4 +49,4 @@ categorySchema.statics.getActiveCategories = function() {
   return this.find({ isActive: true }).sort({ displayOrder: 1, name: 1 });
 };
 
-export default mongoose.model('Category', categorySchema);
+export default registerModel('Category', categorySchema);

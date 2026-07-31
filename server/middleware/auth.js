@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import logger from '../config/logger.js';
+import { tokenMatchesCurrentTenant, tenantSlugOfToken } from '../db/tenantContext.js';
 
 const JWT_ALGORITHMS = process.env.JWT_ALGORITHMS
   ? process.env.JWT_ALGORITHMS.split(",").map((a) => a.trim()).filter(Boolean)
@@ -54,12 +55,27 @@ const authenticateToken = (req, res, next) => {
         ip: req.ip,
         userAgent: req.get('User-Agent')
       });
-      return res.status(401).json({ 
+      return res.status(401).json({
         success: false,
-        message: 'Invalid token' 
+        message: 'Invalid token'
       });
     }
-    
+
+    // Reject a token issued for a different hotel. This path trusts the decoded
+    // payload without a DB lookup, so the tenant claim is the only thing stopping
+    // a validly-signed token from one hotel being used against another.
+    if (!tokenMatchesCurrentTenant(decoded)) {
+      logger.warn('Authentication failed: token tenant mismatch', {
+        tokenTenant: tenantSlugOfToken(decoded),
+        host: req.hostname,
+        ip: req.ip,
+      });
+      return res.status(401).json({
+        success: false,
+        message: 'Your session is not valid for this hotel. Please sign in again.'
+      });
+    }
+
     req.user = decoded;
     next();
   } catch (error) {
@@ -101,11 +117,12 @@ const optionalAuth = (req, res, next) => {
     const verified = jwt.verify(token, process.env.JWT_SECRET, {
       algorithms: JWT_ALGORITHMS,
     });
-    req.user = verified;
+    // Ignore a token issued for a different hotel — treat as anonymous.
+    req.user = tokenMatchesCurrentTenant(verified) ? verified : null;
   } catch (error) {
     req.user = null;
   }
-  
+
   next();
 };
 

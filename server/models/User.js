@@ -1,10 +1,14 @@
 import mongoose from "mongoose";
+import { registerModel } from "../db/modelRegistry.js";
 import bcrypt from "bcryptjs";
 import mongoosePaginate from "mongoose-paginate-v2";
 
 const userSchema = new mongoose.Schema({
   username: { type: String, required: true, unique: true, trim: true },
-  email: { type: String, required: true, unique: true, lowercase: true, trim: true },
+  // Email is optional. `sparse` so the unique index skips users who have none
+  // (multiple email-less staff are allowed); the controller stores it as unset
+  // rather than '' so those documents fall outside the index entirely.
+  email: { type: String, unique: true, sparse: true, lowercase: true, trim: true },
   password: { type: String, required: true, minlength: 6, select: false },
   phone: {
     type: String,
@@ -14,7 +18,7 @@ const userSchema = new mongoose.Schema({
     trim: true
   },
   firstName: { type: String, required: true, trim: true },
-  lastName: { type: String, required: true, trim: true },
+  lastName: { type: String, trim: true, default: '' },
 
   // Role-based access
   role: { type: mongoose.Schema.Types.ObjectId, ref: "Role", required: true },
@@ -104,9 +108,9 @@ userSchema.methods.comparePassword = async function (enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.password);
 };
 
-// Get full name
+// Get full name (lastName is optional, so guard against a trailing "undefined")
 userSchema.methods.getFullName = function () {
-  return `${this.firstName} ${this.lastName}`.trim();
+  return `${this.firstName || ''} ${this.lastName || ''}`.trim();
 };
 
 // Check if user has specific permission
@@ -165,4 +169,4 @@ userSchema.plugin(mongoosePaginate);
 userSchema.index({ department: 1, role: 1 });
 userSchema.index({ role: 1, isActive: 1 });
 
-export default mongoose.model("User", userSchema);
+export default registerModel("User", userSchema);

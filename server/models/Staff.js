@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 
+import { registerModel } from "../db/modelRegistry.js";
 const StaffSchema = new mongoose.Schema({
   name: { type: String, required: true, trim: true },
   position: { type: String, required: true, trim: true },
@@ -233,4 +234,4 @@ StaffSchema.methods.hasPermission = function (permission) {
   return Array.isArray(this.permissions) && this.permissions.includes(permission);
 };
 
-export default mongoose.model("Staff", StaffSchema);
+export default registerModel("Staff", StaffSchema);

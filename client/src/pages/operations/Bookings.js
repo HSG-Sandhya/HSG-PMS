@@ -127,6 +127,8 @@ const Bookings = ({ view = 'all', bookingType = null }) => {
     })(),
     checkOutTime: billing.defaultCheckOutTime,
     roomId: '',
+    roomIds: [],            // multi-room selection (one guest per room)
+    roomAssignments: {},    // roomId → { guestName, idCardType, idCardNumber, frontImage, backImage, … }
     adults: 1,
     children: 0,
     totalAmount: 0,
@@ -205,12 +207,18 @@ const Bookings = ({ view = 'all', bookingType = null }) => {
       const allBookings = Array.isArray(bookingsResponse.data) ? bookingsResponse.data : (bookingsResponse.data?.data || []);
       // Add availability information to each room
       const roomsWithAvailability = roomsArray.map(room => {
-        // Find bookings for this room
-        const roomBookings = allBookings.filter(booking => 
-          booking.roomId === room._id && 
-          booking.bookingStatus !== 'Cancelled' && 
-          booking.bookingStatus !== 'Completed',
-        );
+        // Find bookings for this room. The API returns roomId POPULATED as an
+        // object ({ _id, roomNumber, … }), so compare on the id string — a raw
+        // `booking.roomId === room._id` was object-vs-string, always false, and
+        // left every room looking free even when it was booked.
+        const roomBookings = allBookings.filter(booking => {
+          const bRoomId = booking.roomId && typeof booking.roomId === 'object'
+            ? booking.roomId._id
+            : booking.roomId;
+          return String(bRoomId) === String(room._id) &&
+            booking.bookingStatus !== 'Cancelled' &&
+            booking.bookingStatus !== 'Completed';
+        });
         return {
           ...room,
           bookings: roomBookings,
@@ -300,6 +308,8 @@ const Bookings = ({ view = 'all', bookingType = null }) => {
         checkInTime: currentTime,
         checkOutTime: currentTime,
         roomId: '',
+        roomIds: [],
+        roomAssignments: {},
         adults: 1,
         children: 0,
         totalAmount: 0,
@@ -553,7 +563,170 @@ const Bookings = ({ view = 'all', bookingType = null }) => {
         showSnackbar('Check-out date must be after check-in date', 'error');
         return;
       }
-      
+
+      // ── Multi-room (individual flow, one guest per room) ──────────────────
+      // Each selected room becomes its own booking: room #1 uses the primary
+      // guest captured above; rooms #2..N use the per-room occupant + ID from
+      // the room panels. Single-room bookings skip this and use the path below.
+      const multiRoomIds = (!selectedBooking && Array.isArray(formData.roomIds) && formData.roomIds.length > 1)
+        ? formData.roomIds
+        : null;
+      if (multiRoomIds) {
+        const assignments = formData.roomAssignments || {};
+        // Every additional room needs an occupant name before we save it.
+        const missing = multiRoomIds.slice(1).find((rid) => !((assignments[rid] || {}).guestName || '').trim());
+        if (missing) {
+          const r = rooms.find((x) => x._id === missing);
+          showSnackbar(`Enter the guest name for Room ${r?.roomNumber || ''}`, 'error');
+          return;
+        }
+
+        const nights = calculateNights(formData.checkIn, formData.checkOut, formData.checkInTime, formData.checkOutTime);
+        const pct = clampDiscount(formData.discount, billing);
+        const outTime = formData.checkOutTime || billing.defaultCheckOutTime;
+        const inTime = formData.checkInTime || format(new Date(), 'HH:mm');
+
+        // Link every room in this party under one groupId so the front desk sees
+        // them as a single group (rooming-list icon on each row + a collapsed
+        // master row on the Group Bookings page). Room #1 is the group master.
+        const roomMoney = (rm) => {
+          const base = (rm.pricePerNight || 0) * nights;
+          const bf = formData.tariffType === 'breakfast' ? calcBreakfast(nights, billing) : 0;
+          const sub = base + bf;
+          const gst = calcGst(sub, billing);
+          const disc = base * (pct / 100);
+          return { base, bf, gst, disc, total: Math.round(sub + gst - disc) };
+        };
+        const groupId = `GRP-${Date.now()}-${Math.round(Math.random() * 1e4)}`;
+        const groupName = `${(formData.guestName || 'Guest').trim()}'s group`;
+        const partyRooms = multiRoomIds.map((rid) => rooms.find((r) => r._id === rid)).filter(Boolean);
+        const groupTotalAmount = partyRooms.reduce((s, rm) => s + roomMoney(rm).total, 0);
+        const groupRoomCount = partyRooms.length;
+
+        const shared = {
+          phone: formData.phone,
+          email: formData.email,
+          nationality: formData.nationality,
+          guestType: formData.guestType,
+          bookingSource: formData.bookingSource,
+          additionalServices: formData.additionalServices,
+          streetName: formData.streetName,
+          area: formData.area,
+          district: formData.district,
+          state: formData.state,
+          pincode: formData.pincode,
+          checkIn: formData.checkIn,
+          checkOut: formData.checkOut,
+          checkInTime: inTime,
+          checkOutTime: outTime,
+          adults: 1,
+          children: 0,
+          tariffType: formData.tariffType,
+          discount: formData.discount,
+          paymentMethod: formData.paymentMethod,
+          paymentReference: formData.paymentReference,
+          bookingStatus: formData.bookingStatus,
+          specialRequests: formData.specialRequests,
+          updateRoomStatus: true,
+        };
+
+        const results = [];
+        const failed = [];
+        for (let i = 0; i < multiRoomIds.length; i++) {
+          const rid = multiRoomIds[i];
+          const room = rooms.find((r) => r._id === rid);
+          if (!room) continue;
+          const isPrimary = i === 0;
+          const a = assignments[rid] || {};
+
+          // Per-room money — each folio bills only its own room.
+          const money = roomMoney(room);
+          const totalAmount = money.total;
+          // The entered advance settles the primary folio; extra rooms open unpaid.
+          const paidAmount = isPrimary ? (Number(formData.paidAmount) || 0) : 0;
+          const remainingAmount = Math.max(0, totalAmount - paidAmount);
+          const paymentStatus = paidAmount >= totalAmount ? 'Paid' : (paidAmount > 0 ? 'Partial' : 'Pending');
+
+          const occupant = isPrimary ? {
+            bookingId: formData.bookingId,
+            guestName: formData.guestName,
+            age: formData.age,
+            gender: formData.gender,
+            idCardType: formData.idCardType,
+            idCardNumber: formData.idCardNumber,
+          } : {
+            bookingId: generateBookingId(),
+            guestName: a.guestName,
+            age: a.age || '',
+            gender: a.gender || '',
+            idCardType: a.idCardType || 'Aadhaar Card',
+            idCardNumber: a.idCardNumber || '',
+          };
+
+          const frontImg = isPrimary ? formData.idCardImage : a.frontImage;
+          const backImg = isPrimary ? formData.idCardImageBack : a.backImage;
+          const hasFront = frontImg instanceof File;
+          const hasBack = backImg instanceof File;
+
+          const dataObj = {
+            ...shared,
+            ...occupant,
+            roomId: rid,
+            baseAmount: Math.round(money.base),
+            breakfastAmount: Math.round(money.bf),
+            gstAmount: Math.round(money.gst),
+            discountAmount: Math.round(money.disc),
+            totalAmount,
+            paidAmount,
+            remainingAmount,
+            paymentStatus,
+            bookingType: 'group',
+            groupId,
+            groupName,
+            isGroupMaster: isPrimary,
+            groupTotalAmount: isPrimary ? groupTotalAmount : 0,
+            groupRoomCount: isPrimary ? groupRoomCount : 0,
+          };
+
+          let payload;
+          if (hasFront || hasBack) {
+            const fd = new FormData();
+            fd.append('data', JSON.stringify(dataObj));
+            if (hasFront) fd.append('idCardImage', frontImg);
+            if (hasBack) fd.append('idCardImageBack', backImg);
+            payload = fd;
+          } else {
+            payload = dataObj;
+          }
+
+          try {
+            // eslint-disable-next-line no-await-in-loop
+            const res = await api.bookings.create(payload);
+            results.push(res.data);
+            window.dispatchEvent(new CustomEvent('bookingEvent', {
+              detail: { roomId: rid, action: 'booking_created', isBooked: true, booking: res.data },
+            }));
+          } catch (err) {
+            // One room failing (e.g. it was just taken) must not lose the rest —
+            // record it and carry on, then report a clear summary.
+            failed.push(`${room.roomNumber} (${err.response?.data?.message || err.message})`);
+          }
+        }
+
+        if (failed.length) {
+          showSnackbar(
+            `${results.length} booked · ${failed.length} failed: ${failed.join('; ')}`,
+            results.length ? 'warning' : 'error',
+          );
+        } else {
+          showSnackbar(`${results.length} booking${results.length === 1 ? '' : 's'} created`, 'success');
+        }
+        // Keep the dialog open if everything failed so the operator can retry.
+        if (results.length) handleCloseDialog();
+        await refreshData();
+        return;
+      }
+
       // Always update room status to occupied for new bookings
       // or if check-in date is today or in the past and check-out is in the future
       const isCurrentStay = checkIn <= today && checkOut > today;
@@ -574,6 +747,8 @@ const Bookings = ({ view = 'all', bookingType = null }) => {
         };
         delete bookingDataForJson.idCardImage;      // files travel as multipart parts
         delete bookingDataForJson.idCardImageBack;
+        delete bookingDataForJson.roomIds;          // client-only multi-room helpers
+        delete bookingDataForJson.roomAssignments;
         formDataObj.append('data', JSON.stringify(bookingDataForJson));
         if (hasFront) formDataObj.append('idCardImage', formData.idCardImage);
         if (hasBack) formDataObj.append('idCardImageBack', formData.idCardImageBack);
@@ -589,8 +764,10 @@ const Bookings = ({ view = 'all', bookingType = null }) => {
         })(),
           checkOutTime: formData.checkOutTime || billing.defaultCheckOutTime,
         };
+        delete bookingData.roomIds;          // client-only multi-room helpers
+        delete bookingData.roomAssignments;
       }
-      
+
       // Include room status update in the request (only for non-FormData)
       if (!(bookingData instanceof FormData)) {
         bookingData.updateRoomStatus = true; // Always update room status for new bookings

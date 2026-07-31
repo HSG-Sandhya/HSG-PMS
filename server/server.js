@@ -7,6 +7,8 @@ import { rotateOnStart, scheduleJWTRotation } from "./utils/jwtRotation.js";
 import { initSocket, closeSocket } from "./config/socket.js";
 import paymentService from "./services/paymentService.js";
 import { scheduleHoldExpirySweep } from "./services/holdExpiry.js";
+import { ensureModels } from "./db/modelRegistry.js";
+import { runWithTenant, BASE_TENANT, getBaseConnection } from "./db/tenantContext.js";
 
 const PORT = parseInt(process.env.PORT, 10) || 5002;
 const USE_COLOR = process.stdout.isTTY && !process.env.NO_COLOR;
@@ -40,6 +42,12 @@ const startServer = async () => {
   logger.info(launchLine);
 
   await connectDB();
+
+  // Pre-compile every model on the base connection so startup jobs, maintenance
+  // scripts, and the base (single-tenant) fallback all have models ready — and
+  // so cross-model populate() can resolve refs by name on the base database.
+  ensureModels(getBaseConnection());
+
   await rotateOnStart();
 
   // Wrap the Express app in an explicit HTTP server so Socket.IO can attach to
@@ -82,8 +90,12 @@ const startServer = async () => {
   // constructor deliberately skips this to avoid a buffering timeout during
   // module import (before connectDB runs). Kept non-fatal: a payment-config
   // problem must not stop an otherwise-healthy server from serving traffic.
+  // Reads the base hotel's Settings doc, so run it in the base tenant context.
+  // (Per-tenant payment credentials are a follow-up — see MULTI_TENANT.md.)
   try {
-    await paymentService.initializeRazorpay();
+    await runWithTenant({ tenant: BASE_TENANT, conn: getBaseConnection() }, () =>
+      paymentService.initializeRazorpay()
+    );
   } catch (err) {
     logger.error("Payment service init failed (continuing)", { error: err.message });
   }

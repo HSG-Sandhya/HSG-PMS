@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <base href="/" />
+    <title>Hotel Platform · Console</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div id="toast" class="toast" hidden></div>
+
+    <!-- Boot / loading -->
+    <section id="view-loading" class="view center">
+      <div class="spinner"></div>
+    </section>
+
+    <!-- Auth (login or first-run setup) -->
+    <section id="view-auth" class="view center" hidden>
+      <form id="auth-form" class="card auth-card" autocomplete="off">
+        <h1 class="brand">Platform Console</h1>
+        <p id="auth-subtitle" class="muted"></p>
+
+        <label class="field">
+          <span>Username</span>
+          <input id="auth-username" name="username" type="text" required />
+        </label>
+        <label class="field">
+          <span>Password</span>
+          <input id="auth-password" name="password" type="password" required minlength="8" />
+        </label>
+        <label class="field" id="auth-email-field" hidden>
+          <span>Email <em class="muted">(optional)</em></span>
+          <input id="auth-email" name="email" type="email" />
+        </label>
+        <label class="field" id="auth-setupkey-field" hidden>
+          <span>Setup key</span>
+          <input id="auth-setupkey" name="setupKey" type="password" />
+        </label>
+
+        <button type="submit" class="btn primary" id="auth-submit">Sign in</button>
+        <p id="auth-error" class="error" hidden></p>
+      </form>
+    </section>
+
+    <!-- Dashboard -->
+    <section id="view-dashboard" class="view" hidden>
+      <header class="topbar">
+        <div class="topbar-left">
+          <span class="brand small">Platform Console</span>
+        </div>
+        <div class="topbar-right">
+          <span id="whoami" class="muted"></span>
+          <button id="btn-logout" class="btn ghost">Log out</button>
+        </div>
+      </header>
+
+      <main class="container">
+        <div class="toolbar">
+          <div class="toolbar-left">
+            <input id="search" type="search" placeholder="Search hotels…" />
+            <select id="status-filter">
+              <option value="">All statuses</option>
+              <option value="active">Active</option>
+              <option value="suspended">Suspended</option>
+              <option value="provisioning">Provisioning</option>
+            </select>
+          </div>
+          <button id="btn-new" class="btn primary">+ New hotel</button>
+        </div>
+
+        <div class="table-wrap">
+          <table class="hotels">
+            <thead>
+              <tr>
+                <th>Hotel</th>
+                <th>Subdomain</th>
+                <th>Status</th>
+                <th>Plan</th>
+                <th>Created</th>
+                <th class="right">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="hotels-body"></tbody>
+          </table>
+          <p id="hotels-empty" class="muted center pad" hidden>No hotels yet.</p>
+        </div>
+      </main>
+    </section>
+
+    <!-- Modal (create / edit) -->
+    <div id="modal" class="modal" hidden>
+      <div class="modal-backdrop" data-close="1"></div>
+      <div class="modal-card card">
+        <div class="modal-head">
+          <h2 id="modal-title">New hotel</h2>
+          <button class="btn ghost icon" data-close="1" aria-label="Close">×</button>
+        </div>
+        <form id="hotel-form">
+          <div class="grid2">
+            <label class="field">
+              <span>Hotel name</span>
+              <input id="f-name" type="text" required />
+            </label>
+            <label class="field">
+              <span>Subdomain</span>
+              <input id="f-subdomain" type="text" placeholder="taj" />
+            </label>
+            <label class="field">
+              <span>Plan</span>
+              <input id="f-plan" type="text" placeholder="standard" />
+            </label>
+            <label class="field">
+              <span>Custom domain <em class="muted">(optional)</em></span>
+              <input id="f-customdomain" type="text" placeholder="admin.hotel.com" />
+            </label>
+            <label class="field">
+              <span>Contact email <em class="muted">(optional)</em></span>
+              <input id="f-contact" type="email" />
+            </label>
+          </div>
+
+          <fieldset id="admin-fieldset" class="admin-fieldset">
+            <legend>First admin user</legend>
+            <div class="grid2">
+              <label class="field">
+                <span>Username</span>
+                <input id="f-admin-username" type="text" />
+              </label>
+              <label class="field">
+                <span>Password</span>
+                <input id="f-admin-password" type="password" minlength="6" />
+              </label>
+              <label class="field">
+                <span>Phone (10 digits)</span>
+                <input id="f-admin-phone" type="text" inputmode="numeric" />
+              </label>
+              <label class="field">
+                <span>First name</span>
+                <input id="f-admin-firstname" type="text" />
+              </label>
+              <label class="field">
+                <span>Last name <em class="muted">(optional)</em></span>
+                <input id="f-admin-lastname" type="text" />
+              </label>
+              <label class="field">
+                <span>Email <em class="muted">(optional)</em></span>
+                <input id="f-admin-email" type="email" />
+              </label>
+            </div>
+          </fieldset>
+
+          <label class="field" id="notes-field" hidden>
+            <span>Notes</span>
+            <textarea id="f-notes" rows="2"></textarea>
+          </label>
+
+          <p id="modal-error" class="error" hidden></p>
+          <div class="modal-actions">
+            <button type="button" class="btn ghost" data-close="1">Cancel</button>
+            <button type="submit" class="btn primary" id="modal-submit">Create hotel</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <script src="./app.js"></script>
+  </body>
+</html>

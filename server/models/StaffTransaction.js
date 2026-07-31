@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 
+import { registerModel } from "../db/modelRegistry.js";
 const staffTransactionSchema = new mongoose.Schema({
   staff: {
     type: mongoose.Schema.Types.ObjectId,
@@ -95,4 +96,4 @@ staffTransactionSchema.methods.markAsPaid = function(paymentMethod, referenceNum
   return this.save();
 };
 
-export default mongoose.model('StaffTransaction', staffTransactionSchema);
+export default registerModel('StaffTransaction', staffTransactionSchema);

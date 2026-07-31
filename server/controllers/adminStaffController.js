@@ -57,18 +57,19 @@ export const createStaff = asyncHandler(async (req, res) => {
     profile = {}
   } = req.body;
 
-  // Validate required fields
-  if (!firstName || !lastName || !email || !phone || !roleId || !departmentId) {
-    return res.status(400).json({ 
-      success: false, 
-      message: 'Missing required fields: firstName, lastName, email, phone, roleId, and departmentId are required' 
+  // Validate required fields (lastName and email are optional).
+  if (!firstName || !phone || !roleId || !departmentId) {
+    return res.status(400).json({
+      success: false,
+      message: 'Missing required fields: firstName, phone, roleId, and departmentId are required'
     });
   }
 
-  // Check if user already exists
-  const existingUser = await User.findOne({
-    $or: [{ email: email.toLowerCase() }, { phone }, { username }]
-  });
+  // Check if user already exists — match on email only when one was supplied.
+  const dupOr = [{ phone }];
+  if (email && email.trim()) dupOr.push({ email: email.toLowerCase().trim() });
+  if (username) dupOr.push({ username });
+  const existingUser = await User.findOne({ $or: dupOr });
 
   if (existingUser) {
     return res.status(400).json({ 
@@ -164,14 +165,14 @@ export const createStaff = asyncHandler(async (req, res) => {
     });
   }
 
-  // Create user data
+  // Create user data. Email is optional — omit it entirely when blank so the
+  // sparse unique index skips this user (storing '' would still collide).
   const userData = {
     username: finalUsername,
     password: finalPassword,
-    email: email.toLowerCase().trim(),
     phone: phone.trim(),
     firstName: firstName.trim(),
-    lastName: lastName.trim(),
+    lastName: (lastName || '').trim(),
     role: roleId,
     department: departmentId,
     permissions: userPermissions,
@@ -183,6 +184,9 @@ export const createStaff = asyncHandler(async (req, res) => {
     },
     createdBy: req.user.id
   };
+  if (email && email.trim()) {
+    userData.email = email.toLowerCase().trim();
+  }
 
   // Create new user
   const user = new User(userData);

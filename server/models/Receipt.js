@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 
+import { registerModel } from "../db/modelRegistry.js";
 // Payment receipt — a dedicated, immutable audit record issued exactly once
 // per completed order. Everything is SNAPSHOTTED (items, totals, customer,
 // table label) so the receipt stays a faithful record of what was charged
@@ -75,4 +76,4 @@ receiptSchema.pre('save', async function () {
   }
 });
 
-export default mongoose.model('Receipt', receiptSchema);
+export default registerModel('Receipt', receiptSchema);

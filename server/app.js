@@ -348,6 +348,12 @@ import channelManagerRoutes from "./routes/channelManagerRoutes.js";
 // Activity logging for operational data mutations
 import { auditMutations } from "./middleware/auditMutations.js";
 
+// Multi-tenant: resolve the hotel from the request host and bind its database
+// for the rest of the request. Must run before any route that touches a model.
+// The control plane that manages hotels is a SEPARATE service (see ../platform);
+// this app only reads the tenant registry to route requests.
+import { resolveTenant } from "./middleware/resolveTenant.js";
+
 const apiRoutes = [
   // Core system
   ["/api/auth", authRoutes],
@@ -397,6 +403,10 @@ const apiRoutes = [
   ["/api/channels", channelRoutes],
   ["/api/channel-manager", channelManagerRoutes],
 ];
+
+// Resolve the tenant (hotel) for every API request before the routers run, so
+// downstream controllers/helpers query the correct hotel's database.
+app.use("/api", haltOnTimedout, resolveTenant);
 
 for (const [path, router, resource] of apiRoutes) {
   if (resource) {

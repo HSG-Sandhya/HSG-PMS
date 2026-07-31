@@ -27,6 +27,7 @@ import { currentTimeHHmm } from './bookingForm/stepConstants';
 import { PremiumSection } from './bookingForm/premium';
 import BookingMetaBar from './bookingForm/BookingMetaBar';
 import RoomSelectionGrid from './bookingForm/RoomSelectionGrid';
+import RoomGuestPanels from './bookingForm/RoomGuestPanels';
 import ServicesPicker from './bookingForm/ServicesPicker';
 import AadhaarCapture from './bookingForm/AadhaarCapture';
 import ExtraChargesEditor from './bookingForm/ExtraChargesEditor';
@@ -149,8 +150,13 @@ const BookingForm = ({
   //   total = room base + breakfast + extras + GST(on room subtotal) − discount.
   // Deps deliberately exclude the amount outputs, so this never loops.
   useEffect(() => {
-    const room = rooms.find(r => r._id === formData.roomId);
-    if (!room) {
+    // Sum every room selected for this party (one guest per room, saved as its
+    // own booking). One room → identical to the previous single-room bill.
+    const selIds = Array.isArray(formData.roomIds) && formData.roomIds.length
+      ? formData.roomIds
+      : (formData.roomId ? [formData.roomId] : []);
+    const selRooms = selIds.map(id => rooms.find(r => r._id === id)).filter(Boolean);
+    if (!selRooms.length) {
       // New booking with no room picked → clear the bill. On edit, a missing
       // room (e.g. deleted) must NOT wipe the amounts loaded from the booking.
       if (!booking) {
@@ -163,8 +169,10 @@ const BookingForm = ({
       return;
     }
     const nights = calculateNights(formData.checkInDate, formData.checkInTime, formData.checkOutDate, formData.checkOutTime);
-    const baseAmount = (room.pricePerNight || 0) * nights;
-    const breakfastAmount = formData.tariffType === 'breakfast' ? calcBreakfast(nights, billing) : 0;
+    const roomRateSum = selRooms.reduce((s, r) => s + (r.pricePerNight || 0), 0);
+    const baseAmount = roomRateSum * nights;
+    // Breakfast is per room per night.
+    const breakfastAmount = formData.tariffType === 'breakfast' ? calcBreakfast(nights, billing) * selRooms.length : 0;
     const ec = formData.extraCharges || {};
     const extraChargesTotal = ['extraBed', 'extraPerson', 'foodPackage', 'laundry', 'transport', 'other']
       .reduce((s, k) => s + (Number(ec[k]) || 0), 0);
@@ -188,7 +196,7 @@ const BookingForm = ({
       remainingAmount,
     }));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [booking, formData.roomId, formData.checkInDate, formData.checkInTime, formData.checkOutDate, formData.checkOutTime, formData.tariffType, formData.discount, formData.extraCharges, formData.paidAmount, rooms, billing]);
+  }, [booking, formData.roomId, formData.roomIds, formData.checkInDate, formData.checkInTime, formData.checkOutDate, formData.checkOutTime, formData.tariffType, formData.discount, formData.extraCharges, formData.paidAmount, rooms, billing]);
 
   useEffect(() => {
 
@@ -464,7 +472,33 @@ const BookingForm = ({
   const selectedRoom = rooms.find((r) => r._id === formData.roomId) || null;
   const bookingId = formData.bookingId || booking?.bookingId || '';
 
+  // Multi-room selection (individual flow, one guest per room). roomIds is the
+  // source of truth; roomId mirrors the first so all single-room logic keeps
+  // working. Editing an existing booking stays single-room.
+  const selectedRoomIds = !booking && Array.isArray(formData.roomIds) && formData.roomIds.length
+    ? formData.roomIds
+    : (formData.roomId ? [formData.roomId] : []);
+  const selectedRooms = selectedRoomIds.map((id) => rooms.find((r) => r._id === id)).filter(Boolean);
+
   const onSelectRoom = (roomId) => handleRoomChange({ target: { value: roomId } });
+  const onToggleRoom = (roomId) => setFormData((prev) => {
+    const cur = Array.isArray(prev.roomIds) && prev.roomIds.length
+      ? prev.roomIds
+      : (prev.roomId ? [prev.roomId] : []);
+    const exists = cur.includes(roomId);
+    const nextIds = exists ? cur.filter((x) => x !== roomId) : [...cur, roomId];
+    const nextAssignments = { ...(prev.roomAssignments || {}) };
+    if (exists) delete nextAssignments[roomId];
+    else nextAssignments[roomId] = nextAssignments[roomId] || { idCardType: 'Aadhaar Card' };
+    return { ...prev, roomIds: nextIds, roomId: nextIds[0] || '', roomAssignments: nextAssignments };
+  });
+  const onAssignmentChange = (roomId, patch) => setFormData((prev) => ({
+    ...prev,
+    roomAssignments: {
+      ...(prev.roomAssignments || {}),
+      [roomId]: { ...((prev.roomAssignments || {})[roomId] || {}), ...patch },
+    },
+  }));
   const onServicesChange = (arr) => setFormData((prev) => ({ ...prev, additionalServices: arr }));
   const onExtraChargesChange = (next) => setFormData((prev) => ({ ...prev, extraCharges: next }));
 
@@ -559,14 +593,30 @@ const BookingForm = ({
               </PremiumSection>
 
               <PremiumSection index={3} icon={<MeetingRoomIcon />} title="Room Selection"
-                subtitle="Pick an available room for the selected dates">
+                subtitle={booking
+                  ? 'Pick an available room for the selected dates'
+                  : 'Tap rooms to select — pick more than one to book several rooms in one go'}>
                 <RoomSelectionGrid
                   rooms={rooms}
+                  multiple={!booking}
                   value={formData.roomId}
                   onSelect={onSelectRoom}
+                  selectedIds={selectedRoomIds}
+                  onToggle={onToggleRoom}
                   checkInDate={formData.checkInDate}
                   checkOutDate={formData.checkOutDate}
                 />
+                {!booking && selectedRoomIds.length > 1 && (
+                  <Box sx={{ mt: 2.5 }}>
+                    <RoomGuestPanels
+                      rooms={rooms}
+                      selectedIds={selectedRoomIds}
+                      assignments={formData.roomAssignments || {}}
+                      onAssignmentChange={onAssignmentChange}
+                      onRemoveRoom={onToggleRoom}
+                    />
+                  </Box>
+                )}
               </PremiumSection>
 
               <PremiumSection index={4} icon={<ExploreIcon />} title="Travel & Address"
@@ -651,6 +701,7 @@ const BookingForm = ({
             <ReservationSummary
               formData={formData}
               room={selectedRoom}
+              party={selectedRooms}
               onSave={onSave}
               onConfirm={onConfirm}
               onCancel={onCancel}

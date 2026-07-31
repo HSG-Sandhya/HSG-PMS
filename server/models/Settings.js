@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
-const { Schema, model } = mongoose;
+const { Schema } = mongoose;
+import { registerModel, modelFor } from '../db/modelRegistry.js';
 import {
   LANGUAGES,
   AMENITIES,
@@ -479,7 +480,7 @@ SettingsSchema.statics.getSettings = async function() {
         if (match) {
           const [, contentType, b64] = match;
           const buffer = Buffer.from(b64, 'base64');
-          const ImageModel = mongoose.model('Image');
+          const ImageModel = modelFor('Image');
           const created = await ImageModel.create({
             data: buffer,
             contentType,
@@ -835,7 +836,7 @@ SettingsSchema.statics.resetSettings = async function() {
 };
 
 // ---- Export ---------------------------------------------------------------
-const Settings = mongoose.models.Settings || model('Settings', SettingsSchema);
+const Settings = registerModel('Settings', SettingsSchema);
 
 // Export both default and named exports for compatibility
 export default Settings;

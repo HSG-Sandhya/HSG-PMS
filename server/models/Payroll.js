@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { registerModel, modelFor } from "../db/modelRegistry.js";
 import mongoosePaginate from "mongoose-paginate-v2";
 import { getOps } from "../config/operationalConfig.js";
 
@@ -10,7 +11,7 @@ const payrollSchema = new mongoose.Schema({
     required: true,
     validate: {
       validator: async function(staffId) {
-        const staff = await mongoose.model('User').findById(staffId).populate('role');
+        const staff = await modelFor('User').findById(staffId).populate('role');
         if (!staff) return false;
         
         // Exclude admin and system admin from payroll
@@ -195,7 +196,7 @@ payrollSchema.virtual('workingPercentage').get(function() {
 payrollSchema.methods.calculatePayroll = async function() {
   try {
     // Get attendance records for the payroll period
-    const Attendance = mongoose.model('Attendance');
+    const Attendance = modelFor('Attendance');
     const attendanceRecords = await Attendance.find({
       staff: this.staff,
       date: {
@@ -234,47 +235,43 @@ payrollSchema.methods.calculatePayroll = async function() {
         ((this.attendance.presentDays + (this.attendance.halfDays * 0.5)) / this.attendance.workingDays) * 100;
     }
 
-    // Calculate basic pay based on attendance
-    const attendanceRatio = this.attendance.attendancePercentage / 100;
-    this.earnings.basicPay = this.salary.basic * attendanceRatio;
+    // Salary is a flat daily rate — monthly basic divided by 30 — paid only for
+    // the days actually attended. Half-days earn half a day's pay; absent and
+    // leave days are unpaid. There are no statutory deductions (PF/ESI): pay is
+    // purely attendance-based per hotel policy.
+    const DAYS_IN_MONTH = 30;
+    const perDayRate = this.salary.basic / DAYS_IN_MONTH;
+    const payableDays = (this.attendance.presentDays || 0) + (this.attendance.halfDays || 0) * 0.5;
+    this.earnings.basicPay = perDayRate * payableDays;
 
-    // Calculate overtime pay (with safety checks). The multiplier is
+    // Overtime pay (only when overtime hours are logged). The multiplier is
     // configurable in Settings → Operations → Payroll (defaults to 1.5×).
     const { payroll: payrollCfg } = await getOps();
     const otMultiplier = Number(payrollCfg?.overtimeMultiplier) || 1.5;
-    const workingHours = (this.attendance.workingDays || 22) * 8;
-    const hourlyRate = workingHours > 0 ? this.salary.basic / workingHours : 0;
+    const hourlyRate = perDayRate / 8;
     this.earnings.overtimePay = (this.attendance.overtimeHours || 0) * hourlyRate * otMultiplier;
 
-    // Calculate allowances (proportional to attendance)
+    // Allowances are prorated on the same daily basis (payable days / 30).
+    const attendanceRatio = payableDays / DAYS_IN_MONTH;
     Object.keys(this.earnings.allowances).forEach(key => {
       if (this.earnings.allowances[key] > 0) {
         this.earnings.allowances[key] *= attendanceRatio;
       }
     });
 
-    // Calculate deductions for late/absent days (with safety checks)
-    const workingDays = this.attendance.workingDays || 22;
-    const dailyRate = workingDays > 0 ? this.salary.basic / workingDays : 0;
-    this.deductions.absentDeduction = (this.attendance.absentDays || 0) * dailyRate;
-    const lateCount = attendanceRecords ? attendanceRecords.filter(a => a.isLate).length : 0;
-    this.deductions.lateDeduction = lateCount * (dailyRate * 0.1);
-
-    // Calculate statutory deductions
-    const grossSalary = this.earnings.basicPay + Object.values(this.earnings.allowances).reduce((a, b) => a + b, 0);
-    
-    // PF: 12% of basic salary (if basic > 15000, then on 15000 only)
-    const pfBasic = Math.min(this.earnings.basicPay, 15000);
-    this.deductions.pf = pfBasic * 0.12;
-
-    // ESI: 0.75% of gross salary (if gross <= 21000)
-    if (grossSalary <= 21000) {
-      this.deductions.esi = grossSalary * 0.0075;
-    }
+    // No statutory or attendance-penalty deductions. Unpaid days are already
+    // reflected in a lower basic pay above, so there is no separate absent or
+    // late deduction, and PF/ESI/TDS are all zero. Only advances and mobile
+    // recharges are recovered from salary (computed below).
+    this.deductions.pf = 0;
+    this.deductions.esi = 0;
+    this.deductions.tds = 0;
+    this.deductions.absentDeduction = 0;
+    this.deductions.lateDeduction = 0;
 
     // Recover advance payments taken during the period from salary
     try {
-      const StaffTransaction = mongoose.model('StaffTransaction');
+      const StaffTransaction = modelFor('StaffTransaction');
       const advanceTxns = await StaffTransaction.find({
         staff: this.staff,
         type: 'advance',
@@ -287,7 +284,7 @@ payrollSchema.methods.calculatePayroll = async function() {
 
     // Recover mobile recharges done during the period from salary
     try {
-      const StaffRecharge = mongoose.model('StaffRecharge');
+      const StaffRecharge = modelFor('StaffRecharge');
       const rechargeTxns = await StaffRecharge.find({
         staff: this.staff,
         date: { $gte: this.payrollPeriod.startDate, $lte: this.payrollPeriod.endDate }
@@ -377,7 +374,7 @@ payrollSchema.statics.generateForStaff = async function(staffId, month, year) {
   }
 
   // Get staff details
-  const User = mongoose.model('User');
+  const User = modelFor('User');
   const staff = await User.findById(staffId).populate('role');
   
   if (!staff) {
@@ -410,6 +407,28 @@ payrollSchema.statics.generateForStaff = async function(staffId, month, year) {
   // Calculate payroll
   await payroll.calculatePayroll();
   
+  return payroll;
+};
+
+// Live-compute a payroll for a staff member WITHOUT persisting it or checking
+// for an existing record. Used by the payroll dashboard to show every eligible
+// staff member's up-to-the-minute figures before anyone clicks "Generate".
+// Pass a pre-loaded staff doc to avoid a per-row lookup when iterating.
+payrollSchema.statics.previewForStaff = async function(staffId, month, year, staffDoc = null) {
+  const User = modelFor('User');
+  const staff = staffDoc || await User.findById(staffId).populate('role');
+  if (!staff) throw new Error('Staff not found');
+  if (staff.isSystemAdmin || (staff.role && ['Admin', 'System Administrator'].includes(staff.role.name))) {
+    throw new Error('Cannot compute payroll for Admin or System Administrator');
+  }
+  const startDate = new Date(year, month - 1, 1);
+  const endDate = new Date(year, month, 0);
+  const payroll = new this({
+    staff: staff._id,
+    payrollPeriod: { month, year, startDate, endDate },
+    salary: { basic: staff.profile?.salary || 0 },
+  });
+  await payroll.calculatePayroll(); // attendance, advances, recharges, statutory
   return payroll;
 };
 
@@ -447,4 +466,4 @@ payrollSchema.index({ staff: 1, 'payrollPeriod.month': 1, 'payrollPeriod.year': 
 payrollSchema.index({ status: 1, 'payrollPeriod.year': -1, 'payrollPeriod.month': -1 });
 payrollSchema.index({ 'payrollPeriod.year': -1, 'payrollPeriod.month': -1 });
 
-export default mongoose.model("Payroll", payrollSchema);
+export default registerModel("Payroll", payrollSchema);

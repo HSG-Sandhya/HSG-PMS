@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 
+import { registerModel } from "../db/modelRegistry.js";
 // A persistent corporate / travel-agent / government account. Holds the
 // negotiated rate plan (contractRates per room type) and a credit account
 // (limit, terms, running balance) so company bookings can pull contract rates
@@ -49,4 +50,4 @@ companySchema.virtual("creditAvailable").get(function () {
 companySchema.set("toJSON", { virtuals: true });
 companySchema.set("toObject", { virtuals: true });
 
-export default mongoose.model("Company", companySchema);
+export default registerModel("Company", companySchema);

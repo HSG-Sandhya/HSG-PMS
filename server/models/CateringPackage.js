@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 
+import { registerModel } from "../db/modelRegistry.js";
 // A reusable catering package — a named per-plate menu bundle (e.g. "Silver Veg
 // Thali", "Royal Non-Veg Buffet"). Staff define it once with a price-per-plate
 // and the list of dishes it includes, then pick it on a booking so the catering
@@ -20,4 +21,4 @@ const cateringPackageSchema = new mongoose.Schema({
   isActive: { type: Boolean, default: true },
 }, { timestamps: true });
 
-export default mongoose.model('CateringPackage', cateringPackageSchema);
+export default registerModel('CateringPackage', cateringPackageSchema);

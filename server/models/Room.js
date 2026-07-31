@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 
+import { registerModel } from "../db/modelRegistry.js";
 const roomSchema = new mongoose.Schema({
   roomNumber: { type: String, required: true, unique: true, trim: true },
 
@@ -80,5 +81,5 @@ const roomSchema = new mongoose.Schema({
   }
 }, { timestamps: true });
 
-const Room = mongoose.models.Room || mongoose.model("Room", roomSchema);
+const Room = registerModel("Room", roomSchema);
 export default Room;

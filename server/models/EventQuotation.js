@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 
+import { registerModel } from "../db/modelRegistry.js";
 // A standalone sales quotation for a banquet enquiry — created BEFORE any
 // booking exists. Staff quote one or more package options side by side (the
 // printed sheet shows them as columns), the client picks one, and the accepted
@@ -137,4 +138,4 @@ eventQuotationSchema.pre('save', function () {
   }
 });
 
-export default mongoose.model('EventQuotation', eventQuotationSchema);
+export default registerModel('EventQuotation', eventQuotationSchema);

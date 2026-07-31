@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 
+import { registerModel } from "../db/modelRegistry.js";
 // A reusable decoration package — a named décor bundle (e.g. "Royal Stage &
 // Mandap", "Floral Entrance", "Birthday Balloon Theme"). Staff define it once
 // with a flat price and the list of what it includes, then pick it (one or
@@ -25,4 +26,4 @@ const decorationPackageSchema = new mongoose.Schema({
   isActive: { type: Boolean, default: true },
 }, { timestamps: true });
 
-export default mongoose.model('DecorationPackage', decorationPackageSchema);
+export default registerModel('DecorationPackage', decorationPackageSchema);

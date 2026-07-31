@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 
+import { registerModel } from "../db/modelRegistry.js";
 const staffRechargeSchema = new mongoose.Schema({
   staff: {
     type: mongoose.Schema.Types.ObjectId,
@@ -154,4 +155,4 @@ staffRechargeSchema.pre('save', function() {
   }
 });
 
-export default mongoose.model('StaffRecharge', staffRechargeSchema);
+export default registerModel('StaffRecharge', staffRechargeSchema);

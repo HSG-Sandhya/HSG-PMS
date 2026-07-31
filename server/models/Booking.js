@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { registerModel } from "../db/modelRegistry.js";
 import { BILLING_DEFAULTS } from "../config/operationalDefaults.js";
 
 const bookingSchema = new mongoose.Schema({
@@ -296,4 +297,4 @@ bookingSchema.pre("save", function () {
   this.remainingAmount = Math.max(0, this.totalAmount - this.paidAmount);
 });
 
-export default mongoose.models.Booking || mongoose.model("Booking", bookingSchema);
+export default registerModel("Booking", bookingSchema);

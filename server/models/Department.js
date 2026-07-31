@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 
+import { registerModel } from "../db/modelRegistry.js";
 const departmentSchema = new mongoose.Schema({
   name: {
     type: String,
@@ -117,4 +118,4 @@ departmentSchema.statics.getColorMap = function() {
   };
 };
 
-export default mongoose.model('Department', departmentSchema);
+export default registerModel('Department', departmentSchema);

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Box,
   Typography,
@@ -25,6 +25,8 @@ import {
   TableHead,
   TableRow,
   Paper,
+  Stack,
+  Divider,
   useTheme,
 } from '@mui/material';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -42,7 +44,7 @@ import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import FormDialog, { FormSection } from './forms/FormDialog';
 import api from '../api';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, subMonths } from 'date-fns';
 import { useOperations } from '../hooks/useBilling';
 import { currencySym } from '../utils/billing';
 
@@ -110,10 +112,16 @@ const StaffAttendanceCards = () => {
       // The API returns { success: true, data: users[], message: '...' }
       const users = response.data.data || [];
       
-      const staffMembers = users.filter(user => 
-        !user.isSystemAdmin && 
+      // Exclude admin / owner accounts from the operational staff list. As well
+      // as the isSystemAdmin flag and the Admin/System Administrator/Owner roles,
+      // anyone in the "System Administration" department is an admin account
+      // (e.g. the Owner and a General Manager) and shouldn't be tracked for
+      // attendance or payroll.
+      const staffMembers = users.filter(user =>
+        !user.isSystemAdmin &&
         user.isActive &&
-        (!user.role || !['Admin', 'System Administrator'].includes(user.role?.name))
+        !['Admin', 'System Administrator', 'Owner'].includes(user.role?.name) &&
+        (user.department?.name || '') !== 'System Administration'
       );
       
       setStaff(staffMembers);
@@ -267,7 +275,11 @@ const StaffAttendanceCards = () => {
 
     const payload = {
       staff: selectedStaff._id,
-      date: selectedDate.toISOString(),
+      // Send the clicked calendar day as a plain date (no time/zone). Using
+      // toISOString() here shifted the day back by one in +05:30 IST — local
+      // midnight July 22 serialises to 2026-07-21T18:30Z, which the UTC server
+      // floored to July 21, so the mark landed on the previous date.
+      date: format(selectedDate, 'yyyy-MM-dd'),
       status: attendanceForm.status,
       notes: attendanceForm.notes,
     };
@@ -332,6 +344,36 @@ const StaffAttendanceCards = () => {
       showSnackbar(error.response?.data?.message || 'Error generating payroll', 'error');
     }
   };
+
+  // Previous calendar month's settlement for the staff in the Money Tracking
+  // dialog: base salary plus additions (bonus, overtime) minus what was already
+  // paid out or withheld (advances, deductions, loans) from transactions dated
+  // in that month. Everything is derived from the already-loaded transactions,
+  // so no extra request is needed.
+  const prevSettlement = useMemo(() => {
+    const prev = subMonths(new Date(), 1);
+    const start = startOfMonth(prev);
+    const end = endOfMonth(prev);
+    const inPrev = (moneyTransactions || []).filter((t) => {
+      const d = new Date(t.date);
+      return d >= start && d <= end;
+    });
+    const sumBy = (type) => inPrev
+      .filter((t) => t.type === type)
+      .reduce((s, t) => s + (Number(t.amount) || 0), 0);
+    const advance = sumBy('advance');
+    const deduction = sumBy('deduction');
+    const loan = sumBy('loan');
+    const bonus = sumBy('bonus');
+    const overtime = sumBy('overtime');
+    const baseSalary = Number(selectedStaff?.profile?.salary) || Number(ops?.payroll?.defaultSalary) || 0;
+    const net = baseSalary + bonus + overtime - advance - deduction - loan;
+    return {
+      monthLabel: format(prev, 'MMMM yyyy'),
+      baseSalary, advance, deduction, loan, bonus, overtime, net,
+      hasActivity: inPrev.length > 0,
+    };
+  }, [moneyTransactions, selectedStaff, ops]);
 
   // Money Tracking Functions
   const openMoneyDialog = async (staffMember) => {
@@ -992,6 +1034,43 @@ const StaffAttendanceCards = () => {
           hideCancel
           submitLabel="Close"
         >
+            {/* Previous month settlement summary */}
+            <Box sx={{
+              mb: 2, p: 2, borderRadius: 3, border: '1px solid', borderColor: 'divider',
+              background: 'linear-gradient(135deg, rgba(99,102,241,0.10), rgba(139,92,246,0.06))',
+            }}>
+              <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'flex-start', gap: 2 }}>
+                <Box>
+                  <Typography variant="overline" sx={{ letterSpacing: 1, color: 'text.secondary', fontWeight: 700 }}>
+                    Previous Month Settlement
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: 'text.secondary', mt: -0.5 }}>
+                    {prevSettlement.monthLabel}
+                  </Typography>
+                </Box>
+                <Box sx={{ textAlign: 'right' }}>
+                  <Typography variant="h5" sx={{ fontWeight: 800, color: prevSettlement.net >= 0 ? '#059669' : '#dc2626', lineHeight: 1.1 }}>
+                    {currencySym()}{Math.round(prevSettlement.net).toLocaleString('en-IN')}
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>Net payable</Typography>
+                </Box>
+              </Stack>
+              <Divider sx={{ my: 1.25 }} />
+              <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
+                <Chip size="small" variant="outlined" label={`Salary ${currencySym()}${prevSettlement.baseSalary.toLocaleString('en-IN')}`} />
+                {prevSettlement.bonus > 0 && <Chip size="small" variant="outlined" sx={{ color: '#059669', borderColor: '#a7f3d0' }} label={`+ Bonus ${currencySym()}${prevSettlement.bonus.toLocaleString('en-IN')}`} />}
+                {prevSettlement.overtime > 0 && <Chip size="small" variant="outlined" sx={{ color: '#059669', borderColor: '#a7f3d0' }} label={`+ Overtime ${currencySym()}${prevSettlement.overtime.toLocaleString('en-IN')}`} />}
+                {prevSettlement.advance > 0 && <Chip size="small" variant="outlined" sx={{ color: '#dc2626', borderColor: '#fecaca' }} label={`− Advances ${currencySym()}${prevSettlement.advance.toLocaleString('en-IN')}`} />}
+                {prevSettlement.deduction > 0 && <Chip size="small" variant="outlined" sx={{ color: '#dc2626', borderColor: '#fecaca' }} label={`− Deductions ${currencySym()}${prevSettlement.deduction.toLocaleString('en-IN')}`} />}
+                {prevSettlement.loan > 0 && <Chip size="small" variant="outlined" sx={{ color: '#dc2626', borderColor: '#fecaca' }} label={`− Loan ${currencySym()}${prevSettlement.loan.toLocaleString('en-IN')}`} />}
+              </Stack>
+              {!prevSettlement.hasActivity && (
+                <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mt: 1 }}>
+                  No advances or adjustments recorded for {prevSettlement.monthLabel} — settlement equals the base salary.
+                </Typography>
+              )}
+            </Box>
+
             {/* Add New Transaction */}
             <FormSection title="Add New Transaction" icon={<WalletIcon fontSize="small" />} iconColor="#6366f1">
               <Grid container spacing={2}>

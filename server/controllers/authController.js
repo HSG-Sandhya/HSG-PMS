@@ -7,6 +7,7 @@ import logger from '../config/logger.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { logActivity } from '../utils/activityLogger.js';
 import { sendOtp, verifyOtp, isVerified, clearOtp } from '../services/otpService.js';
+import { getCurrentTenant } from '../db/tenantContext.js';
 
 // Login user
 export const login = asyncHandler(async (req, res) => {
@@ -98,7 +99,9 @@ export const login = asyncHandler(async (req, res) => {
     department: user.department?._id || user.department,
     departmentName: user.department?.name || 'General',
     isSystemAdmin: user.isSystemAdmin || false,
-    permissions: user.permissions || []
+    permissions: user.permissions || [],
+    // Bind this token to the hotel it was issued for (multi-tenant isolation).
+    tenant: getCurrentTenant().slug
   };
 
   const token = jwt.sign(
@@ -378,6 +381,7 @@ export const refreshToken = asyncHandler(async (req, res) => {
     id: crypto.randomUUID(), // Temporary ID for anonymous refresh
     sessionId: crypto.randomBytes(16).toString('hex'),
     type: 'refresh',
+    tenant: getCurrentTenant().slug, // keep the token bound to its hotel
     iat: Math.floor(Date.now() / 1000),
     exp: Math.floor(Date.now() / 1000) + (24 * 60 * 60) // 24 hours
   };

@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { registerModel } from "../db/modelRegistry.js";
 import crypto from "crypto";
 
 // Character sets for auto-generated passwords. Ambiguous glyphs (I, O, l, 0, 1)
@@ -143,4 +144,4 @@ roleSchema.methods.toPublic = function () {
   };
 };
 
-export default mongoose.model("Role", roleSchema);
+export default registerModel("Role", roleSchema);
