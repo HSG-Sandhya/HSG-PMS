@@ -759,6 +759,10 @@ export const getPosSales = async (req, res) => {
 
 // ── CSV Import ────────────────────────────────────────────────────────────────
 
+// Menu CSVs often omit a veg/non-veg column. When absent, infer from the item
+// name — anything mentioning meat, fish, egg or an omelette is non-veg.
+const NON_VEG_RE = /\b(chicken|mutton|fish|egg|omelette|omlette|prawn|shrimp|crab|keema|kheema|murg|murgh|lamb|meat|seafood)\b/i;
+
 export const uploadMenuCsv = async (req, res) => {
   if (!req.file) {
     return res.status(400).json({
@@ -783,6 +787,35 @@ export const uploadMenuCsv = async (req, res) => {
     let fileContent = fs.readFileSync(filePath, 'utf8');
     if (fileContent.charCodeAt(0) === 0xfeff) fileContent = fileContent.slice(1);
 
+    // ── Normalise common real-world menu CSVs ────────────────────────────────
+    // Two quirks break the header-based parser below: a leading title row
+    // (e.g. "Table 1") that steals the header slot, and an unlabeled price
+    // column ("Category,Item Name,<blank>"). Drop any junk rows before the real
+    // header and give the blank price column a name so the mapping can find it.
+    // Well-formed CSVs (header on line 1, all columns named) pass through
+    // unchanged. headerOffset keeps reported row numbers aligned to the source.
+    let headerOffset = 0;
+    {
+      const lines = fileContent.split(/\r?\n/);
+      const isHeaderLine = (l) => /(^|,)\s*"?\s*(item\s*name|item|name)\s*"?\s*(,|$)/i.test(l);
+      const headerIdx = lines.findIndex(isHeaderLine);
+      if (headerIdx >= 0) {
+        if (headerIdx > 0) { lines.splice(0, headerIdx); headerOffset = headerIdx; }
+        const cells = lines[0].split(',').map((c) => c.trim());
+        if (cells.some((c) => c === '')) {
+          let priceNamed = cells.some((c) => /price/i.test(c));
+          lines[0] = cells
+            .map((c, i) => {
+              if (c) return c;
+              if (!priceNamed) { priceNamed = true; return 'Price'; }
+              return `Column_${i + 1}`;
+            })
+            .join(',');
+        }
+        fileContent = lines.join('\n');
+      }
+    }
+
     const results = [];
 
     await new Promise((resolve, reject) => {
@@ -802,9 +835,12 @@ export const uploadMenuCsv = async (req, res) => {
 
       stream.on('end', async () => {
         try {
+          // Menu price lists usually name the category only on the first item
+          // of each group and leave it blank for the rest — carry it down.
+          let lastCategory = '';
           for (let i = 0; i < results.length; i++) {
             const row = results[i];
-            const rowNumber = i + 2;
+            const rowNumber = i + 2 + headerOffset;
 
             try {
               const categoryValue = getFirstValue(row, ['category', 'Category', 'category_name']);
@@ -812,6 +848,8 @@ export const uploadMenuCsv = async (req, res) => {
                 categoryValue && !isPositivePrice(categoryValue)
                   ? categoryValue.toString().trim()
                   : '';
+              const effectiveCategory = categoryNameFromCsv || lastCategory;
+              if (categoryNameFromCsv) lastCategory = categoryNameFromCsv;
               const hindiName = getFirstValue(row, [
                 'Hindi Name',
                 'Item Hindi Name',
@@ -835,7 +873,7 @@ export const uploadMenuCsv = async (req, res) => {
                     'Online Price',
                   ]) || (isPositivePrice(categoryValue) ? categoryValue : undefined),
                 category:
-                  categoryNameFromCsv ||
+                  effectiveCategory ||
                   req.body.category ||
                   req.body.defaultCategory ||
                   'Imported Menu',
@@ -903,9 +941,13 @@ export const uploadMenuCsv = async (req, res) => {
                 description: mappedRow.description ? mappedRow.description.toString().trim() : '',
                 price: parseFloat(parsedPrice.toFixed(2)),
                 category: category._id,
-                isVeg: ['true', '1', 'yes', 'y', 'veg', 'vegetarian'].includes(
-                  (mappedRow.isVeg || 'true').toString().toLowerCase().trim()
-                ),
+                // Respect an explicit veg column; otherwise infer from the name
+                // (chicken/mutton/fish/egg/… = non-veg) so items aren't all veg.
+                isVeg: (mappedRow.isVeg || '').toString().trim()
+                  ? ['true', '1', 'yes', 'y', 'veg', 'vegetarian'].includes(
+                      mappedRow.isVeg.toString().toLowerCase().trim()
+                    )
+                  : !NON_VEG_RE.test(itemName),
                 preparationTime:
                   mappedRow.preparationTime && !isNaN(Number(mappedRow.preparationTime))
                     ? Math.max(1, Number(mappedRow.preparationTime))

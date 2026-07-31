@@ -24,6 +24,12 @@ const readBrandCache = () => {
   try { return JSON.parse(localStorage.getItem(BRAND_CACHE_KEY)) || null; } catch { return null; }
 };
 
+// GET /settings/public/branding ships with the multi-tenancy server update and
+// is NOT on production yet — calling it only logs a 404 on the login page.
+// Keep this false until that route is deployed; flip to true to re-enable
+// dynamic branding. Until then the login uses cached / neutral branding.
+const BRANDING_ENDPOINT_LIVE = false;
+
 // Fresh per-channel OTP state (email / phone).
 const OTP_INIT = { sent: false, code: '', verified: false, sending: false, verifying: false, error: '', cooldown: 0, dev: '' };
 
@@ -188,6 +194,11 @@ const Login = () => {
     () => readBrandCache() || { hotelName: '', tagline: '', logo: '' }
   );
 
+  // With the branding endpoint disabled (single-tenant prod), fall back to the
+  // hotel's bundled logo so the login still shows it. When BRANDING_ENDPOINT_LIVE
+  // turns on (multi-tenant), use only the per-hotel logo from the server.
+  const logoSrc = branding.logo || (BRANDING_ENDPOINT_LIVE ? '' : '/images/sandhya-logo.png');
+
   // First-run setup: when the database has no users, the login screen turns
   // into a "create the first admin" form instead. The backend closes this the
   // instant any account exists, so it only ever appears on a fresh install.
@@ -223,6 +234,7 @@ const Login = () => {
 
   // Fetch this hotel's public branding (resolved from the subdomain server-side).
   useEffect(() => {
+    if (!BRANDING_ENDPOINT_LIVE) return undefined; // endpoint not deployed yet
     let active = true;
     api.settings.getPublicBranding()
       .then((res) => {
@@ -530,10 +542,10 @@ const Login = () => {
           </Box>
 
           {/* Middle — big logo (falls back to the hotel's initial / a glyph) */}
-          {branding.logo ? (
+          {logoSrc ? (
             <Box
               component="img"
-              src={branding.logo}
+              src={logoSrc}
               alt={branding.hotelName || 'Hotel logo'}
               sx={{
                 position: 'relative',
