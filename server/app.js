@@ -2,7 +2,7 @@
 import "./config/env.js";
 import express from "express";
 import mongoose from "mongoose";
-import { join, dirname, isAbsolute } from "path";
+import { join, dirname, isAbsolute, sep } from "path";
 import { fileURLToPath } from "url";
 import { existsSync, mkdirSync } from "fs";
 
@@ -486,6 +486,15 @@ if (clientBuildPath) {
       etag: true,
       index: false,
       dotfiles: "ignore",
+      setHeaders: (res, filePath) => {
+        // Files under /static carry a content hash in their name (CRA), so a
+        // changed file is always a NEW url — they can be cached permanently.
+        // At 1 day every user re-downloaded the ~3 MB bundle daily, which on a
+        // weak connection is the difference between loading and timing out.
+        if (IS_PRODUCTION && filePath.includes(`${sep}static${sep}`)) {
+          res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+        }
+      },
     })
   );
 

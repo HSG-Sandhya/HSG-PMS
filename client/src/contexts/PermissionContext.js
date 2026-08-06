@@ -4,6 +4,26 @@ import { useAuth } from './AuthContext';
 
 const PermissionContext = createContext();
 
+// Gated pages in sidebar order, with the permissions that open each one. Used to
+// pick where a user lands when they can't see the page they asked for. Keep in
+// step with the routes in App.js and the menu in components/layout/Sidebar.js.
+const LANDING_ROUTES = [
+  ['/dashboard', ['view_dashboard']],
+  ['/bookings', ['manage_bookings']],
+  ['/reservations', ['manage_reservations']],
+  ['/rooms', ['manage_rooms']],
+  ['/guests', ['manage_guests']],
+  ['/accounting', ['manage_accounting']],
+  ['/staffs', ['manage_staff', 'view_staff', 'create_staff']],
+  ['/workforce', ['manage_attendance', 'manage_payroll', 'view_payroll']],
+  ['/housekeeping', ['manage_housekeeping']],
+  ['/restaurant', ['manage_restaurant']],
+  ['/pos', ['manage_pos']],
+  ['/banquet-hall', ['manage_events']],
+  ['/channels', ['manage_channels']],
+  ['/settings', ['manage_settings']],
+];
+
 export const usePermissions = () => {
   const context = useContext(PermissionContext);
   if (!context) {
@@ -104,6 +124,15 @@ export const PermissionProvider = ({ children }) => {
     if (!role) { return true; }
     return userRole?.toLowerCase() === role.toLowerCase();
   };
+
+  // First page this user is actually allowed to open, in sidebar order. Login
+  // always lands on /dashboard, but a role can be granted (say) only payroll —
+  // without this it would be redirected from /dashboard back to /dashboard.
+  const landingPath = () => {
+    if (isAdmin()) { return '/dashboard'; }
+    const found = LANDING_ROUTES.find(([, perms]) => hasAnyPermission(perms));
+    return found ? found[0] : null;
+  };
   
   const hasAnyRole = (roles) => {
     if (!roles || !roles.length) { return true; }
@@ -124,6 +153,7 @@ export const PermissionProvider = ({ children }) => {
         hasAllPermissions,
         hasRole,
         hasAnyRole,
+        landingPath,
       }}
     >
       {children}

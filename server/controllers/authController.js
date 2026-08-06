@@ -99,7 +99,13 @@ export const login = asyncHandler(async (req, res) => {
     department: user.department?._id || user.department,
     departmentName: user.department?.name || 'General',
     isSystemAdmin: user.isSystemAdmin || false,
-    permissions: user.permissions || [],
+    // Effective permissions = what the ROLE grants plus any user-specific extras.
+    // Role grants are where almost everything lives, so a token carrying only
+    // `user.permissions` made every token-based permission check come up empty.
+    permissions: [...new Set([
+      ...(user.role?.permissions || []),
+      ...(user.permissions || []),
+    ])],
     // Bind this token to the hotel it was issued for (multi-tenant isolation).
     tenant: getCurrentTenant().slug
   };

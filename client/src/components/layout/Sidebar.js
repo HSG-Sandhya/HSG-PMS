@@ -19,6 +19,7 @@ import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import RestaurantIcon from '@mui/icons-material/Restaurant';
 import PointOfSaleIcon from '@mui/icons-material/PointOfSale';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import BadgeIcon from '@mui/icons-material/Badge';
 import LogoutButton from '../../pages/Auth/LogoutButton';
 import ChangePasswordButton from '../ChangePasswordButton';
 import { useSettings } from '../../contexts/SettingsContext';
@@ -91,7 +92,7 @@ const subItemVariants = {
 
 const Sidebar = ({ open: propOpen, toggleSidebar: propToggleSidebar, mobile }) => {
   const { settings } = useSettings();
-  const { hasPermission, isAdmin } = usePermissions();
+  const { hasPermission, hasAnyPermission, isAdmin } = usePermissions();
   const { logout } = useAuth();
   const isDarkMode = settings?.theme?.darkMode;
 
@@ -171,7 +172,12 @@ const Sidebar = ({ open: propOpen, toggleSidebar: propToggleSidebar, mobile }) =
     { title: 'Rooms', path: '/rooms', icon: <Hotel />, color: 'from-purple-400 to-purple-600', permission: 'manage_rooms' },
     { title: 'Guests', path: '/guests', icon: <Person />, color: 'from-yellow-400 to-yellow-600', permission: 'manage_guests' },
     { title: 'Accounting', path: '/accounting', icon: <AccountBalanceWalletIcon />, color: 'from-emerald-400 to-emerald-600', permission: 'manage_accounting' },
-    { title: 'Staff & Payroll', path: '/workforce', icon: <AccessTimeIcon />, color: 'from-cyan-400 to-cyan-600', permission: 'manage_attendance' },
+    // `permissions` (plural) = any one of them is enough. Staff management used to
+    // live only inside Settings, so a role granted Staff permissions but not
+    // `manage_settings` had no way to reach it.
+    { title: 'Staff', path: '/staffs', icon: <BadgeIcon />, color: 'from-orange-400 to-orange-600', permissions: ['manage_staff', 'view_staff', 'create_staff'] },
+    // Attendance and payroll share one workspace, so either side's permission opens it.
+    { title: 'Staff & Payroll', path: '/workforce', icon: <AccessTimeIcon />, color: 'from-cyan-400 to-cyan-600', permissions: ['manage_attendance', 'manage_payroll', 'view_payroll'] },
     { title: 'Housekeeping', path: '/housekeeping', icon: <CleaningServices />, color: 'from-pink-400 to-pink-600', permission: 'manage_housekeeping' },
     { title: 'Restaurant', path: '/restaurant', icon: <RestaurantIcon />, color: 'from-red-400 to-red-600', permission: 'manage_restaurant' },
     { title: 'POS', path: '/pos', icon: <PointOfSaleIcon />, color: 'from-green-400 to-green-600', permission: 'manage_pos' },
@@ -345,7 +351,11 @@ const Sidebar = ({ open: propOpen, toggleSidebar: propToggleSidebar, mobile }) =
         return true;
       }
       
-      // Check specific permission for the menu item
+      // Check specific permission for the menu item — `permissions` lists
+      // alternatives (any one grants access), `permission` is a single string.
+      if (item.permissions) {
+        return hasAnyPermission(item.permissions);
+      }
       return hasPermission(item.permission);
     });
   };

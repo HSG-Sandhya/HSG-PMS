@@ -31,6 +31,7 @@ import {
   VpnKey as VpnKeyIcon,
 } from '@mui/icons-material';
 import api from '../../../api';
+import { usePermissions } from '../../../contexts/PermissionContext';
 import { broadcastSettingsChange } from '../settingsEvents';
 import StaffDialog from '../../StaffDialog';
 import FormDialog from '../../forms/FormDialog';
@@ -42,7 +43,7 @@ const initials = (s) => `${s.firstName?.[0] || ''}${s.lastName?.[0] || ''}`.toUp
 // Profile photo can live in a few places depending on how the record was created.
 const photoOf = (s) => s.avatar || s.photo || s.photoUrl || s.profile?.avatar || s.profile?.photo || '';
 
-const StaffCard = ({ member, onEdit, onDelete, onResetPassword, isDarkMode }) => {
+const StaffCard = ({ member, onEdit, onDelete, onResetPassword, isDarkMode, can }) => {
   const active = member.isActive !== false;
   return (
     <Box
@@ -72,21 +73,27 @@ const StaffCard = ({ member, onEdit, onDelete, onResetPassword, isDarkMode }) =>
         spacing={0.5}
         sx={{ position: 'absolute', top: 12, right: 12, opacity: { xs: 1, md: 0 }, transition: 'opacity .2s ease' }}
       >
-        <Tooltip title="Edit">
-          <IconButton size="small" onClick={() => onEdit(member)} sx={{ bgcolor: 'rgba(var(--app-primary-rgb),0.08)', color: ACCENT }}>
-            <EditIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
-        <Tooltip title="Reset login password">
-          <IconButton size="small" onClick={() => onResetPassword(member)} sx={{ bgcolor: 'rgba(14,165,233,0.10)', color: '#0ea5e9' }}>
-            <VpnKeyIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
-        <Tooltip title="Delete">
-          <IconButton size="small" onClick={() => onDelete(member)} sx={{ bgcolor: 'rgba(239,68,68,0.08)', color: '#ef4444' }}>
-            <DeleteIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
+        {can.edit && (
+          <Tooltip title="Edit">
+            <IconButton size="small" onClick={() => onEdit(member)} sx={{ bgcolor: 'rgba(var(--app-primary-rgb),0.08)', color: ACCENT }}>
+              <EditIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        )}
+        {can.edit && (
+          <Tooltip title="Reset login password">
+            <IconButton size="small" onClick={() => onResetPassword(member)} sx={{ bgcolor: 'rgba(14,165,233,0.10)', color: '#0ea5e9' }}>
+              <VpnKeyIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        )}
+        {can.delete && (
+          <Tooltip title="Delete">
+            <IconButton size="small" onClick={() => onDelete(member)} sx={{ bgcolor: 'rgba(239,68,68,0.08)', color: '#ef4444' }}>
+              <DeleteIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        )}
       </Stack>
       <Stack
         direction="row"
@@ -190,6 +197,20 @@ const StaffCard = ({ member, onEdit, onDelete, onResetPassword, isDarkMode }) =>
 };
 
 const StaffSection = ({ onNotify }) => {
+  // Which actions this user may perform. `manage_staff` is the umbrella grant;
+  // the granular ones stand on their own. Mirrors the server guards in
+  // server/routes/adminRoutes.js so the UI never offers a button that 403s.
+  const { hasPermission, hasAnyPermission } = usePermissions();
+  const can = {
+    // A role can be granted "create staff" WITHOUT the right to browse the
+    // roster — in that case skip the list request entirely rather than firing
+    // one the server will (correctly) refuse.
+    view: hasAnyPermission(['manage_staff', 'view_staff']),
+    create: hasAnyPermission(['manage_staff', 'create_staff']),
+    edit: hasAnyPermission(['manage_staff', 'edit_staff']),
+    // Deleting a record outright needs the umbrella grant.
+    delete: hasPermission('manage_staff'),
+  };
   const [staff, setStaff] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -201,6 +222,11 @@ const StaffSection = ({ onNotify }) => {
     && document.body?.dataset?.theme === 'dark';
 
   const load = useCallback(async () => {
+    if (!can.view) {
+      setStaff([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const res = await api.get('/admin/staff');
@@ -212,7 +238,7 @@ const StaffSection = ({ onNotify }) => {
     } finally {
       setLoading(false);
     }
-  }, [onNotify]);
+  }, [onNotify, can.view]);
 
   useEffect(() => {
     load();
@@ -321,31 +347,39 @@ const StaffSection = ({ onNotify }) => {
           <Typography variant="body2" sx={{
             color: "text.secondary"
           }}>
-            {loading ? 'Loading…' : `${staff.length} ${staff.length === 1 ? 'staff member' : 'staff members'}`}
+            {!can.view
+              ? 'Add a new staff member'
+              : loading ? 'Loading…' : `${staff.length} ${staff.length === 1 ? 'staff member' : 'staff members'}`}
           </Typography>
         </Stack>
         <Stack direction="row" spacing={1}>
-          <Tooltip title="Reload">
-            <IconButton onClick={load} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
-              <RefreshIcon />
-            </IconButton>
-          </Tooltip>
-          <Button startIcon={<AddIcon />} variant="contained" onClick={openCreate} sx={primaryButtonSx}>
-            Add staff
-          </Button>
+          {can.view && (
+            <Tooltip title="Reload">
+              <IconButton onClick={load} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
+                <RefreshIcon />
+              </IconButton>
+            </Tooltip>
+          )}
+          {can.create && (
+            <Button startIcon={<AddIcon />} variant="contained" onClick={openCreate} sx={primaryButtonSx}>
+              Add staff
+            </Button>
+          )}
         </Stack>
       </Stack>
-      <TextField
-        fullWidth
-        size="small"
-        placeholder="Search staff by name, ID, email, role, department…"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        sx={{ mb: 3 }}
-        slotProps={{
-          input: { startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> }
-        }}
-      />
+      {can.view && (
+        <TextField
+          fullWidth
+          size="small"
+          placeholder="Search staff by name, ID, email, role, department…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          sx={{ mb: 3 }}
+          slotProps={{
+            input: { startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> }
+          }}
+        />
+      )}
       {loading ? (
         <Box
           sx={{
@@ -363,11 +397,13 @@ const StaffSection = ({ onNotify }) => {
               color: "text.secondary",
               mb: 2
             }}>
-            {staff.length === 0 ? 'No staff members yet.' : 'No staff match your search.'}
+            {!can.view
+              ? 'Your role can add new staff. Viewing the existing roster needs the View Staff permission.'
+              : staff.length === 0 ? 'No staff members yet.' : 'No staff match your search.'}
           </Typography>
-          {staff.length === 0 && (
+          {staff.length === 0 && can.create && (
             <Button startIcon={<AddIcon />} variant="contained" onClick={openCreate} sx={primaryButtonSx}>
-              Add your first staff member
+              {can.view ? 'Add your first staff member' : 'Add a staff member'}
             </Button>
           )}
         </Box>
@@ -381,7 +417,7 @@ const StaffSection = ({ onNotify }) => {
                 sm: 6,
                 lg: 4
               }}>
-              <StaffCard member={member} onEdit={openEdit} onDelete={handleDelete} onResetPassword={handleResetPassword} isDarkMode={isDarkMode} />
+              <StaffCard member={member} onEdit={openEdit} onDelete={handleDelete} onResetPassword={handleResetPassword} isDarkMode={isDarkMode} can={can} />
             </Grid>
           ))}
         </Grid>

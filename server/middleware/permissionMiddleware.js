@@ -452,8 +452,11 @@ const requireAdmin = async (req, res, next) => {
     }
 
     const user = req.user;
-    const roleName = user.role?.name?.toLowerCase?.() || "";
-    const isAdmin = user.isSystemAdmin || 
+    // `role.name` is only present when req.user is a hydrated User document.
+    // Stateless auth (middleware/auth.js) puts the role id in `role` and the
+    // name in `roleName` — read both, or a genuine admin role gets a 403 here.
+    const roleName = (user.role?.name || user.roleName || "").toLowerCase();
+    const isAdmin = user.isSystemAdmin ||
                    roleName.includes('admin') ||
                    roleName.includes('system') ||
                    user.legacyRole === 'admin';

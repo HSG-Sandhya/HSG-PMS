@@ -6,22 +6,27 @@ import {
 } from '@mui/icons-material';
 import StaffAttendanceCards from './StaffAttendanceCards';
 import PayrollManagement from './PayrollManagement';
+import { usePermissions } from '../contexts/PermissionContext';
 
 const ACCENT = 'var(--app-primary)';
 
 const TABS = [
-  { id: 'attendance', label: 'Attendance', icon: AttendanceIcon, Component: StaffAttendanceCards },
-  { id: 'payroll', label: 'Payroll', icon: PayrollIcon, Component: PayrollManagement },
+  { id: 'attendance', label: 'Attendance', icon: AttendanceIcon, Component: StaffAttendanceCards, permissions: ['manage_attendance'] },
+  { id: 'payroll', label: 'Payroll', icon: PayrollIcon, Component: PayrollManagement, permissions: ['manage_payroll', 'view_payroll'] },
 ];
 
 const WorkforceManagement = ({ defaultTab = 'attendance' }) => {
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === 'dark';
+  // A role may hold payroll permissions without attendance ones (or the reverse),
+  // so show only the tabs it can actually use and open the first of them.
+  const { hasAnyPermission } = usePermissions();
+  const tabs = TABS.filter((t) => hasAnyPermission(t.permissions));
   const [activeId, setActiveId] = useState(
-    TABS.some((t) => t.id === defaultTab) ? defaultTab : 'attendance',
+    tabs.some((t) => t.id === defaultTab) ? defaultTab : tabs[0]?.id,
   );
 
-  const ActiveComponent = (TABS.find((t) => t.id === activeId) || TABS[0]).Component;
+  const ActiveComponent = (tabs.find((t) => t.id === activeId) || tabs[0])?.Component;
 
   return (
     <Box sx={{ minHeight: '100vh', py: { xs: 2, md: 3 } }}>
@@ -54,7 +59,8 @@ const WorkforceManagement = ({ defaultTab = 'attendance' }) => {
           </Typography>
         </Box>
 
-        {/* Pill tab bar */}
+        {/* Pill tab bar — pointless when the role can only use one of them */}
+        {tabs.length > 1 && (
         <Box
           sx={{
             display: 'inline-flex',
@@ -70,7 +76,7 @@ const WorkforceManagement = ({ defaultTab = 'attendance' }) => {
             boxShadow: '0 4px 24px rgba(0, 0, 0, 0.05), 0 0 24px rgba(var(--app-primary-rgb), 0.08), inset 0 1px 0 rgba(255, 255, 255, var(--app-surface-border-alpha, 0.08))',
           }}
         >
-          {TABS.map((tab) => {
+          {tabs.map((tab) => {
             const Icon = tab.icon;
             const selected = activeId === tab.id;
             return (
@@ -110,11 +116,12 @@ const WorkforceManagement = ({ defaultTab = 'attendance' }) => {
             );
           })}
         </Box>
+        )}
 
         {/* Active tab content. Keep both mounted-on-demand via key so each
             component manages its own data fetching. */}
         <Box key={activeId}>
-          <ActiveComponent />
+          {ActiveComponent && <ActiveComponent />}
         </Box>
       </Container>
     </Box>

@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
-import { CssBaseline } from '@mui/material';
+import { Box, CircularProgress, CssBaseline } from '@mui/material';
 import useMediaQuery from '@mui/material/useMediaQuery';
 
 // Context Providers
@@ -23,31 +23,39 @@ import ProtectedRoute from './pages/Auth/ProtectedRoute';
 import Login from './pages/Auth/Login';
 
 
-// Main Dashboard Components
-import Dashboard from './pages/reports/Dashboard';
-
 // Auth Validator Component
 import AuthValidator from './components/common/AuthValidator';
 import AutoCacheManager from './components/common/AutoCacheManager';
-import Bookings from './pages/operations/Bookings';
-import Reservations from './pages/management/Reservations';
-import Rooms from './pages/management/Rooms';
-import Guests from './pages/management/Guests';
-import Accounting from './pages/management/Accounting';
-import Staff from './pages/management/Staff';
-import Housekeepings from './pages/operations/Housekeepings';
-import Restaurant from './pages/operations/Restaurant';
-import BanquetHallBooking from './pages/management/BanquetHallBooking';
-import POS from './pages/operations/POS';
-import SettingsOptimized from './components/settings';
-import ChannelManager from './pages/management/ChannelManager';
-import AdminPanel from './components/AdminPanel';
-
-// Staff Management Components
-import WorkforceManagement from './components/WorkforceManagement';
 
 // Live pop-up alert for new website bookings (Socket.IO)
 import BookingNotifications from './pages/Website/BookingNotifications';
+
+// Pages are loaded on demand. Bundling all of them into the entry chunk made it
+// ~3 MB, which every user had to download in full before the LOGIN screen could
+// render — on a weak connection that regularly timed out. Each page is now its
+// own chunk, fetched when its route is first opened.
+const Dashboard = lazy(() => import('./pages/reports/Dashboard'));
+const Bookings = lazy(() => import('./pages/operations/Bookings'));
+const Reservations = lazy(() => import('./pages/management/Reservations'));
+const Rooms = lazy(() => import('./pages/management/Rooms'));
+const Guests = lazy(() => import('./pages/management/Guests'));
+const Accounting = lazy(() => import('./pages/management/Accounting'));
+const Staff = lazy(() => import('./pages/management/Staff'));
+const Housekeepings = lazy(() => import('./pages/operations/Housekeepings'));
+const Restaurant = lazy(() => import('./pages/operations/Restaurant'));
+const BanquetHallBooking = lazy(() => import('./pages/management/BanquetHallBooking'));
+const POS = lazy(() => import('./pages/operations/POS'));
+const SettingsOptimized = lazy(() => import('./components/settings'));
+const ChannelManager = lazy(() => import('./pages/management/ChannelManager'));
+const AdminPanel = lazy(() => import('./components/AdminPanel'));
+const WorkforceManagement = lazy(() => import('./components/WorkforceManagement'));
+
+// Shown while a page chunk downloads.
+const PageLoader = () => (
+  <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
+    <CircularProgress />
+  </Box>
+);
 
 // Debug Components
 // Removed debug components for production cleanup
@@ -126,6 +134,7 @@ const App = () => {
               <AutoCacheManager>
                 <PermissionProvider>
                   <HousekeepingProvider>
+                  <Suspense fallback={<PageLoader />}>
                   <Routes>
                     {/* Public Routes */}
                     <Route path="/login" element={<Login />} />
@@ -195,7 +204,7 @@ const App = () => {
                       </ProtectedRoute>
                     } />
                     <Route path="/staffs" element={
-                      <ProtectedRoute requiredPermissions={['manage_staff']}>
+                      <ProtectedRoute requiredPermissions={['manage_staff', 'view_staff', 'create_staff']}>
                         <MainLayout>
                           <PageLayout>
                             <Staff />
@@ -267,9 +276,10 @@ const App = () => {
                         </MainLayout>
                       </ProtectedRoute>
                     } />
-                    {/* Combined Staff & Payroll workspace (one sidebar tab) */}
+                    {/* Combined Staff & Payroll workspace (one sidebar tab) — the
+                        page itself shows only the tabs the role is allowed */}
                     <Route path="/workforce" element={
-                      <ProtectedRoute requiredPermissions={['manage_attendance']}>
+                      <ProtectedRoute requiredPermissions={['manage_attendance', 'manage_payroll', 'view_payroll']}>
                         <MainLayout>
                           <PageLayout>
                             <WorkforceManagement defaultTab="attendance" />
@@ -288,7 +298,7 @@ const App = () => {
                       </ProtectedRoute>
                     } />
                     <Route path="/payroll" element={
-                      <ProtectedRoute requiredPermissions={['manage_payroll']}>
+                      <ProtectedRoute requiredPermissions={['manage_payroll', 'view_payroll']}>
                         <MainLayout>
                           <PageLayout>
                             <WorkforceManagement defaultTab="payroll" />
@@ -302,7 +312,8 @@ const App = () => {
                     {/* Catch all route - redirect to login */}
                     <Route path="*" element={<Navigate to="/login" replace />} />
                   </Routes>
-                
+                  </Suspense>
+
                   {/* Auth Validator - monitors token validity */}
                   <AuthValidator />
                   

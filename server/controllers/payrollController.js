@@ -8,6 +8,7 @@ import { validationResult } from "express-validator";
 import PDFDocument from "pdfkit";
 import { syncPayrollExpense } from "../services/accountingSync.js";
 import { getOps } from "../config/operationalConfig.js";
+import { loadAuthUser } from "../middleware/requireManage.js";
 
 // Scheduled salary pay date for a payroll period: the configured pay day of the
 // month FOLLOWING the period (salary paid in arrears). payrollPeriod.month is
@@ -18,30 +19,64 @@ const scheduledPayDate = (payrollPeriod, payDay) => {
   return new Date(payrollPeriod.year, payrollPeriod.month, day);
 };
 
-// Helper function to check if user can manage payroll
-const canManagePayroll = (user) => {
+// Any one of these grants access to the payroll screens. `manage_payroll` is the
+// umbrella grant; the granular strings come from config/permissions.js so a role
+// given "all payroll permissions" works. `manage_staff`/`admin_access` are kept
+// for back-compat with roles set up before the granular list existed.
+const PAYROLL_ACCESS = [
+  'manage_payroll',
+  'view_payroll',
+  'generate_payroll',
+  'approve_payroll',
+  'edit_payroll',
+  'delete_payroll',
+  'generate_payroll_pdf',
+  'download_payroll_pdf',
+  'process_payroll_payments',
+  'view_payroll_reports',
+  'view_payroll_summary',
+  'manage_staff',
+  'admin_access',
+];
+
+// Helper function to check if user can manage payroll.
+//
+// Takes the REQUEST, not the token payload: a JWT only carries the permissions
+// held when it was issued, so grants made afterwards were invisible until the
+// user logged in again (tokens last 30 days). Falls back to reading the role
+// from the database, cached on `req.authUser` for the rest of the request.
+const canManagePayroll = async (req) => {
+  const user = req?.user;
   // Require proper authentication - no bypass
   if (!user) return false;
-  
+
   // Check system admin flag (handle both boolean and string values)
   if (user.isSystemAdmin === true || user.isSystemAdmin === 'true') return true;
-  
-  // Check role name (from JWT token)
-  if (user.roleName && ['Admin', 'System Administrator'].includes(user.roleName)) return true;
-  
-  // Check role object (if populated)
-  if (user.role && user.role.name && ['Admin', 'System Administrator'].includes(user.role.name)) return true;
-  
-  // Check permissions array
-  if (user.permissions && Array.isArray(user.permissions)) {
-    if (user.permissions.includes('manage_payroll') || 
-        user.permissions.includes('manage_staff') ||
-        user.permissions.includes('admin_access')) {
-      return true;
-    }
+
+  // Check role name (from JWT token, or a populated role object)
+  const roleName = user.roleName || user.role?.name;
+  if (roleName && ['Admin', 'System Administrator'].includes(roleName)) return true;
+
+  // Permissions carried by the token (fast path, no query).
+  if (Array.isArray(user.permissions) && PAYROLL_ACCESS.some((p) => user.permissions.includes(p))) {
+    return true;
   }
-  
-  return false;
+
+  // Authoritative check against the user's current role.
+  try {
+    const dbUser = req.authUser
+      || (typeof user.hasPermission === 'function' ? user : await loadAuthUser(user));
+    if (!dbUser || dbUser.isActive === false) return false;
+    req.authUser = dbUser;
+    if (dbUser.isSystemAdmin) return true;
+    if (['Admin', 'System Administrator'].includes(dbUser.role?.name)) return true;
+
+    const rolePerms = dbUser.role?.permissions || [];
+    const directPerms = dbUser.permissions || [];
+    return PAYROLL_ACCESS.some((p) => rolePerms.includes(p) || directPerms.includes(p));
+  } catch {
+    return false;
+  }
 };
 
 // @desc    Generate payroll for staff
@@ -49,7 +84,7 @@ const canManagePayroll = (user) => {
 // @access  Private (Admin/System Admin only)
 export const generatePayroll = async (req, res) => {
   try {
-    if (!canManagePayroll(req.user)) {
+    if (!(await canManagePayroll(req))) {
       return res.status(403).json({
         success: false,
         message: "Access denied. Only Admin and System Admin can generate payroll."
@@ -120,7 +155,7 @@ export const generatePayroll = async (req, res) => {
 // @access  Private (Admin/System Admin only)
 export const getLivePayroll = async (req, res) => {
   try {
-    if (!canManagePayroll(req.user)) {
+    if (!(await canManagePayroll(req))) {
       return res.status(403).json({ success: false, message: "Access denied." });
     }
     const month = parseInt(req.query.month, 10);
@@ -204,7 +239,7 @@ export const getLivePayroll = async (req, res) => {
 // @access  Private (Admin/System Admin only)
 export const getAllPayrolls = async (req, res) => {
   try {
-    if (!canManagePayroll(req.user)) {
+    if (!(await canManagePayroll(req))) {
       return res.status(403).json({
         success: false,
         message: "Access denied. Only Admin and System Admin can view payrolls."
@@ -254,7 +289,7 @@ export const getAllPayrolls = async (req, res) => {
 // @access  Private (Admin/System Admin only)
 export const generatePayrollPDF = async (req, res) => {
   try {
-    if (!canManagePayroll(req.user)) {
+    if (!(await canManagePayroll(req))) {
       return res.status(403).json({
         success: false,
         message: "Access denied."
@@ -570,7 +605,7 @@ export const generatePayrollPDF = async (req, res) => {
 // @access  Private (Admin/System Admin only)
 export const approvePayroll = async (req, res) => {
   try {
-    if (!canManagePayroll(req.user)) {
+    if (!(await canManagePayroll(req))) {
       return res.status(403).json({
         success: false,
         message: "Access denied."
@@ -614,7 +649,7 @@ export const approvePayroll = async (req, res) => {
 // @access  Private (Admin/System Admin only)
 export const markPayrollAsPaid = async (req, res) => {
   try {
-    if (!canManagePayroll(req.user)) {
+    if (!(await canManagePayroll(req))) {
       return res.status(403).json({
         success: false,
         message: "Access denied."
@@ -670,7 +705,7 @@ export const markPayrollAsPaid = async (req, res) => {
 // @access  Private (Admin/System Admin only)
 export const getPayrollSummary = async (req, res) => {
   try {
-    if (!canManagePayroll(req.user)) {
+    if (!(await canManagePayroll(req))) {
       return res.status(403).json({
         success: false,
         message: "Access denied."

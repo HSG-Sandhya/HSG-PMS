@@ -151,7 +151,12 @@ router.post('/refresh-token', async (req, res) => {
       department: user.department?._id || user.department,
       departmentName: user.department?.name || 'General',
       isSystemAdmin: user.isSystemAdmin || false,
-      permissions: user.permissions || []
+      // Role grants + user-specific extras (see login in authController.js) —
+      // role permissions alone are where nearly everything is granted.
+      permissions: [...new Set([
+        ...(user.role?.permissions || []),
+        ...(user.permissions || []),
+      ])]
     };
 
     const newToken = jwt.sign(

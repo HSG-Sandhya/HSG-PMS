@@ -2,34 +2,49 @@ import express from 'express';
 import { objectIdParam } from '../middleware/validateObjectId.js';
 import { authenticateToken } from '../middleware/auth.js';
 import permissionMiddleware from '../middleware/permissionMiddleware.js';
+import { requireManage } from '../middleware/requireManage.js';
+import { enforceStaffAuthority } from '../middleware/staffAuthority.js';
 import * as adminStaffController from '../controllers/adminStaffController.js';
 import * as adminRoleController from '../controllers/adminRoleController.js';
 import * as adminSettingsController from '../controllers/adminSettingsController.js';
 
 const router = express.Router();
 
-// Apply authentication and admin-only access to all routes
+// Everything here needs a login.
 router.use(authenticateToken);
-router.use(permissionMiddleware.requireAdmin);
 
 // Malformed :id -> 400 instead of a Mongoose CastError 500.
 router.param('id', objectIdParam('ID'));
 
-// Staff Management Routes (Admin Only)
-router.post('/staff', adminStaffController.createStaff);
-router.get('/staff', adminStaffController.getAllStaff);
-router.get('/staff/stats', adminStaffController.getStaffStats);
-router.get('/staff/:id', adminStaffController.getStaffById);
-router.put('/staff/:id', adminStaffController.updateStaff);
-router.patch('/staff/:id/status', adminStaffController.toggleStaffStatus);
-router.patch('/staff/:id/password', adminStaffController.resetStaffPassword);
-router.delete('/staff/:id', adminStaffController.deleteStaff);
+// ── Staff management ────────────────────────────────────────────────────────
+// These are the endpoints the staff UI actually calls, so they honour the
+// granular Staff permissions an admin can grant to a role (Settings → Roles),
+// not just "is an admin". `manage_staff` is the umbrella grant; the specific
+// ones work on their own too. enforceStaffAuthority then caps a non-admin
+// manager to staff/roles below their own level.
+const VIEW_STAFF = ['manage_staff', 'view_staff'];
+
+router.post('/staff', requireManage(['manage_staff', 'create_staff']), enforceStaffAuthority, adminStaffController.createStaff);
+router.get('/staff', requireManage(VIEW_STAFF), adminStaffController.getAllStaff);
+router.get('/staff/stats', requireManage(VIEW_STAFF), adminStaffController.getStaffStats);
+router.get('/staff/:id', requireManage(VIEW_STAFF), adminStaffController.getStaffById);
+router.put('/staff/:id', requireManage(['manage_staff', 'edit_staff']), enforceStaffAuthority, adminStaffController.updateStaff);
+router.patch('/staff/:id/status', requireManage(['manage_staff', 'deactivate_staff']), enforceStaffAuthority, adminStaffController.toggleStaffStatus);
+router.patch('/staff/:id/password', requireManage(['manage_staff', 'edit_staff']), enforceStaffAuthority, adminStaffController.resetStaffPassword);
+// Hard delete — umbrella grant only (`deactivate_staff` is for the status route).
+router.delete('/staff/:id', requireManage('manage_staff'), enforceStaffAuthority, adminStaffController.deleteStaff);
+
+// Reading the role list is part of creating/editing staff (the role picker), so
+// it follows the staff permissions rather than admin-only.
+router.get('/roles', requireManage([...VIEW_STAFF, 'create_staff', 'edit_staff', 'manage_roles']), adminRoleController.getAllRoles);
+router.get('/roles/permissions', requireManage([...VIEW_STAFF, 'create_staff', 'edit_staff', 'manage_roles']), adminRoleController.getAvailablePermissions);
+
+// ── Everything below is administrator-only ──────────────────────────────────
+router.use(permissionMiddleware.requireAdmin);
 
 // Role Management Routes (Admin Only)
 router.post('/roles', adminRoleController.createRole);
-router.get('/roles', adminRoleController.getAllRoles);
 router.get('/roles/stats', adminRoleController.getRoleStats);
-router.get('/roles/permissions', adminRoleController.getAvailablePermissions);
 router.get('/roles/:id', adminRoleController.getRoleById);
 router.put('/roles/:id', adminRoleController.updateRole);
 router.patch('/roles/:id/status', adminRoleController.toggleRoleStatus);
