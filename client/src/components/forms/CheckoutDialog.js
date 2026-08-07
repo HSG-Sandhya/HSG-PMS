@@ -82,9 +82,14 @@ const CheckoutDialog = ({ open, onClose, booking, room, onPaymentComplete }) => 
   const [checkoutTime, setCheckoutTime] = useState('');
   const [actualNights, setActualNights] = useState(0);
   const [adjustedAmount, setAdjustedAmount] = useState(0);
+  // Late checkout is charged only if the front desk types an amount here.
+  const [lateCheckoutCharge, setLateCheckoutCharge] = useState('');
 
-  const calculateNights = (date, time) => {
-    if (!booking || !date || !time) return;
+  // Nights stayed, from the dates alone. A late departure no longer silently
+  // adds a night — the desk decides what (if anything) to charge, in the Late
+  // checkout field below.
+  const calculateNights = (date) => {
+    if (!booking || !date) return;
     const checkInDate = toDate(booking.checkIn);
     const checkoutDate = toDate(date);
     if (!checkInDate || !checkoutDate) return;
@@ -92,12 +97,6 @@ const CheckoutDialog = ({ open, onClose, booking, room, onPaymentComplete }) => 
     const timeDiff = checkoutDate.getTime() - checkInDate.getTime();
     let nights = Math.ceil(timeDiff / (1000 * 3600 * 24));
     if (nights <= 0) nights = differenceInDays(checkoutDate, checkInDate);
-
-    const [checkoutHour, checkoutMinute] = time.split(':').map((n) => parseInt(n, 10));
-    const checkoutTimeInMinutes = checkoutHour * 60 + checkoutMinute;
-    const twelvePMInMinutes = 12 * 60;
-    if (nights === 0) nights = 1;
-    if (checkoutTimeInMinutes > twelvePMInMinutes) nights += 1;
     setActualNights(Math.max(1, nights));
   };
 
@@ -124,7 +123,8 @@ const CheckoutDialog = ({ open, onClose, booking, room, onPaymentComplete }) => 
     const initTime = format(now, 'HH:mm');
     setCheckoutDate(initDate);
     setCheckoutTime(initTime);
-    calculateNights(initDate, initTime);
+    setLateCheckoutCharge('');
+    calculateNights(initDate);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [booking]);
 
@@ -148,7 +148,9 @@ const CheckoutDialog = ({ open, onClose, booking, room, onPaymentComplete }) => 
     ? Math.round((restaurantCharges / (1 + billing.posGstRate / 100)) * 100) / 100
     : restaurantCharges;
   const restaurantGst = Math.round((restaurantCharges - restaurantSubtotal) * 100) / 100;
-  const totalWithRestaurant = (adjustedAmount || booking?.totalAmount || 0) + restaurantCharges;
+  // Blank / zero / nonsense means no late charge at all — nothing is added.
+  const lateFee = Math.max(0, parseFloat(lateCheckoutCharge) || 0);
+  const totalWithRestaurant = (adjustedAmount || booking?.totalAmount || 0) + restaurantCharges + lateFee;
   const remainingWithRestaurant = totalWithRestaurant - (booking?.paidAmount || 0);
 
   useEffect(() => {
@@ -172,6 +174,10 @@ const CheckoutDialog = ({ open, onClose, booking, room, onPaymentComplete }) => 
       actualNights,
       adjustedAmount,
       restaurantCharges,
+      lateCheckoutFee: lateFee,
+      // Room nights + the manual late charge; the room total the booking stores
+      // has to carry the late fee, because that is what the guest is billed.
+      roomTotalWithLateFee: (adjustedAmount || booking?.totalAmount || 0) + lateFee,
       totalWithRestaurant,
     });
   };
@@ -179,13 +185,15 @@ const CheckoutDialog = ({ open, onClose, booking, room, onPaymentComplete }) => 
   if (!booking || !room) return null;
 
   // Derived for display
+  // Informational only — nothing here changes the bill. A late departure is
+  // charged if, and only if, someone types an amount into "Late checkout charge".
   const checkoutTimeBucket = (() => {
     if (!checkoutTime) return null;
     const [h, m] = checkoutTime.split(':').map((n) => parseInt(n, 10));
     const mins = h * 60 + m;
     if (mins <= 11 * 60) return { label: 'On-time checkout · before 11:00 AM', color: 'success' };
-    if (mins <= 12 * 60) return { label: 'Grace window · 11:00 – 12:00, no extra charge', color: 'info' };
-    return { label: 'Late checkout · extra night charged', color: 'warning' };
+    if (mins <= 12 * 60) return { label: 'Grace window · 11:00 – 12:00', color: 'info' };
+    return { label: 'Late checkout · add a charge below if applicable', color: 'warning' };
   })();
 
   const balancePositive = remainingWithRestaurant > 0;
@@ -297,6 +305,7 @@ const CheckoutDialog = ({ open, onClose, booking, room, onPaymentComplete }) => 
                 `${currencySym()}${(adjustedAmount || booking.totalAmount || 0).toFixed(2)}`,
                 { bold: true },
               )}
+              {lateFee > 0 && moneyRow('Late checkout charge', `${currencySym()}${lateFee.toFixed(2)}`)}
               {restaurantSubtotal > 0 && (
                 <>
                   {moneyRow('Food & beverage', `${currencySym()}${restaurantSubtotal.toFixed(2)}`)}
@@ -330,18 +339,29 @@ const CheckoutDialog = ({ open, onClose, booking, room, onPaymentComplete }) => 
                   label="Checkout date"
                   value={checkoutDate}
                   onChange={(newDate) => {
-                    const currentTime = format(new Date(), 'HH:mm');
                     setCheckoutDate(newDate);
-                    setCheckoutTime(currentTime);
-                    if (booking && newDate) calculateNights(newDate, currentTime);
+                    setCheckoutTime(format(new Date(), 'HH:mm'));
+                    if (booking && newDate) calculateNights(newDate);
                   }}
                 />
                 <AppTimePicker
                   label="Checkout time"
                   value={checkoutTime || ''}
-                  onChange={(newTime) => {
-                    setCheckoutTime(newTime);
-                    if (booking && checkoutDate) calculateNights(checkoutDate, newTime);
+                  onChange={(newTime) => setCheckoutTime(newTime)}
+                />
+                <TextField
+                  label="Late checkout charge"
+                  type="number"
+                  fullWidth
+                  value={lateCheckoutCharge}
+                  onChange={(e) => setLateCheckoutCharge(e.target.value)}
+                  placeholder="0"
+                  helperText="Optional — added to the total only if you enter an amount."
+                  slotProps={{
+                    input: {
+                      startAdornment: <InputAdornment position="start">{currencySym()}</InputAdornment>,
+                    },
+                    htmlInput: { min: 0, step: 50 },
                   }}
                 />
               </Stack>

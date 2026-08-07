@@ -1,7 +1,7 @@
 import express from 'express';
 import jwt from 'jsonwebtoken';
 const router = express.Router();
-import { login, logout, getProfile, refreshToken, forceLogoutAll, changeOwnPassword, getSetupStatus, bootstrapAdmin, requestSetupOtp, verifySetupOtp } from '../controllers/authController.js';
+import { login, logout, getProfile, refreshToken, forceLogoutAll, changeOwnPassword, changeOwnUsername, getSetupStatus, bootstrapAdmin, requestSetupOtp, verifySetupOtp } from '../controllers/authController.js';
 import { authenticateToken } from '../middleware/auth.js';
 
 /**
@@ -39,8 +39,9 @@ router.post('/setup', bootstrapAdmin);
 // Protected routes
 router.get('/profile', authenticateToken, getProfile);
 
-// Self-service: any logged-in user changes their own password.
+// Self-service: any logged-in user changes their own password / username.
 router.put('/change-password', authenticateToken, changeOwnPassword);
+router.put('/change-username', authenticateToken, changeOwnUsername);
 
 // Token validation endpoint
 router.get('/validate', authenticateToken, (req, res) => {

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
   Box, Button, TextField, Typography, Alert, CircularProgress,
-  IconButton, InputAdornment, Divider, useTheme,
+  IconButton, InputAdornment, Divider, Checkbox, FormControlLabel, useTheme,
 } from '@mui/material';
 import { motion } from 'framer-motion';
 import Visibility from '@mui/icons-material/Visibility';
@@ -11,6 +11,10 @@ import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import ApartmentIcon from '@mui/icons-material/Apartment';
 import { useAuth } from '../../contexts/AuthContext';
+import {
+  readRemembered, saveRemembered, unlockRemembered, clearRemembered,
+  isRememberSupported, isValidPin,
+} from '../../utils/rememberedLogin';
 import api from '../../api';
 
 const MotionBox = motion.create(Box);
@@ -183,7 +187,19 @@ const makeFieldSx = (isDark) => ({
 });
 
 const Login = () => {
-  const [formData, setFormData] = useState({ username: '', password: '' });
+  // Seed straight from storage so a remembered login paints filled-in on the
+  // first frame instead of flashing empty fields. Only the username is known at
+  // this point — the password stays encrypted until a PIN unlocks it.
+  const [remembered, setRemembered] = useState(() => readRemembered());
+  const [formData, setFormData] = useState(() => ({ username: remembered?.username || '', password: '' }));
+  // 'pin' asks for the PIN that unlocks the saved password; 'password' is the
+  // ordinary form. A saved password starts locked.
+  const [mode, setMode] = useState(() => (remembered?.hasPassword ? 'pin' : 'password'));
+  const [pin, setPin] = useState('');
+  const [showPin, setShowPin] = useState(false);
+  const [pinError, setPinError] = useState('');
+  const [pinBusy, setPinBusy] = useState(false);
+  const [rememberMe, setRememberMe] = useState(() => !!remembered?.hasPassword);
   const [formErrors, setFormErrors] = useState({});
   const [submitError, setSubmitError] = useState('');
   const { login, loading, error } = useAuth();
@@ -211,6 +227,10 @@ const Login = () => {
   // Per-channel OTP verification state for email + phone.
   const [otp, setOtp] = useState({ email: { ...OTP_INIT }, phone: { ...OTP_INIT } });
   const setOtpField = (ch, patch) => setOtp((p) => ({ ...p, [ch]: { ...p[ch], ...patch } }));
+
+  // Storing a password needs WebCrypto, which only exists on a secure origin.
+  // Without it there is no honest way to keep one, so the option is hidden.
+  const rememberSupported = isRememberSupported();
 
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
@@ -270,6 +290,73 @@ const Login = () => {
     setFormData((p) => ({ ...p, [name]: value }));
     if (formErrors[name]) setFormErrors((p) => ({ ...p, [name]: '' }));
     if (submitError) setSubmitError('');
+    // The saved password belongs to one username. Typing a different one means
+    // a different person is signing in, so stop offering the PIN.
+    if (name === 'username' && mode === 'pin' && value !== remembered?.username) {
+      setMode('password');
+      setRememberMe(false);
+    }
+  };
+
+  const handlePinChange = (e) => {
+    setPin(e.target.value.replace(/\D/g, '').slice(0, 6));
+    setPinError('');
+    if (submitError) setSubmitError('');
+  };
+
+  // Give up on the saved login and fall back to typing the password.
+  const fallBackToPassword = ({ forget } = {}) => {
+    if (forget) {
+      clearRemembered();
+      setRemembered(null);
+      setFormData({ username: '', password: '' });
+    }
+    setMode('password');
+    setRememberMe(false);
+    setPin('');
+    setPinError('');
+  };
+
+  // Shared by "Sign In" and the eye: turn the PIN into the saved password.
+  const unlockWithPin = async () => {
+    if (!isValidPin(pin)) {
+      setPinError('Enter your 4-6 digit PIN.');
+      return null;
+    }
+    setPinBusy(true);
+    try {
+      const res = await unlockRemembered(pin);
+      if (res.ok) return res.password;
+      if (res.reason === 'wiped') {
+        setRemembered(null);
+        setFormData((p) => ({ ...p, password: '' }));
+        setMode('password');
+        setRememberMe(false);
+        setPin('');
+        setSubmitError('Too many wrong PINs — the saved password has been removed. Sign in with your password.');
+        return null;
+      }
+      if (res.reason === 'bad-pin') {
+        setPinError(`Incorrect PIN. ${res.attemptsLeft} ${res.attemptsLeft === 1 ? 'try' : 'tries'} left before the saved password is removed.`);
+        return null;
+      }
+      fallBackToPassword({ forget: true });
+      setSubmitError('The saved password is no longer available. Please sign in with your password.');
+      return null;
+    } finally {
+      setPinBusy(false);
+    }
+  };
+
+  // The eye in PIN mode: reveal the saved password to whoever knows the PIN, and
+  // nobody else. On success the form drops to normal password mode with the
+  // value shown, so it can be read, corrected, or used to sign in.
+  const revealSavedPassword = async () => {
+    const password = await unlockWithPin();
+    if (password == null) return;
+    setFormData((p) => ({ ...p, password }));
+    setMode('password');
+    setShowPassword(true);
   };
 
   const validateForm = () => {
@@ -283,14 +370,44 @@ const Login = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitError('');
-    if (validateForm()) {
+
+    // PIN mode: unlock first, then sign in with what came out.
+    if (mode === 'pin') {
+      const password = await unlockWithPin();
+      if (password == null) return;
       try {
-        await login(formData);
+        const result = await login({ username: remembered.username, password });
+        if (!result?.success) {
+          // The PIN was right, so the stored password is simply out of date
+          // (changed on another device). Hand the form back with an explanation.
+          setFormData({ username: remembered.username, password: '' });
+          fallBackToPassword({ forget: true });
+          setSubmitError('Your saved password no longer works — it may have been changed. Sign in with your current password.');
+        }
       } catch {
-        // Expected auth failures (wrong password, etc.) are surfaced via the
-        // AuthContext `error` state. This only catches unexpected throws.
         setSubmitError('Something went wrong. Please try again.');
       }
+      return;
+    }
+
+    if (!validateForm()) return;
+    if (rememberMe && !isValidPin(pin)) {
+      setPinError('Choose a 4-6 digit PIN to protect the saved password.');
+      return;
+    }
+
+    try {
+      const result = await login(formData);
+      // Only remember credentials that actually worked, so a typo can't be
+      // stored and replayed on every future visit.
+      if (result?.success) {
+        if (rememberMe) await saveRemembered({ username: formData.username, password: formData.password, pin });
+        else clearRemembered();
+      }
+    } catch {
+      // Expected auth failures (wrong password, etc.) are surfaced via the
+      // AuthContext `error` state. This only catches unexpected throws.
+      setSubmitError('Something went wrong. Please try again.');
     }
   };
 
@@ -672,6 +789,18 @@ const Login = () => {
               </MotionBox>
             )}
 
+            {/* A login saved by the first version of "Remember me" kept the
+                password readable on this device. It was cleared on sight — say
+                so, rather than letting it look like the feature forgot them. */}
+            {remembered?.migrated && !needsSetup && (
+              <MotionBox variants={{ hidden: { opacity: 0 }, show: { opacity: 1 } }}>
+                <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
+                  Your saved password was cleared for safety. Sign in once, tick
+                  Remember me and choose a PIN — after that only that PIN can unlock it.
+                </Alert>
+              </MotionBox>
+            )}
+
             {needsSetup ? (
             <Box component="form" onSubmit={handleSetupSubmit} noValidate>
               <Box sx={{ display: 'flex', gap: 1.5 }}>
@@ -847,6 +976,78 @@ const Login = () => {
                 />
               </MotionBox>
 
+              {mode === 'pin' ? (
+              <MotionBox variants={{ hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0 } }}>
+                <TextField
+                  margin="normal"
+                  required
+                  fullWidth
+                  name="pin"
+                  label="PIN"
+                  type={showPin ? 'text' : 'password'}
+                  id="pin"
+                  autoFocus
+                  value={pin}
+                  onChange={handlePinChange}
+                  error={!!pinError}
+                  helperText={pinError || 'Unlocks the password saved on this device.'}
+                  disabled={loading || pinBusy}
+                  sx={fieldSx}
+                  slotProps={{
+                    htmlInput: { inputMode: 'numeric', autoComplete: 'off', maxLength: 6 },
+                    input: {
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <LockOutlinedIcon sx={{ color: 'var(--app-primary)' }} />
+                        </InputAdornment>
+                      ),
+                      endAdornment: (
+                        <InputAdornment position="end">
+                          <IconButton
+                            aria-label="show the PIN you are typing"
+                            onClick={() => setShowPin((s) => !s)}
+                            edge="end"
+                            tabIndex={-1}
+                          >
+                            {showPin ? <VisibilityOff /> : <Visibility />}
+                          </IconButton>
+                        </InputAdornment>
+                      ),
+                    }
+                  }}
+                />
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 0.5 }}>
+                  {/* The old eye, now behind the PIN: the saved password is only
+                      readable by someone who can unlock it. */}
+                  <Button
+                    size="small"
+                    onClick={revealSavedPassword}
+                    disabled={loading || pinBusy}
+                    startIcon={<Visibility fontSize="small" />}
+                    sx={{ textTransform: 'none', fontWeight: 600, color: 'var(--app-primary)' }}
+                  >
+                    Show saved password
+                  </Button>
+                  <Box sx={{ flexGrow: 1 }} />
+                  <Button
+                    size="small"
+                    onClick={() => fallBackToPassword()}
+                    disabled={loading || pinBusy}
+                    sx={{ textTransform: 'none', fontWeight: 600, color: 'text.secondary' }}
+                  >
+                    Use password
+                  </Button>
+                  <Button
+                    size="small"
+                    onClick={() => fallBackToPassword({ forget: true })}
+                    disabled={loading || pinBusy}
+                    sx={{ textTransform: 'none', fontWeight: 600, color: 'text.secondary' }}
+                  >
+                    Forget this device
+                  </Button>
+                </Box>
+              </MotionBox>
+              ) : (
               <MotionBox variants={{ hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0 } }}>
                 <TextField
                   margin="normal"
@@ -886,6 +1087,72 @@ const Login = () => {
                   }}
                 />
               </MotionBox>
+              )}
+
+              {mode === 'password' && rememberSupported && (
+              <MotionBox variants={{ hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0 } }}>
+                <FormControlLabel
+                  sx={{ mt: 1, ml: 0.5, '& .MuiFormControlLabel-label': { fontSize: 14.5, fontWeight: 500 } }}
+                  control={
+                    <Checkbox
+                      checked={rememberMe}
+                      onChange={(e) => {
+                        setRememberMe(e.target.checked);
+                        setPinError('');
+                        // Unticking forgets the saved sign-in straight away —
+                        // waiting for the next successful login would leave the
+                        // password on a machine someone just said not to keep it on.
+                        if (!e.target.checked) {
+                          clearRemembered();
+                          setRemembered(null);
+                          setPin('');
+                        }
+                      }}
+                      disabled={loading}
+                      sx={{ color: 'var(--app-primary)', '&.Mui-checked': { color: 'var(--app-primary)' } }}
+                    />
+                  }
+                  label="Remember me on this device"
+                />
+                {rememberMe && (
+                  <TextField
+                    margin="dense"
+                    fullWidth
+                    name="new-pin"
+                    label="Create a PIN"
+                    type={showPin ? 'text' : 'password'}
+                    value={pin}
+                    onChange={handlePinChange}
+                    error={!!pinError}
+                    helperText={pinError || 'A 4-6 digit PIN (6 is safer). Only this PIN can unlock the saved password — nobody can read it without it, so pick one you will remember.'}
+                    disabled={loading}
+                    sx={fieldSx}
+                    slotProps={{
+                      htmlInput: { inputMode: 'numeric', autoComplete: 'off', maxLength: 6 },
+                      input: {
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <LockOutlinedIcon sx={{ color: 'var(--app-primary)' }} />
+                          </InputAdornment>
+                        ),
+                        endAdornment: (
+                          <InputAdornment position="end">
+                            <IconButton
+                              aria-label="show PIN"
+                              onClick={() => setShowPin((s) => !s)}
+                              edge="end"
+                              tabIndex={-1}
+                            >
+                              {showPin ? <VisibilityOff /> : <Visibility />}
+                            </IconButton>
+                          </InputAdornment>
+                        ),
+                      }
+                    }}
+                  />
+                )}
+              </MotionBox>
+              )}
 
               <MotionBox variants={{ hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0 } }}>
                 <Button
@@ -893,9 +1160,9 @@ const Login = () => {
                   fullWidth
                   variant="contained"
                   size="large"
-                  disabled={loading}
+                  disabled={loading || pinBusy}
                   sx={{
-                    mt: 3,
+                    mt: 1.5,
                     py: 1.4,
                     borderRadius: 2.5,
                     fontWeight: 700,
@@ -910,7 +1177,9 @@ const Login = () => {
                     },
                   }}
                 >
-                  {loading ? <CircularProgress size={24} sx={{ color: '#fff' }} /> : 'Sign In'}
+                  {(loading || pinBusy)
+                    ? <CircularProgress size={24} sx={{ color: '#fff' }} />
+                    : (mode === 'pin' ? 'Unlock & Sign In' : 'Sign In')}
                 </Button>
               </MotionBox>
             </Box>

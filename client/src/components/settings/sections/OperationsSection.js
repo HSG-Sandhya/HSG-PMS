@@ -63,7 +63,6 @@ const OperationsSection = ({ onNotify }) => {
       payload.banquet.defaultEventHours = num(form.banquet.defaultEventHours, D.banquet.defaultEventHours);
       payload.banquet.minAdvanceAmount = num(form.banquet.minAdvanceAmount, D.banquet.minAdvanceAmount);
       payload.frontDesk.holdExpiryHours = num(form.frontDesk.holdExpiryHours, D.frontDesk.holdExpiryHours);
-      payload.frontDesk.lateCheckoutGraceMinutes = num(form.frontDesk.lateCheckoutGraceMinutes, D.frontDesk.lateCheckoutGraceMinutes);
       await api.settings.updateSection('operations', payload);
       await reloadSettings?.();
       window.dispatchEvent(new Event('pms:settings-changed'));
@@ -159,16 +158,6 @@ const OperationsSection = ({ onNotify }) => {
               onChange={(e) => setGroup('frontDesk', { holdExpiryHours: e.target.value })}
               helperText="Auto-release an unconfirmed hold after this many hours"
               slotProps={{ input: { endAdornment: <InputAdornment position="end">hrs</InputAdornment> } }} />
-            <TextField label="Late-checkout grace" type="number" fullWidth
-              value={fd.lateCheckoutGraceMinutes}
-              onChange={(e) => setGroup('frontDesk', { lateCheckoutGraceMinutes: e.target.value })}
-              helperText="Free window after checkout time; then ½ night is charged"
-              slotProps={{ input: { endAdornment: <InputAdornment position="end">min</InputAdornment> } }} />
-            <TextField label="Full night charged after" type="time" fullWidth
-              value={fd.lateCheckoutFullDayAfter}
-              onChange={(e) => setGroup('frontDesk', { lateCheckoutFullDayAfter: e.target.value })}
-              helperText="Checkout past this time = a full night's tariff"
-              slotProps={{ inputLabel: { shrink: true } }} />
           </Stack>
         </Stack>
       </FormSection>

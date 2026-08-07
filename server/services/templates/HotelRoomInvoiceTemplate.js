@@ -85,24 +85,20 @@ class HotelRoomInvoiceTemplate extends BaseInvoiceTemplate {
     return requiredFields.every((field) => booking[field]);
   }
 
+  // Calendar nights billed — arrival day to departure day, nothing else.
+  //
+  // This used to add a night whenever `checkOutTime` was past 11:00, but that
+  // field holds the ACTUAL departure stamp written at checkout, so a guest
+  // leaving at 12:30 had a seventh night printed against a six-night charge and
+  // the invoice stopped adding up. Lateness is money, not a night: it is billed
+  // as `lateCheckoutFee` and printed on its own row below.
   calculateNights(booking) {
     const checkIn = new Date(booking.checkIn);
     const checkOut = new Date(booking.checkOut);
     const checkInDate = new Date(checkIn.getFullYear(), checkIn.getMonth(), checkIn.getDate());
     const checkOutDate = new Date(checkOut.getFullYear(), checkOut.getMonth(), checkOut.getDate());
-    let nights = Math.floor((checkOutDate - checkInDate) / (1000 * 60 * 60 * 24));
-    nights = Math.max(1, nights);
-    // Late-checkout rule: standard checkout is 11:00 AM.
-    // Anything after 11:00 counts as an additional night.
-    const checkOutTime = booking.checkOutTime || '11:00';
-    if (checkOutTime) {
-      try {
-        const [hours, minutes] = checkOutTime.split(':').map(Number);
-        const checkoutHour = hours + minutes / 60;
-        if (checkoutHour > 11.0) nights += 1;
-      } catch { /* ignore */ }
-    }
-    return nights;
+    const nights = Math.floor((checkOutDate - checkInDate) / (1000 * 60 * 60 * 24));
+    return Math.max(1, nights);
   }
 
   // ───────────────────────── styles ─────────────────────────
@@ -626,12 +622,27 @@ class HotelRoomInvoiceTemplate extends BaseInvoiceTemplate {
     const invoiceNumber = await this.generateInvoiceNumber(booking);
     const foodBillHTML = await this.generateFoodBillHTML(booking, hotelInfo, invoiceNumber);
 
-    const perNight = booking.roomId?.pricePerNight
-      || booking.baseAmount
-      || (totalAmount / finalNights);
-    const accommodationBase = (totalAmount * 100) / 105;
-    const cgst = (totalAmount * 2.5) / 105;
-    const sgst = (totalAmount * 2.5) / 105;
+    // `totalAmount` is the GST-inclusive room total and may carry a late-checkout
+    // charge folded in. Peel that out so the nights line is just nights, and the
+    // charge gets a row of its own — otherwise the invoice prints "6 nights ×
+    // ₹2,200" beside an amount that is not 6 × 2,200, which is what a guest
+    // queries. The charge is the rupee figure the front desk typed at checkout
+    // (GST-inclusive, like every other line here), so nothing is added on top.
+    const lateFeeTotal = Math.max(0, Number(booking.lateCheckoutFee) || 0);
+    const roomTotal = Math.max(0, totalAmount - lateFeeTotal); // incl. GST
+    const roomBase = (roomTotal * 100) / 105;
+
+    // Show the room's tariff when it reconciles with what is being charged;
+    // otherwise show the rate actually billed, so the line always multiplies out.
+    const listRate = Number(booking.roomId?.pricePerNight) || 0;
+    const perNight = (listRate > 0 && Math.abs(listRate * finalNights - roomBase) <= 1)
+      ? listRate
+      : (finalNights > 0 ? roomBase / finalNights : roomBase);
+
+    const accommodationBase = roomBase;
+    const cgst = (roomTotal * 2.5) / 105;
+    const sgst = (roomTotal * 2.5) / 105;
+    const accommodationTotal = roomTotal;
 
     const issuedOn = this.formatLongDate(new Date());
     const dueOn    = this.formatLongDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000));
@@ -729,7 +740,14 @@ class HotelRoomInvoiceTemplate extends BaseInvoiceTemplate {
           </tr>
           <tr class="sub-row"><td class="lbl">CGST @ 2.5%</td><td class="detail">on accommodation</td><td class="amt">${this.formatCurrency(cgst)}</td></tr>
           <tr class="sub-row"><td class="lbl">SGST @ 2.5%</td><td class="detail">on accommodation</td><td class="amt">${this.formatCurrency(sgst)}</td></tr>
-          <tr class="subtotal-row"><td class="lbl"><strong>Accommodation subtotal</strong></td><td class="detail">incl. GST 5%</td><td class="amt"><strong>${this.formatCurrency(totalAmount)}</strong></td></tr>
+          ${lateFeeTotal > 0 ? `
+          <tr>
+            <td>Late checkout<span class="sub">Departure after the agreed checkout time</span></td>
+            <td class="detail">Inclusive of GST 5%</td>
+            <td class="amt">${this.formatCurrency(lateFeeTotal)}</td>
+          </tr>
+          ` : ''}
+          <tr class="subtotal-row"><td class="lbl"><strong>Accommodation subtotal</strong></td><td class="detail">incl. GST 5%</td><td class="amt"><strong>${this.formatCurrency(accommodationTotal + lateFeeTotal)}</strong></td></tr>
           ${finalRestaurantCharges > 0 ? `
           <tr>
             <td>Food &amp; Beverage<span class="sub">Restaurant &amp; room service · ${restaurantOrders.length} order${restaurantOrders.length === 1 ? '' : 's'}</span></td>

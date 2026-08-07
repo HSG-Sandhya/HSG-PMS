@@ -63,8 +63,6 @@ export const OPERATIONS_DEFAULTS = Object.freeze({
     requireIdProof: false,                 // block booking without an ID document
     allowOverbooking: false,               // permit booking a room that's already occupied
     holdExpiryHours: 24,                   // tentative/hold auto-release window
-    lateCheckoutGraceMinutes: 120,         // grace after checkout time before a late fee
-    lateCheckoutFullDayAfter: '18:00',     // checkout past this time = full night (else ½ night)
   }),
 });
 

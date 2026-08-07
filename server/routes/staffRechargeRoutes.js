@@ -26,6 +26,7 @@ const createRechargeValidation = [
   body('amount').isNumeric().isFloat({ min: 10 }).withMessage('Amount must be at least ₹10'),
   body('operator').isIn(['Airtel', 'Jio', 'Vi', 'BSNL', 'Other']).withMessage('Invalid operator'),
   body('planType').optional().isIn(['prepaid', 'postpaid']).withMessage('Invalid plan type'),
+  body('date').optional({ checkFalsy: true }).isISO8601().withMessage('Invalid date'),
   body('paymentMethod').optional().isIn(['wallet', 'cash', 'salary_deduction', 'advance']).withMessage('Invalid payment method')
 ];
 

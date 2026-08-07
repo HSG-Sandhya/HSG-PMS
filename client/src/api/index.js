@@ -194,6 +194,11 @@ const api = {
       return axiosInstance.put('/auth/change-password', { currentPassword, newPassword });
     },
 
+    // Self-service: logged-in user changes their own login username.
+    changeOwnUsername: ({ currentPassword, newUsername }) => {
+      return axiosInstance.put('/auth/change-username', { currentPassword, newUsername });
+    },
+
     refreshToken: () => {
       return axiosInstance.post('/auth/refresh-token');
     },

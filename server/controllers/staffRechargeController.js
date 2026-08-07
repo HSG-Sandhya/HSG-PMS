@@ -2,6 +2,7 @@ import StaffRecharge from '../models/StaffRecharge.js';
 import User from '../models/User.js';
 import { validationResult } from 'express-validator';
 import { syncStaffRechargeExpense, removeEntriesBySource } from '../services/accountingSync.js';
+import { parseDateOnly } from '../utils/dateHelpers.js';
 
 // @desc    Get all recharges for a staff member
 // @route   GET /api/staff/:staffId/recharges
@@ -68,9 +69,10 @@ export const createStaffRecharge = async (req, res) => {
       amount, 
       operator, 
       planType, 
-      planDetails, 
-      paymentMethod, 
-      notes 
+      planDetails,
+      paymentMethod,
+      notes,
+      date
     } = req.body;
 
     // Verify staff exists
@@ -82,6 +84,10 @@ export const createStaffRecharge = async (req, res) => {
       });
     }
 
+    // A recharge done earlier in the week can be entered later, so the caller may
+    // pick the day it was paid for. Left out, the schema default stamps now.
+    const paidOn = parseDateOnly(date);
+
     const recharge = new StaffRecharge({
       staff: staffId,
       phoneNumber,
@@ -91,6 +97,7 @@ export const createStaffRecharge = async (req, res) => {
       planDetails,
       paymentMethod: paymentMethod || 'cash',
       notes,
+      ...(paidOn ? { date: paidOn } : {}),
       processedBy: req.user?._id || null,
       status: 'processing' // Start with processing status
     });

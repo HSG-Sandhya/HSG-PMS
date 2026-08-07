@@ -53,36 +53,6 @@ const generateInvoiceNumber = async (guestName, checkIn) => {
   return `${invoicePrefix}-${dateStr}-${initials}-${String(sequenceNumber).padStart(4, '0')}`;
 };
 
-// Tiered late-checkout fee (Settings → Operations → Front desk). Free within
-// the grace window; a checkout up to the "full day after" cutoff costs half a
-// night, past the cutoff costs a full night — of the room's nightly tariff.
-// Returns { base, gst } (both 0 when not late / no rate). `booking.roomId` must
-// be populated so pricePerNight is available.
-const computeLateCheckoutFee = async (booking, actualCheckout) => {
-  const rate = Number(booking?.roomId?.pricePerNight) || 0;
-  if (rate <= 0) return { base: 0, gst: 0 };
-  const { frontDesk } = await getOps();
-  const { defaultCheckOutTime, roomGstRate } = await getBilling();
-
-  // Scheduled checkout datetime = the booking's checkout date + checkout time.
-  const sched = new Date(booking.checkOut);
-  const [ch, cm] = String(booking.checkOutTime || defaultCheckOutTime || '11:00').split(':').map(Number);
-  sched.setHours(ch || 11, cm || 0, 0, 0);
-
-  const grace = Number(frontDesk.lateCheckoutGraceMinutes) || 0;
-  if (actualCheckout <= new Date(sched.getTime() + grace * 60000)) return { base: 0, gst: 0 };
-
-  // Tier by the actual checkout's time-of-day vs the "full day after" cutoff.
-  const [fh, fm] = String(frontDesk.lateCheckoutFullDayAfter || '18:00').split(':').map(Number);
-  const cutoff = new Date(actualCheckout);
-  cutoff.setHours(fh || 18, fm || 0, 0, 0);
-  const tier = actualCheckout <= cutoff ? 0.5 : 1; // ½ night vs full night
-
-  const base = Math.round(rate * tier);
-  const gst = Math.round(base * (Number(roomGstRate) || 0) / 100);
-  return { base, gst };
-};
-
 // Create booking
 export const createBooking = async (req, res) => {
   try {
@@ -463,24 +433,18 @@ export const updateBooking = async (req, res) => {
       bookingData.checkedIn = false;
       bookingData.checkedOutAt = new Date();
 
-      // Apply the tiered late-checkout fee exactly once — on the transition INTO
-      // Completed — folding it into base / GST / total so the bill + invoice
-      // reflect it. Guarded so re-saving a completed booking never re-charges.
-      if (existingBooking.bookingStatus !== 'Completed' && !existingBooking.lateCheckoutFee) {
-        try {
-          const fee = await computeLateCheckoutFee(existingBooking, bookingData.checkedOutAt);
-          if (fee.base > 0) {
-            const curTotal = Number(bookingData.totalAmount ?? existingBooking.totalAmount) || 0;
-            const curBase = Number(bookingData.baseAmount ?? existingBooking.baseAmount) || 0;
-            const curGst = Number(bookingData.gstAmount ?? existingBooking.gstAmount) || 0;
-            bookingData.lateCheckoutFee = fee.base;
-            bookingData.baseAmount = Math.round(curBase + fee.base);
-            bookingData.gstAmount = Math.round(curGst + fee.gst);
-            bookingData.totalAmount = Math.round(curTotal + fee.base + fee.gst);
-          }
-        } catch (e) {
-          console.error('Late-checkout fee calc failed:', e.message);
-        }
+      // Late checkout is charged ONLY when the front desk types an amount into
+      // the checkout dialog — never computed here. The automatic tiered fee that
+      // used to run on this transition billed an overstay twice (the re-priced
+      // nights already covered it) and landed on the bill with nothing on screen
+      // to explain it. `lateCheckoutFee` now arrives from the client already
+      // included in the `totalAmount` it sends, so this only sanitises it; adding
+      // it again here would double-charge.
+      if (bookingData.lateCheckoutFee !== undefined) {
+        const manualFee = Number(bookingData.lateCheckoutFee);
+        bookingData.lateCheckoutFee = Number.isFinite(manualFee) && manualFee > 0
+          ? Math.round(manualFee)
+          : 0;
       }
     } else if (bookingData.bookingStatus === 'Cancelled' || bookingData.bookingStatus === 'Rejected') {
       bookingData.checkedIn = false;

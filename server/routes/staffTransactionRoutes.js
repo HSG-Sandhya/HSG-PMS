@@ -22,6 +22,7 @@ const createTransactionValidation = [
   body('amount').isNumeric().isFloat({ min: 1 }).withMessage('Amount must be a positive number'),
   body('type').isIn(['advance', 'salary', 'bonus', 'deduction', 'loan', 'overtime']).withMessage('Invalid transaction type'),
   body('reason').optional({ checkFalsy: true }).trim(),
+  body('date').optional({ checkFalsy: true }).isISO8601().withMessage('Invalid date'),
   body('paymentMethod').optional().isIn(['cash', 'bank_transfer', 'cheque', 'upi']).withMessage('Invalid payment method')
 ];
 

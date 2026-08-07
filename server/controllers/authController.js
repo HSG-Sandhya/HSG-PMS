@@ -470,3 +470,78 @@ export const changeOwnPassword = asyncHandler(async (req, res) => {
 
   res.json({ success: true, message: 'Password changed successfully' });
 });
+
+// Change the logged-in user's own username (self-service).
+// Gated on the current password for the same reason the password change is: the
+// username is the login identifier, so taking it over is as good as taking over
+// the account, and a walk-up on an unattended session shouldn't be able to.
+export const changeOwnUsername = asyncHandler(async (req, res) => {
+  const { currentPassword, newUsername } = req.body || {};
+
+  if (!currentPassword || !newUsername) {
+    return res.status(400).json({
+      success: false,
+      message: 'Current password and new username are required'
+    });
+  }
+
+  const username = String(newUsername).trim();
+  if (!/^[a-zA-Z0-9._-]{3,30}$/.test(username)) {
+    return res.status(400).json({
+      success: false,
+      message: 'Username must be 3-30 characters — letters, numbers, dot, underscore or hyphen only'
+    });
+  }
+
+  // password has `select: false`, so pull it explicitly to compare.
+  const user = await User.findById(req.user.id).select('+password');
+  if (!user) {
+    return res.status(404).json({ success: false, message: 'User not found' });
+  }
+
+  const isCurrentValid = await user.comparePassword(currentPassword);
+  if (!isCurrentValid) {
+    return res.status(400).json({ success: false, message: 'Current password is incorrect' });
+  }
+
+  if (username === user.username) {
+    return res.status(400).json({
+      success: false,
+      message: 'That is already your username'
+    });
+  }
+
+  // Login matches the username exactly, so "Ravi" and "ravi" would be two
+  // sign-ins that look identical to the person typing — reject the collision
+  // rather than let it happen. escape-then-anchor keeps a dot/hyphen literal.
+  const escaped = username.replace(/[.*+?^${}()|[\]\\-]/g, '\\$&');
+  const taken = await User.findOne({
+    _id: { $ne: user._id },
+    username: { $regex: `^${escaped}$`, $options: 'i' }
+  }).select('_id');
+  if (taken) {
+    return res.status(409).json({ success: false, message: 'That username is already taken' });
+  }
+
+  const previous = user.username;
+  user.username = username;
+  try {
+    await user.save();
+  } catch (err) {
+    // The unique index is the last word if two people claim a name at once.
+    if (err?.code === 11000) {
+      return res.status(409).json({ success: false, message: 'That username is already taken' });
+    }
+    throw err;
+  }
+
+  logger.info('User changed own username', { userId: user._id, previous, username: user.username });
+
+  // The existing JWT still carries the old username, but nothing authorises on
+  // it (auth is by id), so the session stays valid until it expires normally.
+  res.json({
+    success: true,
+    message: 'Username changed successfully',
+    username: user.username
+  });
+});

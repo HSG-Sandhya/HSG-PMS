@@ -8,30 +8,47 @@ import dayjs from 'dayjs';
  * Number of billable nights between check-in and check-out.
  *
  * Single source of truth for the stay/checkout calculation (previously
- * duplicated inline in bookingController). Floors the day difference (min 1) and
- * applies the late-checkout rule: leaving after 12:00 noon bills one extra night.
+ * duplicated inline in bookingController). Floors the day difference, min 1.
+ *
+ * This used to add a night when checkout fell after 12:00 noon. Late checkout is
+ * now a charge the front desk enters by hand at checkout, not an extra night
+ * conjured by the clock — so nights track the dates and nothing else. Callers may
+ * still pass a third argument; it is ignored.
  *
  * @param {Date|string} checkIn
  * @param {Date|string} checkOut
- * @param {string} [checkOutTime='11:00']  "HH:mm" — used for the late-checkout rule.
  * @returns {number} Billable nights (>= 1).
  */
-export const calculateNights = (checkIn, checkOut, checkOutTime = '11:00') => {
+export const calculateNights = (checkIn, checkOut) => {
   const start = dayjs(checkIn);
   const end = dayjs(checkOut);
   if (!start.isValid() || !end.isValid()) return 1;
+  // Calendar days, not elapsed 24h periods: a 6:44 PM arrival on the 1st leaving
+  // on the 7th is 6 nights, but the raw difference is 5 days 5 hours, which
+  // truncated to 5 and quietly billed a night short.
+  return Math.max(1, end.startOf('day').diff(start.startOf('day'), 'day'));
+};
 
-  let nights = Math.max(1, end.diff(start, 'day'));
-
-  if (typeof checkOutTime === 'string' && checkOutTime.includes(':')) {
-    const [hours, minutes] = checkOutTime.split(':').map(Number);
-    if (!Number.isNaN(hours)) {
-      const checkoutHour = hours + (Number.isNaN(minutes) ? 0 : minutes / 60);
-      if (checkoutHour > 12.0) nights += 1;
-    }
-  }
-
-  return nights;
+/**
+ * Parse a user-picked calendar day ('YYYY-MM-DD') into a Date.
+ *
+ * Anchored at 12:00 UTC rather than midnight: `new Date('2026-08-06')` is UTC
+ * midnight, which renders as the 5th anywhere west of Greenwich and would shift
+ * a backdated entry into the previous day (and, on the 1st, the previous month).
+ * Noon keeps the calendar day intact from UTC-11 through UTC+12. Values that
+ * already carry a time pass through as-is; blank/invalid input returns undefined
+ * so the caller can fall back to the schema default.
+ *
+ * @param {string|Date} value
+ * @returns {Date|undefined}
+ */
+export const parseDateOnly = (value) => {
+  if (!value) return undefined;
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? undefined : value;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value).trim());
+  if (m) return new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12, 0, 0));
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? undefined : d;
 };
 
 /**

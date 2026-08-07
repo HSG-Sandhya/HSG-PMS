@@ -38,8 +38,6 @@ const OperationsSchema = new Schema(
       requireIdProof: { type: Boolean, default: frontDesk.requireIdProof },
       allowOverbooking: { type: Boolean, default: frontDesk.allowOverbooking },
       holdExpiryHours: { type: Number, min: 0, default: frontDesk.holdExpiryHours },
-      lateCheckoutGraceMinutes: { type: Number, min: 0, default: frontDesk.lateCheckoutGraceMinutes },
-      lateCheckoutFullDayAfter: { type: String, trim: true, default: frontDesk.lateCheckoutFullDayAfter },
     },
   },
   { _id: false }

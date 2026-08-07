@@ -2,6 +2,7 @@ import StaffTransaction from '../models/StaffTransaction.js';
 import User from '../models/User.js';
 import { validationResult } from 'express-validator';
 import { syncStaffTransactionExpense, removeEntriesBySource } from '../services/accountingSync.js';
+import { parseDateOnly } from '../utils/dateHelpers.js';
 
 // @desc    Get all transactions for a staff member
 // @route   GET /api/staff/:staffId/transactions
@@ -62,7 +63,7 @@ export const createStaffTransaction = async (req, res) => {
       });
     }
 
-    const { staffId, amount, type, reason, paymentMethod, notes } = req.body;
+    const { staffId, amount, type, reason, paymentMethod, notes, date } = req.body;
 
     // Verify staff exists
     const staff = await User.findById(staffId);
@@ -73,6 +74,10 @@ export const createStaffTransaction = async (req, res) => {
       });
     }
 
+    // An advance handed over last week is recorded today, so the caller may pick
+    // the day the money actually moved. Left out, the schema default stamps now.
+    const takenOn = parseDateOnly(date);
+
     const transaction = new StaffTransaction({
       staff: staffId,
       amount,
@@ -80,6 +85,7 @@ export const createStaffTransaction = async (req, res) => {
       reason,
       paymentMethod: paymentMethod || 'cash',
       notes,
+      ...(takenOn ? { date: takenOn } : {}),
       processedBy: req.user?._id || null
     });
 

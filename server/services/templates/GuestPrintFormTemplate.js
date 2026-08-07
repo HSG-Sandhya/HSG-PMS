@@ -29,19 +29,10 @@ class GuestPrintFormTemplate extends BaseInvoiceTemplate {
     const checkInDate = new Date(checkIn.getFullYear(), checkIn.getMonth(), checkIn.getDate());
     const checkOutDate = new Date(checkOut.getFullYear(), checkOut.getMonth(), checkOut.getDate());
 
-    let nights = Math.floor((checkOutDate - checkInDate) / (1000 * 60 * 60 * 24));
-    nights = Math.max(1, nights);
-
-    // Standard checkout is 11:00 AM. Anything after 11:00 counts as an extra night.
-    const checkOutTimeStr = booking.checkOutTime || '11:00';
-    if (checkOutTimeStr) {
-      try {
-        const [hours, minutes] = checkOutTimeStr.split(':').map(Number);
-        const checkoutHour = hours + minutes / 60;
-        if (checkoutHour > 11.0) nights += 1;
-      } catch { /* ignore */ }
-    }
-    return nights;
+    // Calendar nights only. A late checkout used to add a night here; it is now
+    // charged (or not) by hand at checkout, so the count stays honest to the dates.
+    const nights = Math.floor((checkOutDate - checkInDate) / (1000 * 60 * 60 * 24));
+    return Math.max(1, nights);
   }
 
   // ───────────────────────── styles ─────────────────────────

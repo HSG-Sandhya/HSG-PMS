@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Box,
   Typography,
@@ -39,10 +39,10 @@ import {
   Receipt as ReceiptIcon,
   Refresh as RefreshIcon
 } from '@mui/icons-material';
-import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import FormDialog, { FormSection } from './forms/FormDialog';
+import AppDatePicker from './forms/AppDatePicker';
 import api from '../api';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, subMonths } from 'date-fns';
 import { useOperations } from '../hooks/useBilling';
@@ -50,6 +50,27 @@ import { currencySym } from '../utils/billing';
 
 // Keep only the 10-digit local part of a phone number (drops a +91 / spaces).
 const phoneLocal = (phone) => String(phone || '').replace(/\D/g, '').slice(-10);
+
+// Today as 'YYYY-MM-DD' (local) — what the date pickers below start on.
+const todayYmd = () => format(new Date(), 'yyyy-MM-dd');
+
+// Only send a date to the API when the entry is actually backdated. Omitting it
+// for today lets the server stamp the real time, which keeps several entries
+// made on the same day in the order they were recorded.
+const backdate = (ymd) => (ymd && ymd !== todayYmd() ? ymd : undefined);
+
+// Tap-to-cycle attendance: each tap on a day advances Present → Absent → Half
+// Day and wraps around. Anything else (an unmarked day, or a legacy 'late' /
+// 'leave' record from when this UI still offered those) enters at Present.
+const ATTENDANCE_CYCLE = ['present', 'absent', 'half_day'];
+const ATTENDANCE_LABEL = { present: 'Present', absent: 'Absent', half_day: 'Half Day' };
+const nextAttendanceStatus = (status) =>
+  ATTENDANCE_CYCLE[(ATTENDANCE_CYCLE.indexOf(status) + 1) % ATTENDANCE_CYCLE.length];
+
+// Cell tooltip: names the three cycled statuses, and still reads a legacy
+// 'late' / 'leave' record honestly rather than calling it unmarked.
+const attendanceLabel = (status) => ATTENDANCE_LABEL[status]
+  || (status && status !== 'not_marked' ? status.replace(/_/g, ' ') : 'Not marked');
 
 // Colour a recharge's async status for the history chip.
 const RECHARGE_STATUS_COLOR = {
@@ -82,20 +103,21 @@ const StaffAttendanceCards = () => {
   const [newTransaction, setNewTransaction] = useState({
     amount: '',
     reason: '',
-    type: 'advance' // advance, salary, bonus, deduction
+    type: 'advance', // advance, salary, bonus, deduction
+    date: todayYmd() // the day the money actually changed hands
   });
-  
+
   // Recharge data
   const [rechargeHistory, setRechargeHistory] = useState([]);
   const [newRecharge, setNewRecharge] = useState({
     amount: '',
     phoneNumber: '',
     operator: '',
-    planType: 'prepaid'
+    planType: 'prepaid',
+    date: todayYmd()
   });
 
   // Loading states
-  const [attendanceLoading] = useState(false);
   const [transactionLoading, setTransactionLoading] = useState(false);
   const [rechargeLoading, setRechargeLoading] = useState(false);
 
@@ -143,6 +165,11 @@ const StaffAttendanceCards = () => {
 
   // Attendance Calendar Functions
   const openCalendarDialog = async (staffMember) => {
+    // Any taps still queued from the last staff member were captured with their
+    // own id and will save themselves; drop the bookkeeping so this calendar
+    // starts from what the server says.
+    pendingStatus.current = {};
+    rollbackStatus.current = {};
     setSelectedStaff(staffMember);
     setCalendarDialog(true);
     await fetchAttendanceData(staffMember._id, selectedMonth);
@@ -201,29 +228,94 @@ const StaffAttendanceCards = () => {
     }
   };
 
-  const [selectedDate, setSelectedDate] = useState(null);
-  const [markAttendanceDialog, setMarkAttendanceDialog] = useState(false);
-  const [attendanceForm, setAttendanceForm] = useState({
-    status: 'present',
-    notes: '',
-    leaveType: 'casual'
-  });
+  // Tapping a day cycles its status and paints the new colour immediately; the
+  // write is debounced so triple-tapping to reach Half Day is one request, not
+  // three. Keyed by 'YYYY-MM-DD': the timer in flight, the status the taps have
+  // landed on (the source of truth mid-burst, since state hasn't caught up yet),
+  // and the status to restore if the write fails.
+  const attendanceTimers = useRef({});
+  const pendingStatus = useRef({});
+  const rollbackStatus = useRef({});
+
+  // Replace this day's record in the local list. The date is kept as a real Date
+  // (not a 'YYYY-MM-DD' string) so the cell lookup can't drift a day in either
+  // direction when it re-parses it.
+  const withStatus = (list, day, status, staffId) => [
+    ...(Array.isArray(list) ? list : []).filter((att) => !isSameDay(new Date(att.date), day)),
+    { staff: staffId, date: day, status },
+  ];
+
+  const cycleAttendance = (day) => {
+    if (!selectedStaff) return;
+    const staffId = selectedStaff._id;
+    const ymd = format(day, 'yyyy-MM-dd');
+    const saved = getAttendanceStatus(day);
+    const next = nextAttendanceStatus(ymd in pendingStatus.current ? pendingStatus.current[ymd] : saved);
+
+    // The first tap of a burst remembers what to fall back to if the write fails.
+    if (!(ymd in rollbackStatus.current)) rollbackStatus.current[ymd] = saved;
+    pendingStatus.current[ymd] = next;
+    setAttendanceData((prev) => withStatus(prev, day, next, staffId));
+
+    clearTimeout(attendanceTimers.current[ymd]);
+    attendanceTimers.current[ymd] = setTimeout(() => saveAttendance(day, staffId), 450);
+  };
+
+  const saveAttendance = async (day, staffId) => {
+    const ymd = format(day, 'yyyy-MM-dd');
+    const status = pendingStatus.current[ymd];
+    delete attendanceTimers.current[ymd];
+    if (!status || !staffId) return;
+
+    try {
+      // Send the day as a plain date (no time/zone). Using toISOString() here
+      // shifted the day back by one in +05:30 IST — local midnight July 22
+      // serialises to 2026-07-21T18:30Z, which the UTC server floored to July 21,
+      // so the mark landed on the previous date.
+      await api.attendance.markAttendance({ staff: staffId, date: ymd, status });
+      if (attendanceTimers.current[ymd]) return; // more taps queued — they own the state now
+      delete pendingStatus.current[ymd];
+      delete rollbackStatus.current[ymd];
+      showSnackbar(`${format(day, 'dd MMM')} · ${ATTENDANCE_LABEL[status]}`, 'success');
+    } catch (error) {
+      console.error('Error marking attendance:', error);
+      if (attendanceTimers.current[ymd]) return;
+      const previous = rollbackStatus.current[ymd];
+      delete pendingStatus.current[ymd];
+      delete rollbackStatus.current[ymd];
+      setAttendanceData((prev) => (previous && previous !== 'not_marked'
+        ? withStatus(prev, day, previous, staffId)
+        : (Array.isArray(prev) ? prev : []).filter((att) => !isSameDay(new Date(att.date), day))));
+      showSnackbar(
+        error.response?.data?.message
+        || error.response?.data?.errors?.[0]?.msg
+        || 'Error marking attendance',
+        'error',
+      );
+    }
+  };
 
   const renderCalendar = () => {
     const startDate = startOfMonth(selectedMonth);
     const endDate = endOfMonth(selectedMonth);
     const days = eachDayOfInterval({ start: startDate, end: endDate });
-    
+
     return (
       <Grid container spacing={1} sx={{ mt: 2 }}>
         {days.map((day) => {
           const status = getAttendanceStatus(day);
           const color = getStatusColor(status);
           const isToday = isSameDay(day, new Date());
-          
+
           return (
             <Grid key={day.toString()}>
               <Box
+                component={motion.div}
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.82 }}
+                transition={{ type: 'spring', stiffness: 700, damping: 24, mass: 0.4 }}
+                onClick={() => cycleAttendance(day)}
+                title={`${format(day, 'MMM dd, yyyy')} — ${attendanceLabel(status)} · tap to change`}
                 sx={{
                   width: 35,
                   height: 35,
@@ -236,15 +328,13 @@ const StaffAttendanceCards = () => {
                   fontSize: '0.8rem',
                   fontWeight: 'bold',
                   cursor: 'pointer',
+                  userSelect: 'none',
+                  WebkitTapHighlightColor: 'transparent',
                   border: isToday ? '2px solid #1976d2' : 'none',
-                  '&:hover': {
-                    opacity: 0.8,
-                    transform: 'scale(1.1)'
-                  },
-                  transition: 'all 0.2s ease'
+                  // Only the colour animates in CSS — the press/lift is framer's
+                  // spring, so a transform transition here would fight it.
+                  transition: 'background-color 0.2s ease',
                 }}
-                onClick={() => handleDateClick(day)}
-                title={`Click to mark attendance for ${format(day, 'MMM dd, yyyy')}`}
               >
                 {format(day, 'd')}
               </Box>
@@ -253,67 +343,6 @@ const StaffAttendanceCards = () => {
         })}
       </Grid>
     );
-  };
-
-  const handleDateClick = (date) => {
-    setSelectedDate(date);
-    const currentStatus = getAttendanceStatus(date);
-    setAttendanceForm({
-      status: currentStatus === 'not_marked' ? 'present' : currentStatus,
-      notes: '',
-      leaveType: 'casual'
-    });
-    setMarkAttendanceDialog(true);
-  };
-
-  const markAttendanceForDate = async () => {
-    // Validate leave reason up front, before we touch the UI.
-    if (attendanceForm.status === 'leave' && (!attendanceForm.notes || attendanceForm.notes.trim().length < 5)) {
-      showSnackbar('Leave reason is required and must be at least 5 characters', 'error');
-      return;
-    }
-
-    const payload = {
-      staff: selectedStaff._id,
-      // Send the clicked calendar day as a plain date (no time/zone). Using
-      // toISOString() here shifted the day back by one in +05:30 IST — local
-      // midnight July 22 serialises to 2026-07-21T18:30Z, which the UTC server
-      // floored to July 21, so the mark landed on the previous date.
-      date: format(selectedDate, 'yyyy-MM-dd'),
-      status: attendanceForm.status,
-      notes: attendanceForm.notes,
-    };
-    if (attendanceForm.status === 'leave') {
-      payload.leaveType = attendanceForm.leaveType;
-      payload.leaveReason = attendanceForm.notes;
-    }
-
-    // Optimistic update: reflect the new status on the calendar instantly and
-    // close the dialog right away, then persist in the background. The day cell
-    // reads from attendanceData, so replacing this date's record updates it now.
-    const prevData = Array.isArray(attendanceData) ? attendanceData : [];
-    const markedDate = selectedDate;
-    setAttendanceData([
-      ...prevData.filter((att) => !isSameDay(new Date(att.date), markedDate)),
-      { ...payload },
-    ]);
-    setMarkAttendanceDialog(false);
-
-    try {
-      await api.attendance.markAttendance(payload);
-      showSnackbar('Attendance marked', 'success');
-      // Reconcile quietly with the server (no artificial delay).
-      fetchAttendanceData(selectedStaff._id, selectedMonth);
-    } catch (error) {
-      console.error('Error marking attendance:', error);
-      // Roll back the optimistic change and reopen so the user can retry.
-      setAttendanceData(prevData);
-      setMarkAttendanceDialog(true);
-      const errorMessage = error.response?.data?.message ||
-                          error.response?.data?.errors?.[0]?.msg ||
-                          'Error marking attendance';
-      showSnackbar(errorMessage, 'error');
-    }
   };
 
   // Payroll Functions
@@ -379,6 +408,7 @@ const StaffAttendanceCards = () => {
   const openMoneyDialog = async (staffMember) => {
     setSelectedStaff(staffMember);
     setMoneyDialog(true);
+    setNewTransaction((prev) => ({ ...prev, date: todayYmd() }));
     await fetchMoneyTransactions(staffMember._id);
   };
 
@@ -406,14 +436,15 @@ const StaffAttendanceCards = () => {
         staffId: selectedStaff._id,
         amount: parseFloat(newTransaction.amount),
         reason: (newTransaction.reason || '').trim(), // optional
-        type: newTransaction.type
+        type: newTransaction.type,
+        date: backdate(newTransaction.date) // only when it isn't today
       };
 
       console.log('Creating transaction:', transactionData);
       await api.staffTransactions.create(transactionData);
-      
+
       showSnackbar('Transaction recorded successfully!', 'success');
-      setNewTransaction({ amount: '', reason: '', type: 'advance' });
+      setNewTransaction({ amount: '', reason: '', type: 'advance', date: todayYmd() });
       await fetchMoneyTransactions(selectedStaff._id);
     } catch (error) {
       console.error('Transaction error:', error);
@@ -431,7 +462,8 @@ const StaffAttendanceCards = () => {
     // is shown as a fixed field prefix, never stored in the value.
     setNewRecharge({
       ...newRecharge,
-      phoneNumber: phoneLocal(staffMember.phone)
+      phoneNumber: phoneLocal(staffMember.phone),
+      date: todayYmd() // never carry a date left over from an abandoned entry
     });
     await fetchRechargeHistory(staffMember._id);
   };
@@ -472,7 +504,8 @@ const StaffAttendanceCards = () => {
         amount: parseFloat(newRecharge.amount),
         phoneNumber: localPhone,
         operator: newRecharge.operator,
-        planType: newRecharge.planType
+        planType: newRecharge.planType,
+        date: backdate(newRecharge.date) // only when it isn't today
       };
 
       console.log('Processing recharge:', rechargeData);
@@ -480,7 +513,7 @@ const StaffAttendanceCards = () => {
       
       showSnackbar('Recharge initiated!', 'success');
       const staffId = selectedStaff._id;
-      setNewRecharge({ amount: '', phoneNumber: '', operator: '', planType: 'prepaid' });
+      setNewRecharge({ amount: '', phoneNumber: '', operator: '', planType: 'prepaid', date: todayYmd() });
       await fetchRechargeHistory(staffId);
       // The server simulates ~2s operator processing before marking the recharge
       // success/failed (and posting the accounting expense); refetch once after
@@ -811,37 +844,22 @@ const StaffAttendanceCards = () => {
         >
           <FormSection title="Calendar" icon={<CalendarIcon fontSize="small" />} iconColor="#6366f1">
             <Box sx={{ mb: 3 }}>
-              <DatePicker
+              <AppDatePicker
                 label="Select Month"
-                value={selectedMonth}
-                onChange={(newDate) => {
-                  setSelectedMonth(newDate);
+                value={format(selectedMonth, 'yyyy-MM-dd')}
+                onChange={(ymd) => {
+                  if (!ymd) return;
+                  // Normalise to the 1st so the month grid never depends on which
+                  // day the picker carried over (Jan 31 → Feb would clamp).
+                  const month = startOfMonth(new Date(`${ymd}T00:00:00`));
+                  setSelectedMonth(month);
                   if (selectedStaff) {
-                    fetchAttendanceData(selectedStaff._id, newDate);
+                    fetchAttendanceData(selectedStaff._id, month);
                   }
                 }}
                 views={['year', 'month']}
-                sx={{ width: '100%' }}
-                slotProps={{
-                  popper: {
-                    sx: {
-                      '& .MuiPaper-root': {
-                        backgroundColor: 'white',
-                        boxShadow: 3,
-                      },
-                      '& .MuiPickersDay-root': {
-                        backgroundColor: 'white',
-                        '&:hover': {
-                          backgroundColor: '#f5f5f5'
-                        },
-                        '&.Mui-selected': {
-                          backgroundColor: '#1976d2',
-                          color: 'white'
-                        }
-                      }
-                    }
-                  }
-                }}
+                openTo="month"
+                format="MMMM yyyy"
               />
             </Box>
             
@@ -851,9 +869,9 @@ const StaffAttendanceCards = () => {
               </Typography>
               
               <Typography variant="body2" color="primary" sx={{ mb: 2, fontStyle: 'italic' }}>
-                💡 Click on any date to mark or update attendance
+                💡 Tap a date to cycle it — 1 tap Present, 2 taps Absent, 3 taps Half Day
               </Typography>
-              
+
               <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   <Box sx={{ width: 16, height: 16, backgroundColor: '#4caf50', borderRadius: 1 }} />
@@ -868,14 +886,6 @@ const StaffAttendanceCards = () => {
                   <Typography variant="body2">Half Day</Typography>
                 </Box>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Box sx={{ width: 16, height: 16, backgroundColor: '#ff5722', borderRadius: 1 }} />
-                  <Typography variant="body2">Late</Typography>
-                </Box>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Box sx={{ width: 16, height: 16, backgroundColor: '#9c27b0', borderRadius: 1 }} />
-                  <Typography variant="body2">Leave</Typography>
-                </Box>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   <Box sx={{ width: 16, height: 16, backgroundColor: '#e0e0e0', borderRadius: 1 }} />
                   <Typography variant="body2">Not Marked</Typography>
                 </Box>
@@ -883,120 +893,6 @@ const StaffAttendanceCards = () => {
             </Box>
             
             {renderCalendar()}
-          </FormSection>
-        </FormDialog>
-
-        {/* Mark Attendance Dialog */}
-        <FormDialog
-          open={markAttendanceDialog}
-          onClose={() => setMarkAttendanceDialog(false)}
-          onSubmit={(e) => { if (e?.preventDefault) e.preventDefault(); markAttendanceForDate(); }}
-          maxWidth="sm"
-          icon={<CalendarIcon />}
-          eyebrow={selectedDate ? format(selectedDate, 'MMM dd, yyyy') : ''}
-          title="Mark Attendance"
-          submitDisabled={attendanceLoading}
-          submitLabel={attendanceLoading ? 'Marking...' : 'Mark Attendance'}
-        >
-          <FormSection title="Attendance" icon={<CalendarIcon fontSize="small" />} iconColor="#10b981">
-            <Typography variant="body1" sx={{ mb: 2 }}>
-              Mark attendance for <strong>{selectedStaff?.firstName} {selectedStaff?.lastName}</strong>
-            </Typography>
-
-            <Grid container spacing={2}>
-              <Grid size={12}>
-                <FormControl fullWidth>
-                  <InputLabel>Status</InputLabel>
-                  <Select
-                    value={attendanceForm.status}
-                    onChange={(e) => setAttendanceForm({...attendanceForm, status: e.target.value})}
-                    MenuProps={{
-                      slotProps: {
-                        paper: {
-                          sx: {
-                            backgroundColor: 'white',
-                            boxShadow: 3,
-                            '& .MuiMenuItem-root': {
-                              backgroundColor: 'white',
-                              '&:hover': {
-                                backgroundColor: '#f5f5f5'
-                              },
-                              '&.Mui-selected': {
-                                backgroundColor: '#e3f2fd',
-                                '&:hover': {
-                                  backgroundColor: '#bbdefb'
-                                }
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }}
-                  >
-                    <MenuItem value="present">Present</MenuItem>
-                    <MenuItem value="absent">Absent</MenuItem>
-                    <MenuItem value="half_day">Half Day</MenuItem>
-                    <MenuItem value="late">Late</MenuItem>
-                    <MenuItem value="leave">Leave</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
-              
-              {/* Show leave type selector only when leave is selected */}
-              {attendanceForm.status === 'leave' && (
-                <Grid size={12}>
-                  <FormControl fullWidth>
-                    <InputLabel>Leave Type</InputLabel>
-                    <Select
-                      value={attendanceForm.leaveType}
-                      onChange={(e) => setAttendanceForm({...attendanceForm, leaveType: e.target.value})}
-                      MenuProps={{
-                        slotProps: {
-                          paper: {
-                            sx: {
-                              backgroundColor: 'white',
-                              boxShadow: 3,
-                              '& .MuiMenuItem-root': {
-                                backgroundColor: 'white',
-                                '&:hover': {
-                                  backgroundColor: '#f5f5f5'
-                                },
-                                '&.Mui-selected': {
-                                  backgroundColor: '#e3f2fd',
-                                  '&:hover': {
-                                    backgroundColor: '#bbdefb'
-                                  }
-                                }
-                              }
-                            }
-                          }
-                        }
-                      }}
-                    >
-                      <MenuItem value="sick">Sick Leave</MenuItem>
-                      <MenuItem value="casual">Casual Leave</MenuItem>
-                      <MenuItem value="earned">Earned Leave</MenuItem>
-                      <MenuItem value="maternity">Maternity Leave</MenuItem>
-                      <MenuItem value="paternity">Paternity Leave</MenuItem>
-                      <MenuItem value="emergency">Emergency Leave</MenuItem>
-                      <MenuItem value="unpaid">Unpaid Leave</MenuItem>
-                    </Select>
-                  </FormControl>
-                </Grid>
-              )}
-              
-              <Grid size={12}>
-                <TextField
-                  fullWidth
-                  label={attendanceForm.status === 'leave' ? "Leave Reason (Required)" : "Notes (Optional)"}
-                  multiline
-                  rows={2}
-                  value={attendanceForm.notes}
-                  onChange={(e) => setAttendanceForm({...attendanceForm, notes: e.target.value})}
-                  required={attendanceForm.status === 'leave'}
-                />
-              </Grid>
-            </Grid>
           </FormSection>
         </FormDialog>
 
@@ -1127,7 +1023,23 @@ const StaffAttendanceCards = () => {
                     </Select>
                   </FormControl>
                 </Grid>
-                <Grid size={12}>
+                <Grid
+                  size={{
+                    xs: 12,
+                    sm: 6
+                  }}>
+                  <AppDatePicker
+                    label="Date"
+                    value={newTransaction.date}
+                    onChange={(ymd) => setNewTransaction({ ...newTransaction, date: ymd })}
+                    max={todayYmd()}
+                  />
+                </Grid>
+                <Grid
+                  size={{
+                    xs: 12,
+                    sm: 6
+                  }}>
                   <TextField
                     fullWidth
                     label="Reason (optional)"
@@ -1250,6 +1162,18 @@ const StaffAttendanceCards = () => {
                         ),
                       }
                     }}
+                  />
+                </Grid>
+                <Grid
+                  size={{
+                    xs: 12,
+                    sm: 6
+                  }}>
+                  <AppDatePicker
+                    label="Date"
+                    value={newRecharge.date}
+                    onChange={(ymd) => setNewRecharge({ ...newRecharge, date: ymd })}
+                    max={todayYmd()}
                   />
                 </Grid>
                 <Grid
@@ -1398,7 +1322,9 @@ const StaffAttendanceCards = () => {
         {/* Snackbar */}
         <Snackbar
           open={snackbar.open}
-          autoHideDuration={6000}
+          // Confirmations clear fast — tapping down a month of attendance would
+          // otherwise leave a toast parked over the calendar.
+          autoHideDuration={snackbar.severity === 'error' ? 6000 : 2000}
           onClose={handleCloseSnackbar}
           anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
         >

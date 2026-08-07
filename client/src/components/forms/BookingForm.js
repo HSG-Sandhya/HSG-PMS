@@ -441,27 +441,11 @@ const BookingForm = ({
       const checkInDateOnly = new Date(checkInDateObj.getFullYear(), checkInDateObj.getMonth(), checkInDateObj.getDate());
       const checkOutDateOnly = new Date(checkOutDateObj.getFullYear(), checkOutDateObj.getMonth(), checkOutDateObj.getDate());
 
-      // Calculate base nights as the difference in days
-      let nights = Math.floor((checkOutDateOnly - checkInDateOnly) / (1000 * 60 * 60 * 24));
-      nights = Math.max(1, nights);
-
-      // Apply late checkout rule: if checkout time is after 12:00 PM, add 1 more night
-      const checkOutTimeStr = checkOutTime || billing.defaultCheckOutTime;
-      if (checkOutTimeStr) {
-        try {
-          const [hours, minutes] = checkOutTimeStr.split(':').map(Number);
-          const checkoutHour = hours + (minutes / 60); // Convert to decimal hours
-
-          // If checkout is after 12:00 PM (12.0), add one more night
-          if (checkoutHour > 12.0) {
-            nights += 1;
-          }
-        } catch (error) {
-          console.error('Error parsing checkout time:', error);
-        }
-      }
-
-      return nights;
+      // Calendar nights, at least 1. A checkout time after noon used to add a
+      // night to the quote automatically; late checkout is now charged by hand at
+      // checkout, so the quoted nights match the dates the guest booked.
+      const nights = Math.floor((checkOutDateOnly - checkInDateOnly) / (1000 * 60 * 60 * 24));
+      return Math.max(1, nights);
     } catch (error) {
       console.error('Error calculating nights:', error);
       return 1;

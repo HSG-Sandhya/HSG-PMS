@@ -1150,9 +1150,15 @@ const Bookings = ({ view = 'all', bookingType = null }) => {
         checkOutTime: format(new Date(), 'HH:mm'),
         restaurantCharges: restaurantCharges,
         totalWithRestaurant: totalWithRestaurant,
-        // Update with correct night count and amount from checkout calculation
+        // Update with correct night count and amount from checkout calculation.
+        // `totalAmount` is the room side of the bill and must already include any
+        // manual late-checkout charge — the server stores the fee for the invoice
+        // line but deliberately adds nothing, so it can never be counted twice.
         actualNights: paymentDetails.actualNights || checkoutBooking.nights || 1,
-        totalAmount: paymentDetails.adjustedAmount || checkoutBooking.totalAmount,
+        lateCheckoutFee: paymentDetails.lateCheckoutFee || 0,
+        totalAmount: paymentDetails.roomTotalWithLateFee
+          || paymentDetails.adjustedAmount
+          || checkoutBooking.totalAmount,
         checkOut: paymentDetails.checkoutDate ? format(paymentDetails.checkoutDate, 'yyyy-MM-dd') : checkoutBooking.checkOut,
       };
       
@@ -1266,27 +1272,12 @@ const Bookings = ({ view = 'all', bookingType = null }) => {
     const checkOutDate = new Date(checkOutDateObj.getFullYear(), checkOutDateObj.getMonth(), checkOutDateObj.getDate());
     
     // Calculate base nights as the difference in days
-    let nights = Math.floor((checkOutDate - checkInDate) / (1000 * 60 * 60 * 24));
-    nights = Math.max(1, nights); // Always at least 1 night for same-day bookings
-    
-    // Apply late checkout rule: if checkout time is after 12:00 PM, add 1 more night
-    const checkOutTimeStr = checkOutTime || billing.defaultCheckOutTime;
-    if (checkOutTimeStr) {
-      try {
-        const [hours, minutes] = checkOutTimeStr.split(':').map(Number);
-        const checkoutHour = hours + (minutes / 60); // Convert to decimal hours
-        
-        // If checkout is after 12:00 PM (12.0), add one more night
-        if (checkoutHour > 12.0) {
-          nights += 1;
-        }
-      } catch (error) {
-        console.error('Error parsing checkout time:', error);
-      }
-    }
-
-    return nights;
-  }, [billing]);
+    // Calendar nights, at least 1 for a same-day booking. A checkout time after
+    // noon used to add a night automatically; late checkout is now a charge the
+    // front desk enters at checkout, so it never inflates the night count.
+    const nights = Math.floor((checkOutDate - checkInDate) / (1000 * 60 * 60 * 24));
+    return Math.max(1, nights);
+  }, []);
 
   // Recalculate nights and amounts whenever relevant formData changes
   useEffect(() => {
