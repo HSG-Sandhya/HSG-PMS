@@ -53,6 +53,39 @@ export const requireManage = (permission) => async (req, res, next) => {
 };
 
 /**
+ * The same permission resolution as `requireManage`, but as a predicate rather
+ * than a guard — for routes that stay open to everyone and instead vary WHAT
+ * they return. Resolves to true if the caller holds any of `permissions`.
+ *
+ * Shares requireManage's `req.authUser` cache, so calling both on one request
+ * costs a single lookup.
+ */
+export const callerHasAnyPermission = async (req, permissions) => {
+  const required = Array.isArray(permissions) ? permissions : [permissions];
+  try {
+    const u = req.user;
+    if (!u) return false;
+    if (u.isSystemAdmin) return true;
+
+    if (typeof u.hasPermission === 'function') {
+      return required.some((p) => u.hasPermission(p));
+    }
+
+    const dbUser = req.authUser || await loadAuthUser(u);
+    if (!dbUser || dbUser.isActive === false) return false;
+    req.authUser = dbUser;
+    if (dbUser.isSystemAdmin) return true;
+
+    const rolePerms = dbUser.role?.permissions || [];
+    const directPerms = dbUser.permissions || [];
+    return required.some((p) => rolePerms.includes(p) || directPerms.includes(p));
+  } catch {
+    // Fail closed — an unresolvable caller gets the reduced view.
+    return false;
+  }
+};
+
+/**
  * Load the caller's User document from a decoded JWT payload, with the role
  * fields every permission/authority check needs.
  */

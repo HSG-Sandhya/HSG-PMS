@@ -365,11 +365,17 @@ const apiRoutes = [
   ["/api/users", userRoutes],
   ["/api/user-management", userManagementRoutes],
   ["/api/user-roles", userRoleRoutes],
+  // These two live UNDER /api/admin but are not administrator-only: the guest
+  // and staff forms call them. They must mount BEFORE "/api/admin", because
+  // Express matches mounts by prefix — a request to /api/admin/gst/lookup
+  // enters adminRoutes first, and adminRoutes ends with a path-less
+  // `router.use(requireAdmin)` that rejects every non-admin caller before it
+  // can fall through to here. Mounted after, they were admin-only in practice.
+  ["/api/admin/aadhar", aadharRoutes],
+  ["/api/admin/gst", gstRoutes],
   ["/api/admin", adminRoutes],
   ["/api/staff", staffRoutes],
   ["/api/departments", departmentRoutes],
-  ["/api/admin/aadhar", aadharRoutes],
-  ["/api/admin/gst", gstRoutes],
 
   // Hotel operations (3rd element = resource label → mutation activity logging)
   ["/api/rooms", roomRoutes, "room"],

@@ -416,8 +416,18 @@ export const updateBooking = async (req, res) => {
       bookingData.invoiceNumber = await generateInvoiceNumber(existingBooking.guestName, existingBooking.checkIn);
     }
 
+    // A tariff bargained at the desk arrives as an explicit roomRate with its own
+    // baseAmount — which may legitimately be 0 for a complimentary stay — so it
+    // must never be re-priced off the room's list price below.
+    if (bookingData.roomRate !== undefined) {
+      const negotiated = Number(bookingData.roomRate);
+      bookingData.roomRate = Number.isFinite(negotiated) && negotiated > 0
+        ? Math.round(negotiated * 100) / 100
+        : 0;
+    }
+
     // Calculate and store baseAmount if not provided and room data is available
-    if (!bookingData.baseAmount && existingBooking.roomId?.pricePerNight) {
+    if (bookingData.roomRate === undefined && !bookingData.baseAmount && existingBooking.roomId?.pricePerNight) {
       const { defaultCheckOutTime } = await getBilling();
       const nights = calculateNights(
         bookingData.checkIn || existingBooking.checkIn,

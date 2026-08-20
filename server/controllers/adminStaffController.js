@@ -6,9 +6,36 @@ import logger from '../config/logger.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 
 /**
- * Admin-only staff management controller
- * Only administrators can create, manage, and assign roles to staff
+ * Staff management controller.
+ *
+ * Most routes here are open to non-admin managers holding the granular staff
+ * permissions (see server/routes/adminRoutes.js), so anything that touches an
+ * ACCOUNT rather than a PERSON — credentials, login identity, hard delete — is
+ * additionally gated on the caller being an administrator.
  */
+
+// Whether the caller is an administrator (as opposed to a manager who merely
+// holds staff permissions). Mirrors the naming rule in middleware/staffAuthority.js:
+// the admin guards grant access by role NAME, so an admin-named role is admin.
+const isAdminActor = (req) => {
+  const u = req.user;
+  if (!u) return false;
+  if (u.isSystemAdmin) return true;
+  const name = (u.role?.name || u.roleName || '').toLowerCase();
+  return name.includes('admin') || name.includes('system');
+};
+
+// Mint a login username that doesn't collide with an existing one.
+const generateUniqueUsername = async (role, firstName, lastName) => {
+  let candidate = role.generateUsername(firstName, lastName);
+  let counter = 1;
+  // eslint-disable-next-line no-await-in-loop
+  while (await User.findOne({ username: candidate })) {
+    candidate = `${role.generateUsername(firstName, lastName)}${counter}`;
+    counter += 1;
+  }
+  return candidate;
+};
 
 // Produce a professional-looking employee ID like `EMP-2026-7K3FB`.
 // The 5-character suffix is drawn from an unambiguous alphabet (no I/O/0/1)
@@ -96,29 +123,22 @@ export const createStaff = asyncHandler(async (req, res) => {
     });
   }
 
-  // Check if role can have user account
-  if (!role.userAccountSettings?.canHaveUserAccount) {
-    return res.status(400).json({
-      success: false,
-      message: 'This role cannot have a user account'
-    });
-  }
+  // Does this role sign in to the PMS at all? Roles below hierarchy 6 don't by
+  // default (housekeeping, kitchen, room attendants), so their staff are
+  // personnel records only — tracked for attendance and payroll, with no
+  // credentials to issue, leak or reset. A Super Admin can override this per
+  // role, which is how front desk keeps the login it needs.
+  const wantsLogin = role.allowsLogin();
 
   let finalUsername, finalPassword;
-  
-  if (generateCredentials) {
-    // Generate username based on role pattern
-    finalUsername = role.generateUsername(firstName, lastName);
-    
-    // Check if username exists and make it unique
-    let usernameExists = await User.findOne({ username: finalUsername });
-    let counter = 1;
-    while (usernameExists) {
-      finalUsername = `${role.generateUsername(firstName, lastName)}${counter}`;
-      usernameExists = await User.findOne({ username: finalUsername });
-      counter++;
-    }
-    
+
+  if (!wantsLogin) {
+    // No credentials at all — not blank ones. `username` stays unset so the
+    // sparse unique index skips the record entirely.
+    finalUsername = undefined;
+    finalPassword = undefined;
+  } else if (generateCredentials) {
+    finalUsername = await generateUniqueUsername(role, firstName, lastName);
     // Generate password based on role pattern
     finalPassword = role.generatePassword(firstName, lastName);
   } else {
@@ -168,8 +188,7 @@ export const createStaff = asyncHandler(async (req, res) => {
   // Create user data. Email is optional — omit it entirely when blank so the
   // sparse unique index skips this user (storing '' would still collide).
   const userData = {
-    username: finalUsername,
-    password: finalPassword,
+    hasLoginAccess: wantsLogin,
     phone: phone.trim(),
     firstName: firstName.trim(),
     lastName: (lastName || '').trim(),
@@ -186,6 +205,12 @@ export const createStaff = asyncHandler(async (req, res) => {
   };
   if (email && email.trim()) {
     userData.email = email.toLowerCase().trim();
+  }
+  // Only set credentials when the role has a login; assigning `undefined`
+  // would still create the key and trip the sparse index on ''.
+  if (wantsLogin) {
+    userData.username = finalUsername;
+    userData.password = finalPassword;
   }
 
   // Create new user
@@ -223,12 +248,17 @@ export const createStaff = asyncHandler(async (req, res) => {
     success: true,
     data: {
       user: userResponse,
-      credentials: generateCredentials ? { 
-        username: finalUsername, 
-        password: finalPassword 
-      } : undefined
+      credentials: (wantsLogin && generateCredentials) ? {
+        username: finalUsername,
+        password: finalPassword
+      } : undefined,
+      // Lets the UI say "no login for this role" instead of silently showing
+      // an empty credentials panel.
+      hasLoginAccess: wantsLogin
     },
-    message: 'Staff member created successfully'
+    message: wantsLogin
+      ? 'Staff member created successfully'
+      : 'Staff member added. This role has no app login, so no credentials were issued.'
   });
 });
 
@@ -321,6 +351,9 @@ export const getStaffById = asyncHandler(async (req, res) => {
 export const updateStaff = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const updates = req.body;
+  // Set when a role change moves the staff member across the login threshold.
+  let issuedCredentials = null;
+  let revokeCredentials = false;
 
   // Remove sensitive fields that shouldn't be updated directly
   delete updates.password;
@@ -328,6 +361,15 @@ export const updateStaff = asyncHandler(async (req, res) => {
   delete updates.lockUntil;
   delete updates.createdBy;
   delete updates._id;
+  // The login identity is an admin-only field. A manager with `edit_staff` may
+  // maintain a staff member's details, but changing the name they sign in with
+  // is account administration, not staff administration — and it would let a
+  // manager quietly retarget an account. `hasLoginAccess` is derived from the
+  // role below, never accepted from the client.
+  delete updates.hasLoginAccess;
+  if (!isAdminActor(req)) {
+    delete updates.username;
+  }
 
   // The staff form (create AND edit) sends roleId/departmentId, but the User
   // document stores them as `role`/`department`. Without this mapping the edit
@@ -357,6 +399,22 @@ export const updateStaff = asyncHandler(async (req, res) => {
       });
     }
     updates.permissions = role.permissions || [];
+
+    // Login access follows the role. Moving someone up to a role that signs in
+    // has to mint credentials (there are none to reuse); moving them down to a
+    // personnel-only role revokes them, so the account can no longer be used.
+    const nowAllowsLogin = role.allowsLogin();
+    if (nowAllowsLogin && !user.hasLoginAccess) {
+      updates.hasLoginAccess = true;
+      updates.username = await generateUniqueUsername(role, user.firstName, user.lastName);
+      updates.password = role.generatePassword(user.firstName, user.lastName);
+      issuedCredentials = { username: updates.username, password: updates.password };
+    } else if (!nowAllowsLogin && user.hasLoginAccess !== false) {
+      updates.hasLoginAccess = false;
+      // Unset rather than blank: '' would collide on the sparse unique index
+      // the moment a second staff member is demoted.
+      revokeCredentials = true;
+    }
   }
 
   // If department is being updated, validate it
@@ -383,6 +441,15 @@ export const updateStaff = asyncHandler(async (req, res) => {
   // Update user
   Object.assign(user, updates);
 
+  // Demoted to a personnel-only role: drop the credentials entirely. `$unset`
+  // (not '') so the sparse unique index ignores the document.
+  if (revokeCredentials) {
+    user.username = undefined;
+    user.password = undefined;
+    user.markModified('username');
+    user.markModified('password');
+  }
+
   if (!user.profile) user.profile = {};
 
   // Generate (or upgrade) the employee ID:
@@ -397,6 +464,15 @@ export const updateStaff = asyncHandler(async (req, res) => {
 
   await user.save();
 
+  // The unset has to reach Mongo explicitly — assigning `undefined` marks the
+  // path modified but `save()` won't emit a $unset for it on an existing doc.
+  if (revokeCredentials) {
+    await User.collection.updateOne(
+      { _id: user._id },
+      { $unset: { username: '', password: '' } },
+    );
+  }
+
   // Populate updated user
   await user.populate('role department');
 
@@ -405,13 +481,21 @@ export const updateStaff = asyncHandler(async (req, res) => {
     adminUsername: req.user.username,
     updatedUserId: user._id,
     updatedUsername: user.username,
-    updates: Object.keys(updates)
+    updates: Object.keys(updates),
+    loginAccessChanged: revokeCredentials ? 'revoked' : (issuedCredentials ? 'granted' : 'unchanged')
   });
 
   res.json({
     success: true,
     data: user,
-    message: 'Staff member updated successfully'
+    // Present only when a role change just minted a login — the UI shows these
+    // once, exactly as it does after creating a staff member.
+    credentials: issuedCredentials,
+    message: revokeCredentials
+      ? 'Staff member updated. This role has no app login, so their credentials were removed.'
+      : (issuedCredentials
+        ? 'Staff member updated. This role signs in, so new login credentials were issued.'
+        : 'Staff member updated successfully')
   });
 });
 
@@ -420,11 +504,30 @@ export const resetStaffPassword = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { newPassword, generatePassword = false } = req.body;
 
+  // Credentials are account administration, not staff administration. A manager
+  // with `edit_staff` may maintain the person's record, but handing them
+  // password resets means they can take over any account they can see —
+  // including, over time, one that outranks them.
+  if (!isAdminActor(req)) {
+    return res.status(403).json({
+      success: false,
+      message: 'Access denied. Only an administrator can reset a staff password.'
+    });
+  }
+
   const user = await User.findById(id).populate('role');
   if (!user) {
     return res.status(404).json({
       success: false,
       message: 'Staff member not found'
+    });
+  }
+
+  // Nothing to reset on a personnel-only record — it has no credentials.
+  if (user.hasLoginAccess === false) {
+    return res.status(400).json({
+      success: false,
+      message: 'This staff member has no app login, so there is no password to reset.'
     });
   }
 

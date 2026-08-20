@@ -24,20 +24,32 @@ router.param('id', objectIdParam('ID'));
 // manager to staff/roles below their own level.
 const VIEW_STAFF = ['manage_staff', 'view_staff'];
 
+// Being able to change the roster implies being able to SEE it. Granting a
+// Hotel Manager create/edit/deactivate without `view_staff` used to leave them
+// managing an invisible list — they could add a staff member and then not find
+// them again. enforceStaffAuthority still caps WHICH staff they may act on, so
+// widening the read here doesn't widen their authority.
+const SEE_STAFF = [...VIEW_STAFF, 'create_staff', 'edit_staff', 'deactivate_staff'];
+
 router.post('/staff', requireManage(['manage_staff', 'create_staff']), enforceStaffAuthority, adminStaffController.createStaff);
-router.get('/staff', requireManage(VIEW_STAFF), adminStaffController.getAllStaff);
-router.get('/staff/stats', requireManage(VIEW_STAFF), adminStaffController.getStaffStats);
-router.get('/staff/:id', requireManage(VIEW_STAFF), adminStaffController.getStaffById);
+router.get('/staff', requireManage(SEE_STAFF), adminStaffController.getAllStaff);
+router.get('/staff/stats', requireManage(SEE_STAFF), adminStaffController.getStaffStats);
+router.get('/staff/:id', requireManage(SEE_STAFF), adminStaffController.getStaffById);
 router.put('/staff/:id', requireManage(['manage_staff', 'edit_staff']), enforceStaffAuthority, adminStaffController.updateStaff);
 router.patch('/staff/:id/status', requireManage(['manage_staff', 'deactivate_staff']), enforceStaffAuthority, adminStaffController.toggleStaffStatus);
-router.patch('/staff/:id/password', requireManage(['manage_staff', 'edit_staff']), enforceStaffAuthority, adminStaffController.resetStaffPassword);
-// Hard delete — umbrella grant only (`deactivate_staff` is for the status route).
-router.delete('/staff/:id', requireManage('manage_staff'), enforceStaffAuthority, adminStaffController.deleteStaff);
+// Password resets are administrator-only — the controller enforces it too, so
+// the rule holds even if this route is ever re-pointed. A manager maintaining
+// staff records has no business taking over their accounts.
+router.patch('/staff/:id/password', permissionMiddleware.requireAdmin, enforceStaffAuthority, adminStaffController.resetStaffPassword);
+// Hard delete — administrator-only. Destroying the record also destroys the
+// attendance and payroll history hanging off it, so a manager gets
+// `deactivate_staff` (the status route) instead, which is reversible.
+router.delete('/staff/:id', permissionMiddleware.requireAdmin, enforceStaffAuthority, adminStaffController.deleteStaff);
 
 // Reading the role list is part of creating/editing staff (the role picker), so
 // it follows the staff permissions rather than admin-only.
-router.get('/roles', requireManage([...VIEW_STAFF, 'create_staff', 'edit_staff', 'manage_roles']), adminRoleController.getAllRoles);
-router.get('/roles/permissions', requireManage([...VIEW_STAFF, 'create_staff', 'edit_staff', 'manage_roles']), adminRoleController.getAvailablePermissions);
+router.get('/roles', requireManage([...SEE_STAFF, 'manage_roles']), adminRoleController.getAllRoles);
+router.get('/roles/permissions', requireManage([...SEE_STAFF, 'manage_roles']), adminRoleController.getAvailablePermissions);
 
 // ── Everything below is administrator-only ──────────────────────────────────
 router.use(permissionMiddleware.requireAdmin);

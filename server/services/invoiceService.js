@@ -132,13 +132,21 @@ class InvoiceService {
 
       // Fetch additional data based on booking type
       if (bookingType === 'hotel') {
+        // The desk can settle the food bill away from the room bill (guest paid
+        // the outlet directly, company tab, comped). When that was chosen at
+        // checkout the F&B lines are left off this invoice completely — no
+        // orders, no charge — so the printed total matches what was collected.
+        const billFood = booking.includeRestaurantInInvoice !== false;
+
         // Fetch restaurant orders for hotel bookings. Exclude cancelled orders
         // so the guest is never billed for food that was cancelled.
-        const restaurantOrders = await Order.find({ roomId: bookingId, status: { $ne: 'Cancelled' } })
-          .populate('items.itemId')
-          .sort({ createdAt: 1 });
+        const restaurantOrders = billFood
+          ? await Order.find({ roomId: bookingId, status: { $ne: 'Cancelled' } })
+            .populate('items.itemId')
+            .sort({ createdAt: 1 })
+          : [];
         booking.restaurantOrders = restaurantOrders;
-        
+
         // Calculate total restaurant charges from orders
         let totalRestaurantCharges = 0;
         restaurantOrders.forEach(order => {

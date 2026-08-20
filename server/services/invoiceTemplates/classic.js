@@ -120,6 +120,7 @@ export const render = (ctx) => `<!doctype html>
         <div class="meta-title">Billed to</div>
         <div style="font-weight:600;color:#111827;font-size:14px;margin-bottom:6px;">${e(ctx.customer.name)}</div>
         <div style="font-size:12px;color:#4b5563;line-height:1.6;">
+          ${ctx.customer.company ? `${e(ctx.customer.company)}<br/>` : ''}
           ${ctx.customer.phone ? `${e(ctx.customer.phone)}<br />` : ''}
           ${ctx.customer.email ? `${e(ctx.customer.email)}<br />` : ''}
           ${ctx.customer.address ? `${e(ctx.customer.address)}<br />` : ''}

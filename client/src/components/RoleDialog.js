@@ -22,8 +22,10 @@ import {
   VpnKey as VpnKeyIcon,
   ExpandMore as ExpandMoreIcon
 } from '@mui/icons-material';
+import Button from '@mui/material/Button';
 import FormDialog, { FormSection } from './forms/FormDialog';
 import api from '../api';
+import { roleAllowsLogin, loginRuleReason, LOGIN_HIERARCHY_THRESHOLD } from '../utils/roleLogin';
 
 const RoleDialog = ({ open, onClose, onSuccess, editingRole, availablePermissions: propPermissions, departments: propDepartments }) => {
   const [loading, setLoading] = useState(false);
@@ -37,6 +39,10 @@ const RoleDialog = ({ open, onClose, onSuccess, editingRole, availablePermission
     departmentId: '',
     permissions: [],
     hierarchy: 1,
+    // null = follow the level rule (>= 6 signs in); true/false = explicit
+    // override. Kept tri-state so a role only departs from the rule when
+    // somebody deliberately says so.
+    canHaveUserAccount: null,
     accessLevel: {
       departments: [],
       rooms: 'limited',
@@ -83,6 +89,10 @@ const RoleDialog = ({ open, onClose, onSuccess, editingRole, availablePermission
           departmentId: editingRole.department?._id || editingRole.department?.id || editingRole.departmentId || '',
           permissions: editingRole.permissions || [],
           hierarchy: editingRole.hierarchy || 1,
+          canHaveUserAccount:
+            typeof editingRole.userAccountSettings?.canHaveUserAccount === 'boolean'
+              ? editingRole.userAccountSettings.canHaveUserAccount
+              : null,
           accessLevel: {
             departments: editingRole.accessLevel?.departments || [],
             rooms: editingRole.accessLevel?.rooms || 'limited',
@@ -119,6 +129,7 @@ const RoleDialog = ({ open, onClose, onSuccess, editingRole, availablePermission
           departmentId: '',
           permissions: [],
           hierarchy: 1,
+          canHaveUserAccount: null,
           accessLevel: {
             departments: [],
             rooms: 'limited',
@@ -183,6 +194,15 @@ const RoleDialog = ({ open, onClose, onSuccess, editingRole, availablePermission
     }
   };
 
+  // What the login switch currently shows: the explicit override when one is
+  // set, otherwise whatever the level rule resolves to for the chosen level.
+  // Reading it through the shared helper keeps the switch honest when the
+  // hierarchy field changes.
+  const loginEnabled = roleAllowsLogin({
+    hierarchy: formData.hierarchy,
+    userAccountSettings: { canHaveUserAccount: formData.canHaveUserAccount ?? undefined },
+  });
+
   const handlePermissionChange = (permission) => {
     setFormData(prev => ({
       ...prev,
@@ -210,6 +230,17 @@ const RoleDialog = ({ open, onClose, onSuccess, editingRole, availablePermission
         // Remove empty departmentId to avoid ObjectId cast error
         departmentId: formData.departmentId || undefined
       };
+      // The login override lives under userAccountSettings on the Role schema.
+      // `null` means "follow the level rule", which the server represents as
+      // the field being absent — so send undefined and let it stay unset.
+      delete cleanFormData.canHaveUserAccount;
+      cleanFormData.userAccountSettings = { ...(formData.userAccountSettings || {}) };
+      if (formData.canHaveUserAccount === null) {
+        // Absent = follow the level rule. The server $unsets it in that case.
+        delete cleanFormData.userAccountSettings.canHaveUserAccount;
+      } else {
+        cleanFormData.userAccountSettings.canHaveUserAccount = formData.canHaveUserAccount;
+      }
 
       // Remove undefined values
       Object.keys(cleanFormData).forEach(key => {
@@ -240,6 +271,7 @@ const RoleDialog = ({ open, onClose, onSuccess, editingRole, availablePermission
       departmentId: '',
       permissions: [],
       hierarchy: 1,
+      canHaveUserAccount: null,
       accessLevel: {
         departments: [],
         rooms: 'limited',
@@ -321,6 +353,49 @@ const RoleDialog = ({ open, onClose, onSuccess, editingRole, availablePermission
                 htmlInput: { min: 1, max: 10 }
               }}
             />
+          </Grid>
+          {/* App login — whether staff on this role get credentials at all.
+              Junior staff are tracked for attendance and payroll without ever
+              signing in, which removes a password to leak or reset for the
+              largest group of accounts. */}
+          <Grid size={12}>
+            <Box
+              sx={{
+                p: 2,
+                borderRadius: 2,
+                border: '1px solid',
+                borderColor: 'divider',
+                bgcolor: 'action.hover',
+              }}
+            >
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={loginEnabled}
+                    onChange={(e) => handleInputChange('canHaveUserAccount', e.target.checked)}
+                  />
+                }
+                label="Staff can sign in to the app"
+              />
+              <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', mt: 0.5 }}>
+                {loginRuleReason({
+                  hierarchy: formData.hierarchy,
+                  userAccountSettings: { canHaveUserAccount: formData.canHaveUserAccount ?? undefined },
+                })}
+                {' '}
+                Staff without a login are still tracked for attendance and payroll — they
+                just get no username or password.
+              </Typography>
+              {formData.canHaveUserAccount !== null && (
+                <Button
+                  size="small"
+                  onClick={() => handleInputChange('canHaveUserAccount', null)}
+                  sx={{ mt: 0.5, textTransform: 'none' }}
+                >
+                  Reset to the level {LOGIN_HIERARCHY_THRESHOLD} rule
+                </Button>
+              )}
+            </Box>
           </Grid>
           <Grid size={12}>
             <TextField

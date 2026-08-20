@@ -22,6 +22,18 @@ export const lookupGst = async (req, res) => {
     }
 
     if (!isConfigured()) {
+      // The simulation is a development affordance and must never run on a live
+      // system. Front desk had no reliable way to tell sample data from a real
+      // lookup: the fields auto-fill either way and the only warning is a
+      // transient snackbar, so "Demo Enterprises / Sample District" was one
+      // click from being saved onto a real guest and printed on their invoice.
+      // In production we refuse instead, and staff type the details in.
+      if (process.env.NODE_ENV === 'production') {
+        return res.status(503).json({
+          success: false,
+          message: 'GST lookup is not configured on this server. Please enter the company name and address manually.',
+        });
+      }
       return res.json({
         success: true,
         message: 'Demo mode: no GST provider configured — sample company details returned.',

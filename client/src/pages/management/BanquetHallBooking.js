@@ -62,6 +62,7 @@ import {
   eventCategory,
   addOnsForCategory,
   isDurationPricedType,
+  isGstExemptType,
   POLICY_FIELDS,
   policyDefaultsForType,
   isAutoPolicyValue,
@@ -88,6 +89,7 @@ import {
   sumFacilityItems,
   facilityItemAmount,
   cateringGst,
+  roundBanquetTotal,
 } from './banquet/bookingPricing';
 import HkKpiCard from '../operations/housekeeping/HkKpiCard';
 import BanquetHeader from './banquet/BanquetHeader';
@@ -313,6 +315,9 @@ const BanquetHallBooking = () => {
   useEffect(() => {
     const isDurationPriced = isDurationPricedType(formData.eventType);
     const usingPackage = !isDurationPriced && !!formData.packageId;
+    // Weddings are billed GST-free — no 18% on catering, facilities at their
+    // ex-GST base. Corporate-style events still carry the tax.
+    const gstExempt = isGstExemptType(formData.eventType);
 
     // Days the booking actually spans, from the start datetime to the end
     // datetime, so a 22 10:00 → 26 22:00 conference = 5 days while a standard
@@ -365,14 +370,26 @@ const BanquetHallBooking = () => {
     // so the GST is already inside these amounts. Carried over when a quotation
     // is converted, and editable on the form. This MUST be in the total: without
     // it, editing a converted booking would silently drop the facilities.
-    const extrasCost = sumFacilityItems(formData.extraItems);
+    const extrasCost = sumFacilityItems(formData.extraItems, gstExempt);
 
     // 18% GST on the catering value — catering is priced pre-GST, so it is added
     // on top to reach the billed total (every other line is GST-inclusive). This
     // keeps the tracked total in step with the printed tax invoice.
-    const cateringGstAmount = cateringGst(cateringCost);
+    const cateringGstAmount = cateringGst(cateringCost, gstExempt);
 
-    const totalAmount = floorCost + roomsCost + decorationCost + cateringCost + cateringGstAmount + utensilsCost + vendorExtras + extrasCost;
+    const rawTotal = floorCost + roomsCost + decorationCost + cateringCost + cateringGstAmount + utensilsCost + vendorExtras + extrasCost;
+
+    // Negotiated discount, capped at the gross so the payable can never go
+    // negative. Deducted BEFORE the rounding, so the amount the guest actually
+    // hands over is the round figure — discounting after it would reintroduce
+    // the paise. Mirrored server-side in invoiceTemplates/normalize.js.
+    const discount = Math.min(rawTotal, Math.max(0, parseFloat(formData.discount) || 0));
+    const netTotal = rawTotal - discount;
+
+    // The bill is collected in round figures, so the payable is rounded UP to
+    // the next ₹100 and `roundOff` carries the difference for the breakdown.
+    const totalAmount = roundBanquetTotal(netTotal);
+    const roundOff = totalAmount - netTotal;
 
     const advanceAmount = parseFloat(formData.advanceAmount) || 0;
     const remainingAmount = calculateRemainingAmount(totalAmount, advanceAmount);
@@ -387,12 +404,15 @@ const BanquetHallBooking = () => {
       utensilsCost,
       extrasCost,
       numberOfDays,
+      grossAmount: rawTotal,
+      discountApplied: discount,
       totalAmount,
+      roundOff,
       remainingAmount,
       eventDuration,
     }));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [formData.selectedFloors, formData.rooms, formData.complimentaryRooms, formData.decorationItems, formData.cateringItems, formData.utensilItems, formData.extraItems, formData.guestCount, formData.packageId, formData.packageBasePrice, formData.packageDecorationCost, formData.advanceAmount, formData.eventType, formData.eventDate, formData.endDate, formData.startTime, formData.endTime, formData.photographyAmount, formData.entertainmentCost]);
+  }, [formData.selectedFloors, formData.rooms, formData.complimentaryRooms, formData.decorationItems, formData.cateringItems, formData.utensilItems, formData.extraItems, formData.guestCount, formData.packageId, formData.packageBasePrice, formData.packageDecorationCost, formData.advanceAmount, formData.discount, formData.eventType, formData.eventDate, formData.endDate, formData.startTime, formData.endTime, formData.photographyAmount, formData.entertainmentCost]);
 
   // Remember when the Payment (final) step was shown, for the submit guard.
   useEffect(() => {
@@ -428,6 +448,7 @@ const BanquetHallBooking = () => {
         endTime: booking.endTime || '22:00',
         guestCount: booking.guestCount || '',
         advanceAmount: booking.advanceAmount || '',
+        discount: booking.discount || '', // 0 shows as an empty field, not "0"
         status: booking.status || 'Pending',
         specialRequests: booking.specialRequests || '',
         decorationType: booking.decorationType || '',
@@ -668,6 +689,7 @@ const BanquetHallBooking = () => {
 
     try {
       const isDurationPriced = isDurationPricedType(formData.eventType);
+      const gstExempt = isGstExemptType(formData.eventType);
 
       // Normalise the repeatable catering line items → priced rows.
       const cateringItems = (formData.cateringItems || [])
@@ -723,14 +745,14 @@ const BanquetHallBooking = () => {
       // Additional facilities — keep the ex-GST inputs AND the gross amount the
       // invoice bills, so the line stays editable and the money stays exact.
       const extraItems = (formData.extraItems || [])
-        .filter((it) => (it.name || '').trim() && facilityItemAmount(it) > 0)
+        .filter((it) => (it.name || '').trim() && facilityItemAmount(it, gstExempt) > 0)
         .map((it) => ({
           name: it.name.trim(),
           detail: (it.detail || '').trim(),
           price: Number(it.price) || 0,
           gstPercent: Number(it.gstPercent) || 0,
           quantity: parseInt(it.quantity, 10) || 1,
-          amount: facilityItemAmount(it),
+          amount: facilityItemAmount(it, gstExempt),
         }));
       const extrasCost = extraItems.reduce((s, it) => s + it.amount, 0);
 
@@ -759,6 +781,9 @@ const BanquetHallBooking = () => {
         eventDetails,
         guestCount: parseInt(formData.guestCount, 10) || 0,
         advanceAmount: parseFloat(formData.advanceAmount) || 0,
+        // The capped discount the breakdown showed (never more than the gross),
+        // not the raw keystrokes — totalAmount is already net of it.
+        discount: Number(formData.discountApplied) || 0,
         totalAmount: formData.totalAmount, // Already calculated in useEffect
         remainingAmount: formData.remainingAmount, // Already calculated in useEffect
         customerName: formData.customerName.trim(),
@@ -2500,7 +2525,7 @@ const BanquetHallBooking = () => {
                   ) : (
                     <Stack spacing={1.5}>
                       {formData.extraItems.map((item, idx) => {
-                        const lineTotal = facilityItemAmount(item);
+                        const lineTotal = facilityItemAmount(item, isGstExemptType(formData.eventType));
                         return (
                           <Grid container spacing={1.5} key={idx} sx={{ alignItems: 'center' }}>
                             <Grid size={{ xs: 12, sm: 4 }}>
@@ -2555,7 +2580,7 @@ const BanquetHallBooking = () => {
                         );
                       })}
                       <Typography variant="body2" sx={{ fontWeight: 800, textAlign: 'right', color: 'var(--app-primary)' }}>
-                        Facilities total: {currencySym()}{sumFacilityItems(formData.extraItems).toLocaleString('en-IN')}
+                        Facilities total: {currencySym()}{sumFacilityItems(formData.extraItems, isGstExemptType(formData.eventType)).toLocaleString('en-IN')}
                       </Typography>
                     </Stack>
                   )}
@@ -2787,7 +2812,7 @@ const BanquetHallBooking = () => {
                       const decorationItems = formData.decorationItems || [];
                       const packageDecoration = (!isDurationPriced && formData.packageId)
                         ? (Number(formData.packageDecorationCost) || 0) : 0;
-                      const row = (label, value, color, key) => (
+                      const row = (label, value, color, key, prefix = '') => (
                         <Box key={key} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
                           <Typography variant="body2" sx={{
                             color: "text.secondary"
@@ -2796,7 +2821,7 @@ const BanquetHallBooking = () => {
                             variant="body2"
                             sx={[{
                               fontWeight: 600
-                            }, color ? { color } : undefined]}>{currencySym()}{(value || 0).toLocaleString('en-IN')}</Typography>
+                            }, color ? { color } : undefined]}>{prefix}{currencySym()}{(value || 0).toLocaleString('en-IN')}</Typography>
                         </Box>
                       );
                       return (
@@ -2847,6 +2872,17 @@ const BanquetHallBooking = () => {
                             row(`Photography / Videography${formData.photographyVendor ? ` · ${formData.photographyVendor}` : ''}`, parseFloat(formData.photographyAmount) || 0, '#ec4899')}
                           {(parseFloat(formData.entertainmentCost) || 0) > 0 &&
                             row(`Entertainment${formData.entertainmentVendor ? ` · ${formData.entertainmentVendor}` : ''}`, parseFloat(formData.entertainmentCost) || 0, '#f43f5e')}
+                          {/* Discount comes off the gross before rounding, so
+                              show what it was taken from to make the sum read. */}
+                          {(formData.discountApplied || 0) > 0 && (<>
+                            <Divider sx={{ my: 1.5 }} />
+                            {row('Subtotal', Math.round((formData.grossAmount || 0) * 100) / 100, undefined, 'gross')}
+                            {row('Discount', Math.round((formData.discountApplied || 0) * 100) / 100, '#ef4444', 'disc', '− ')}
+                          </>)}
+                          {/* The bill is collected in round figures: what the
+                              rounding up to the next ₹100 added to the total. */}
+                          {(formData.roundOff || 0) > 0 &&
+                            row('Round off', Math.round((formData.roundOff || 0) * 100) / 100, '#64748b')}
                           <Divider sx={{ my: 2 }} />
                           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <Typography variant="h6" sx={{ color: 'var(--app-primary)', fontWeight: 700 }}>Total Amount</Typography>
@@ -2866,6 +2902,23 @@ const BanquetHallBooking = () => {
                     <PrintIcon sx={{ color: '#10b981' }} /> Payment
                   </Typography>
                   <Grid container spacing={2}>
+                    <Grid
+                      size={{
+                        xs: 12,
+                        sm: 6
+                      }}>
+                      <TextField
+                        fullWidth
+                        label="Discount Amount"
+                        type="number"
+                        value={formData.discount}
+                        onChange={(e) => setFormData({ ...formData, discount: e.target.value })}
+                        helperText={`Deducted from ${currencySym()}${(formData.grossAmount || 0).toLocaleString('en-IN')} before rounding`}
+                        slotProps={{
+                          htmlInput: { min: 0, max: formData.grossAmount || 0, step: 100 }
+                        }}
+                      />
+                    </Grid>
                     <Grid
                       size={{
                         xs: 12,

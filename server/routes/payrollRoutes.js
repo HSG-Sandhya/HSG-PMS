@@ -8,7 +8,8 @@ import {
   approvePayroll,
   markPayrollAsPaid,
   getPayrollSummary,
-  getLivePayroll
+  getLivePayroll,
+  generateMonthPayroll
 } from "../controllers/payrollController.js";
 import { requireAuth } from "../middleware/auth.js";
 
@@ -36,8 +37,22 @@ const generatePayrollValidation = [
     .withMessage('Year must be between 2020 and 2030')
 ];
 
+// Validation for closing a whole month
+const generateMonthValidation = [
+  body('month')
+    .isInt({ min: 1, max: 12 })
+    .withMessage('Month must be between 1 and 12'),
+  body('year')
+    .isInt({ min: 2020, max: 2030 })
+    .withMessage('Year must be between 2020 and 2030')
+];
+
 // Validation for marking payroll as paid
 const markAsPaidValidation = [
+  body('amountPaid')
+    .optional({ checkFalsy: true })
+    .isFloat({ min: 0 })
+    .withMessage('Amount paid must be a positive number'),
   body('paymentMethod')
     .isIn(['bank_transfer', 'cash', 'cheque', 'upi'])
     .withMessage('Invalid payment method'),
@@ -88,6 +103,12 @@ router.get('/live', getLivePayroll);
 // @desc    Generate payroll for staff
 // @access  Private (Admin/System Admin only)
 router.post('/generate', requireManage('manage_payroll'), generatePayrollValidation, generatePayroll);
+
+// @route   POST /api/payroll/generate-month
+// @desc    Generate payroll for every eligible staff member missing one for the
+//          period, which closes the month so its balances carry forward
+// @access  Private (Admin/System Admin only)
+router.post('/generate-month', requireManage('manage_payroll'), generateMonthValidation, generateMonthPayroll);
 
 // @route   GET /api/payroll/:id/pdf
 // @desc    Generate and download payroll PDF

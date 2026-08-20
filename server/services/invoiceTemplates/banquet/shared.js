@@ -151,19 +151,25 @@ export const gstCell = (it) => {
 };
 
 // The tax-summary rows injected into a template's totals block on an INVOICE:
-// taxable value, then CGST and SGST (each half of the 18% total). Returns '' for
-// a quotation (which carries its own estimate breakdown) or when there is no
-// tax to show. Each row is a plain `<div class="r"><span>…</span><span>…</span></div>`
-// so it drops straight into every template's `.sum` list.
+// taxable value, then CGST and SGST (each half of the 18% total). The tax rows
+// are skipped on a quotation (which carries its own estimate breakdown) or when
+// there is no tax to show, but the round-off row is printed on BOTH documents —
+// banquet payables are billed in round figures, and without the row the line
+// items would not visibly add up to the grand total. Each row is a plain
+// `<div class="r"><span>…</span><span>…</span></div>` so it drops straight into
+// every template's `.sum` list.
 export const taxSummaryRows = (ctx, docType) => {
-  if (isQuote(docType)) return '';
   const t = ctx.totals || {};
   const gst = Number(t.gstTotal != null ? t.gstTotal : (Number(t.cgst) || 0) + (Number(t.sgst) || 0));
-  if (!(gst > 0)) return '';
+  const roundOff = Number(t.roundOff) || 0;
+  const roundOffRow = roundOff > 0
+    ? `\n    <div class="r"><span>Round off</span><span>${formatCurrency(roundOff)}</span></div>`
+    : '';
+  if (isQuote(docType) || !(gst > 0)) return roundOffRow;
   return `
     <div class="r"><span>Taxable value</span><span>${formatCurrency(t.subtotal)}</span></div>
     <div class="r"><span>CGST @ 9%</span><span>${formatCurrency(t.cgst)}</span></div>
-    <div class="r"><span>SGST @ 9%</span><span>${formatCurrency(t.sgst)}</span></div>`;
+    <div class="r"><span>SGST @ 9%</span><span>${formatCurrency(t.sgst)}</span></div>${roundOffRow}`;
 };
 
 // ── Quotation-only building blocks ──────────────────────────────────────────

@@ -70,24 +70,39 @@ export const getBanquetTemplate = (id) =>
 //   • It neutralises the print `min-height:100vh` so the true content height is
 //     measured, then wraps the sheet in a box whose height is the scaled height
 //     (a CSS transform alone would not shrink the space the page reserves).
-//   • Runs on load and again once fonts settle, before the browser prints.
+//   • Runs on load, again once fonts settle, and again just before printing.
+//     Each run RE-MEASURES from a clean slate. It used to latch after the first
+//     pass (a `data-fitted` flag), which meant the height measured with fallback
+//     fonts — before the webfont landed — was locked in as a hard `overflow:hidden`
+//     clip. Anything below that line was silently cut off the printed sheet:
+//     the terms, the Payment Details block with the UPI QR, and the footer.
 const FIT_TO_PAGE_SCRIPT = `<script>
 (function(){
+  var outer, inner, pg;
   function fit(){
-    var pg=document.querySelector('.page');
-    if(!pg||pg.getAttribute('data-fitted'))return;
-    pg.style.minHeight='0';document.body.style.margin='0';
-    var outer=document.createElement('div');outer.style.overflow='hidden';
-    var inner=document.createElement('div');inner.style.transformOrigin='top left';
-    pg.parentNode.insertBefore(outer,pg);inner.appendChild(pg);outer.appendChild(inner);
-    pg.setAttribute('data-fitted','1');
+    pg = pg || document.querySelector('.page');
+    if(!pg) return;
+    if(!outer){
+      pg.style.minHeight='0';document.body.style.margin='0';
+      outer=document.createElement('div');
+      inner=document.createElement('div');inner.style.transformOrigin='top left';
+      pg.parentNode.insertBefore(outer,pg);inner.appendChild(pg);outer.appendChild(inner);
+    }
+    // Undo any previous fit so scrollHeight is the true, unscaled height.
+    inner.style.transform='none';outer.style.height='';outer.style.overflow='visible';
     var AVAIL=1035; // A4 printable height (~279mm at 96dpi), with a safety margin
     var h=inner.scrollHeight;
-    if(h>AVAIL){var s=AVAIL/h;inner.style.transform='scale('+s+')';outer.style.height=Math.floor(h*s)+'px';}
+    if(h>AVAIL){
+      var s=AVAIL/h;
+      inner.style.transform='scale('+s+')';
+      outer.style.height=Math.floor(h*s)+'px';
+      outer.style.overflow='hidden';
+    }
   }
   function run(){try{fit();}catch(e){}}
   if(document.readyState==='complete')run();else window.addEventListener('load',run);
   if(document.fonts&&document.fonts.ready)document.fonts.ready.then(run);
+  window.addEventListener('beforeprint',run);
 })();
 </script>`;
 

@@ -11,19 +11,21 @@ import {
 
 const PAL = { accent: '#17324f', ink: '#1f2937', muted: '#64748b', line: '#e5e9f0', soft: '#f6f8fc' };
 
-const rows = (items) => items.map((it) => `
+const rows = (items, taxed = true) => items.map((it) => `
   <tr>
     <td><div class="d">${e(it.description)}</div>${it.detail ? `<div class="s">${e(it.detail)}</div>` : ''}</td>
-    <td class="c hsn">${e(banquetSac(it.category))}</td>
+    ${taxed ? `<td class="c hsn">${e(banquetSac(it.category))}</td>` : ''}
     <td class="n">${e(it.quantity)}</td>
     <td class="n">${formatCurrency(it.rate)}</td>
-    <td class="n">${gstCell(it)}</td>
+    ${taxed ? `<td class="n">${gstCell(it)}</td>` : ''}
     <td class="n b">${formatCurrency(it.amount)}</td>
   </tr>`).join('');
 
 export const render = (ctx, { docType = 'invoice' } = {}) => {
   const quote = isQuote(docType);
   const t = ctx.totals;
+  // GST-exempt events (weddings) print no tax at all — drop the GST column.
+  const taxed = Number(t.gstTotal || 0) > 0;
   const facts = eventFacts(ctx);
   const title = quote ? 'Quotation' : 'Tax Invoice';
   const watermark = ctx.hotel.logo
@@ -128,8 +130,8 @@ export const render = (ctx, { docType = 'invoice' } = {}) => {
     </div>
 
     <table>
-      <thead><tr><th>Description</th><th class="c">SAC</th><th class="n">Qty</th><th class="n">Rate</th><th class="n">GST</th><th class="n">Amount</th></tr></thead>
-      <tbody>${rows(ctx.items)}</tbody>
+      <thead><tr><th>Description</th>${taxed ? '<th class="c">SAC</th>' : ''}<th class="n">Qty</th><th class="n">Rate</th>${taxed ? '<th class="n">GST</th>' : ''}<th class="n">Amount</th></tr></thead>
+      <tbody>${rows(ctx.items, taxed)}</tbody>
     </table>
 
     <div class="foot">

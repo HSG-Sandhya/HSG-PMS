@@ -43,8 +43,19 @@ import {
 import api from '../api';
 import { dialogPaperSx, dialogBackdropSx, primaryButtonSx, secondaryButtonSx } from './forms/formStyles';
 import { currencySym } from '../utils/billing';
+import { usePermissions } from '../contexts/PermissionContext';
 
 const ACCENT = 'var(--app-primary)';
+
+// Every form in which a staff member can draw money against their salary, in the
+// order the salary slip lists them. Mirrors server/utils/payrollLedger.js.
+const DEDUCTION_LABELS = {
+  advance: 'Cash advance',
+  salaryPaid: 'Salary paid in month',
+  recharge: 'Mobile recharge',
+  loan: 'Loan',
+  other: 'Other deduction',
+};
 
 const STATUS_STYLES = {
   draft: { bg: 'rgba(148,163,184,0.18)', color: '#64748b' },
@@ -128,8 +139,16 @@ const StatCard = ({ icon: Icon, label, value, color, isDarkMode }) => (
 const PayrollManagement = () => {
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === 'dark';
+  // Managers can generate, recalculate and print payroll; only administrators
+  // and the owner may approve it. The server enforces the same rule.
+  const { canApprovePayroll } = usePermissions();
+  const mayApprove = canApprovePayroll();
   const [liveRows, setLiveRows] = useState([]);
   const [liveTotals, setLiveTotals] = useState({ netSalary: 0, pendingCount: 0 });
+  // Which month the balances carry in from / out to, and how much of the previous
+  // month has actually been generated (nothing carries out of an un-closed month).
+  const [livePeriods, setLivePeriods] = useState({ previous: null, next: null });
+  const [closingMonth, setClosingMonth] = useState(null);
   const [generatingId, setGeneratingId] = useState(null);
   const [staff, setStaff] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -157,6 +176,7 @@ const PayrollManagement = () => {
   const [paymentForm, setPaymentForm] = useState({
     paymentMethod: 'bank_transfer',
     transactionId: '',
+    amountPaid: '',
     bankDetails: {
       accountNumber: '',
       ifscCode: '',
@@ -176,8 +196,10 @@ const PayrollManagement = () => {
     try {
       setLoading(true);
       const liveRes = await api.payroll.getLive({ month: filters.month, year: filters.year });
-      setLiveRows(liveRes.data.data?.rows || []);
-      setLiveTotals(liveRes.data.data?.totals || { netSalary: 0, pendingCount: 0 });
+      const payload = liveRes.data.data || {};
+      setLiveRows(payload.rows || []);
+      setLiveTotals(payload.totals || { netSalary: 0, pendingCount: 0 });
+      setLivePeriods({ previous: payload.previous || null, next: payload.next || null });
     } catch (error) {
       showSnackbar('Error fetching payrolls', 'error');
       console.error('Error fetching payrolls:', error);
@@ -198,6 +220,23 @@ const PayrollManagement = () => {
       showSnackbar(error.response?.data?.message || 'Error generating payroll', 'error');
     } finally {
       setGeneratingId(null);
+    }
+  };
+
+  // Close a whole month in one go: generate payroll for everyone still missing
+  // it. Only a generated month passes its balances on, so this is also how the
+  // carry-forward for the following month gets unblocked.
+  const handleGenerateMonth = async (month, year, label) => {
+    try {
+      setClosingMonth(`${year}-${month}`);
+      const res = await api.payroll.generateMonth({ month, year });
+      showSnackbar(res.data?.message || `Payroll generated for ${label}`, res.data?.data?.failed?.length ? 'warning' : 'success');
+      await fetchPayrolls();
+      fetchSummary();
+    } catch (error) {
+      showSnackbar(error.response?.data?.message || `Error generating payroll for ${label}`, 'error');
+    } finally {
+      setClosingMonth(null);
     }
   };
 
@@ -261,7 +300,11 @@ const PayrollManagement = () => {
 
   const handleMarkAsPaid = async () => {
     try {
-      await api.payroll.markAsPaid(selectedPayroll._id, paymentForm);
+      await api.payroll.markAsPaid(selectedPayroll._id, {
+        ...paymentForm,
+        // Blank means "settle the whole balance" on the server.
+        amountPaid: paymentForm.amountPaid === '' ? undefined : Number(paymentForm.amountPaid),
+      });
       showSnackbar('Payroll marked as paid successfully', 'success');
       setPaymentDialog(false);
       fetchPayrolls();
@@ -297,6 +340,9 @@ const PayrollManagement = () => {
     setPaymentForm({
       paymentMethod: 'bank_transfer',
       transactionId: '',
+      // Defaults to settling the whole balance; lower it for a part payment and
+      // the remainder carries into the next month.
+      amountPaid: String(Math.max(0, Math.round(Number(payroll?.netSalary) || 0))),
       bankDetails: {
         accountNumber: '',
         ifscCode: '',
@@ -338,6 +384,11 @@ const PayrollManagement = () => {
   };
 
   const periodLabel = `${new Date(2024, filters.month - 1).toLocaleString('default', { month: 'long' })} ${filters.year}`;
+
+  const money = (v) => `${currencySym()}${Math.round(Math.abs(Number(v) || 0)).toLocaleString('en-IN')}`;
+  // Signed for balances, where the direction is the point: + is still owed to the
+  // staff member, − is money they have drawn beyond what they earned.
+  const signedMoney = (v) => `${(Number(v) || 0) < 0 ? '−' : '+'}${money(v)}`;
 
   // The live table shows every eligible staff member; the Status / Staff filters
   // narrow it down client-side (the live endpoint always returns everyone).
@@ -584,16 +635,75 @@ const PayrollManagement = () => {
             <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
               Live Payroll · {periodLabel}
             </Typography>
-            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-              All eligible staff, calculated live from salary, attendance, advances &amp; recharges
+            <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>
+              All eligible staff, calculated live from salary, attendance and everything drawn in {periodLabel}
               {liveTotals.pendingCount > 0 ? ` · ${liveTotals.pendingCount} not generated yet` : ' · all generated'}
             </Typography>
+            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+              Balances roll over: an unpaid balance is added to {livePeriods.next?.label || 'next month'}, and anything
+              drawn beyond earnings is recovered from it. Mark a payroll <strong>Paid</strong> to settle it.
+            </Typography>
           </Box>
-          <Chip
-            label={`Total net · ${currencySym()}${Math.round(liveTotals.netSalary || 0).toLocaleString('en-IN')}`}
-            sx={{ fontWeight: 800, bgcolor: 'rgba(var(--app-primary-rgb),0.12)', color: ACCENT }}
-          />
+          <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
+            {liveTotals.totalDeductions > 0 && (
+              <Chip
+                label={`Drawn · ${money(liveTotals.totalDeductions)}`}
+                sx={{ fontWeight: 700, bgcolor: 'rgba(239,68,68,0.12)', color: '#ef4444' }}
+              />
+            )}
+            <Chip
+              label={`Total net · ${money(liveTotals.netSalary)}`}
+              sx={{ fontWeight: 800, bgcolor: 'rgba(var(--app-primary-rgb),0.12)', color: ACCENT }}
+            />
+            {liveTotals.pendingCount > 0 && (
+              <Button
+                size="small"
+                variant="outlined"
+                startIcon={<AddIcon />}
+                disabled={closingMonth === `${filters.year}-${filters.month}`}
+                onClick={() => handleGenerateMonth(filters.month, filters.year, periodLabel)}
+                sx={{ ...secondaryButtonSx(isDarkMode), whiteSpace: 'nowrap' }}
+              >
+                {closingMonth === `${filters.year}-${filters.month}`
+                  ? 'Generating…'
+                  : `Generate all (${liveTotals.pendingCount})`}
+              </Button>
+            )}
+          </Stack>
         </Box>
+
+        {/* Balances only roll out of a month that has been generated, so an
+            un-closed previous month is why a carry-in reads as zero. */}
+        {livePeriods.previous?.missingCount > 0 && (
+          <Box
+            sx={{
+              px: 3, py: 1.5, display: 'flex', alignItems: 'center', gap: 1.5,
+              flexWrap: 'wrap',
+              borderBottom: '1px solid', borderColor: 'divider',
+              background: 'rgba(217,119,6,0.08)',
+            }}
+          >
+            <Typography variant="body2" sx={{ color: 'text.secondary', flex: 1, minWidth: 240 }}>
+              {livePeriods.previous.missingCount} staff have no {livePeriods.previous.label} payroll, so nothing carries
+              into {periodLabel} for them. Generate {livePeriods.previous.label} to roll its balances forward.
+            </Typography>
+            <Button
+              size="small"
+              variant="outlined"
+              disabled={closingMonth === `${livePeriods.previous.year}-${livePeriods.previous.month}`}
+              onClick={() => handleGenerateMonth(
+                livePeriods.previous.month,
+                livePeriods.previous.year,
+                livePeriods.previous.label,
+              )}
+              sx={{ ...secondaryButtonSx(isDarkMode), whiteSpace: 'nowrap' }}
+            >
+              {closingMonth === `${livePeriods.previous.year}-${livePeriods.previous.month}`
+                ? 'Generating…'
+                : `Generate ${livePeriods.previous.label}`}
+            </Button>
+          </Box>
+        )}
 
         {loading ? (
           <Box
@@ -606,7 +716,7 @@ const PayrollManagement = () => {
           </Box>
         ) : (
           <Box sx={{ overflowX: 'auto' }}>
-            <Table sx={{ minWidth: 900 }}>
+            <Table sx={{ minWidth: 1020 }}>
               <TableHead>
                 <TableRow
                   sx={{
@@ -624,11 +734,19 @@ const PayrollManagement = () => {
                 >
                   <TableCell>Employee ID</TableCell>
                   <TableCell>Name</TableCell>
-                  <TableCell>Period</TableCell>
                   <TableCell align="right">Basic Salary</TableCell>
-                  <TableCell align="right">Total Earnings</TableCell>
-                  <TableCell align="right">Deductions</TableCell>
-                  <TableCell align="right">Net Salary</TableCell>
+                  <TableCell align="right">Earned</TableCell>
+                  <TableCell align="right">
+                    <Tooltip title={`Everything drawn during ${periodLabel} — advances, recharges, salary paid in the month, loans and other deductions`}>
+                      <Box component="span">Drawn / Deducted</Box>
+                    </Tooltip>
+                  </TableCell>
+                  <TableCell align="right">
+                    <Tooltip title={livePeriods.previous ? `Balance carried in from ${livePeriods.previous.label}` : 'Balance carried in from the previous month'}>
+                      <Box component="span">Prev. Balance</Box>
+                    </Tooltip>
+                  </TableCell>
+                  <TableCell align="right">Net Payable</TableCell>
                   <TableCell>Status</TableCell>
                   <TableCell align="center">Actions</TableCell>
                 </TableRow>
@@ -636,6 +754,9 @@ const PayrollManagement = () => {
               <TableBody>
                 {filteredRows.map((row) => {
                   const ss = STATUS_STYLES[row.status] || STATUS_STYLES.draft;
+                  const breakdown = Object.entries(row.deductions || {}).filter(([, amt]) => Number(amt) > 0);
+                  const opening = Number(row.openingBalance) || 0;
+                  const overdrawn = Number(row.netSalary) < 0;
                   return (
                     <TableRow
                       key={row.staffId}
@@ -650,20 +771,91 @@ const PayrollManagement = () => {
                     >
                       <TableCell sx={{ fontWeight: 600 }}>{row.employeeId}</TableCell>
                       <TableCell>{row.name}</TableCell>
-                      <TableCell sx={{ color: 'text.secondary' }}>{periodLabel}</TableCell>
                       <TableCell align="right">
-                        {currencySym()}{Math.round(row.basicSalary).toLocaleString('en-IN')}
+                        {money(row.basicSalary)}
                       </TableCell>
                       <TableCell align="right">
-                        {currencySym()}{Math.round(row.totalEarnings).toLocaleString('en-IN')}
+                        {money(row.totalEarnings)}
                       </TableCell>
-                      <TableCell align="right" sx={{ color: '#ef4444' }}>
-                        −{currencySym()}{Math.round(row.totalDeductions).toLocaleString('en-IN')}
+                      {/* What was drawn this month, itemised on hover so a figure
+                          can always be traced back to how the money was taken. */}
+                      <TableCell align="right">
+                        <Tooltip
+                          title={
+                            breakdown.length ? (
+                              <Box>
+                                <Typography variant="caption" sx={{ fontWeight: 700, display: 'block', mb: 0.5 }}>
+                                  Drawn in {periodLabel}
+                                </Typography>
+                                {breakdown.map(([field, amt]) => (
+                                  <Typography key={field} variant="caption" sx={{ display: 'block' }}>
+                                    {DEDUCTION_LABELS[field] || field}: {money(amt)}
+                                  </Typography>
+                                ))}
+                              </Box>
+                            ) : `Nothing drawn in ${periodLabel}`
+                          }
+                        >
+                          <Box
+                            component="span"
+                            sx={{
+                              color: row.totalDeductions > 0 ? '#ef4444' : 'text.disabled',
+                              fontWeight: row.totalDeductions > 0 ? 700 : 400,
+                              cursor: 'default',
+                            }}
+                          >
+                            {row.totalDeductions > 0 ? `−${money(row.totalDeductions)}` : money(0)}
+                          </Box>
+                        </Tooltip>
+                      </TableCell>
+                      {/* Carry-in from the previous month: a credit they never drew,
+                          or a debit for drawing more than they earned. */}
+                      <TableCell align="right">
+                        <Tooltip
+                          title={
+                            opening === 0
+                              ? (row.openingSource === 'generated'
+                                ? `Settled — nothing carried from ${livePeriods.previous?.label || 'the previous month'}`
+                                : `${livePeriods.previous?.label || 'The previous month'} payroll is not generated, so nothing carries in`)
+                              : opening > 0
+                                ? `Unpaid balance from ${livePeriods.previous?.label || 'the previous month'} — added to this month`
+                                : `Drawn beyond earnings in ${livePeriods.previous?.label || 'the previous month'} — recovered this month`
+                          }
+                        >
+                          <Box
+                            component="span"
+                            sx={{
+                              cursor: 'default',
+                              fontWeight: opening === 0 ? 400 : 700,
+                              color: opening === 0 ? 'text.disabled' : (opening > 0 ? '#10b981' : '#ef4444'),
+                            }}
+                          >
+                            {opening === 0 ? '—' : signedMoney(opening)}
+                          </Box>
+                        </Tooltip>
+                        {row.openingStale && (
+                          <Tooltip title={`${livePeriods.previous?.label || 'The previous month'} has changed since this payroll was generated — recalculate to pick up the new balance`}>
+                            <Box component="span" sx={{ ml: 0.5, color: '#d97706', fontWeight: 700 }}>!</Box>
+                          </Tooltip>
+                        )}
                       </TableCell>
                       <TableCell align="right">
-                        <Typography variant="body2" sx={{ fontWeight: 800 }}>
-                          {currencySym()}{Math.round(row.netSalary).toLocaleString('en-IN')}
-                        </Typography>
+                        <Tooltip
+                          title={
+                            overdrawn
+                              ? `Over-drawn by ${money(row.netSalary)} — nothing payable, recovered from ${livePeriods.next?.label || 'next month'}`
+                              : row.status === 'paid'
+                                ? `Paid ${money(row.amountPaid)}${Math.abs(Number(row.carryForward) || 0) >= 1 ? ` · ${signedMoney(row.carryForward)} carries to ${livePeriods.next?.label || 'next month'}` : ' · settled'}`
+                                : `Carries to ${livePeriods.next?.label || 'next month'} until marked paid`
+                          }
+                        >
+                          <Typography
+                            variant="body2"
+                            sx={{ fontWeight: 800, cursor: 'default', color: overdrawn ? '#ef4444' : 'inherit' }}
+                          >
+                            {overdrawn ? `−${money(row.netSalary)}` : money(row.netSalary)}
+                          </Typography>
+                        </Tooltip>
                       </TableCell>
                       <TableCell>
                         <Chip
@@ -714,7 +906,7 @@ const PayrollManagement = () => {
                                 </IconButton>
                               </Tooltip>
                             )}
-                            {row.status === 'calculated' && (
+                            {row.status === 'calculated' && mayApprove && (
                               <Tooltip title="Approve Payroll">
                                 <IconButton
                                   size="small"
@@ -729,7 +921,13 @@ const PayrollManagement = () => {
                               <Tooltip title="Mark as Paid">
                                 <IconButton
                                   size="small"
-                                  onClick={() => openPaymentDialog({ _id: row.payrollId, netSalary: row.netSalary, staff: { firstName: row.name, lastName: '' } })}
+                                  onClick={() => openPaymentDialog({
+                                    _id: row.payrollId,
+                                    netSalary: row.netSalary,
+                                    openingBalance: row.openingBalance,
+                                    carryForward: row.carryForward,
+                                    staff: { firstName: row.name, lastName: '' },
+                                  })}
                                   sx={{ color: '#8b5cf6', bgcolor: 'rgba(139,92,246,0.1)' }}
                                 >
                                   <PayIcon fontSize="small" />
@@ -870,12 +1068,26 @@ const PayrollManagement = () => {
               <Typography sx={{
                 color: "text.secondary"
               }}>
-                Net Salary: <strong>{currencySym()}{selectedPayroll.netSalary.toLocaleString()}</strong>
+                Balance payable: <strong>{money(selectedPayroll.netSalary)}</strong>
+                {selectedPayroll.carryForward != null && Math.abs(Number(selectedPayroll.carryForward)) >= 1 && (
+                  <> · includes {signedMoney(selectedPayroll.openingBalance)} carried in</>
+                )}
               </Typography>
             </Box>
           )}
 
           <Grid container spacing={2}>
+            <Grid size={12}>
+              <TextField
+                fullWidth
+                type="number"
+                label="Amount Paid"
+                value={paymentForm.amountPaid}
+                onChange={(e) => setPaymentForm({ ...paymentForm, amountPaid: e.target.value })}
+                helperText={`Pay less than the balance and the remainder carries into ${livePeriods.next?.label || 'next month'}.`}
+              />
+            </Grid>
+
             <Grid size={12}>
               <FormControl fullWidth>
                 <InputLabel>Payment Method</InputLabel>

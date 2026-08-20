@@ -33,12 +33,21 @@ import {
   Brightness6 as AutoIcon,
   WbSunny as SunriseIcon,
   Bedtime as SunsetIcon,
+  Speed as SpeedIcon,
+  Bolt as BoltIcon,
+  Layers as LayersIcon,
+  Gradient as SheenIcon,
+  Lightbulb as GlowIcon,
+  Colorize as SaturateIcon,
+  Mouse as HoverIcon,
 } from '@mui/icons-material';
 import api from '../../../api';
 import { useSettings } from '../../../contexts/SettingsContext';
 import { broadcastSettingsChange } from '../settingsEvents';
 import AnimatedModeToggle from '../AnimatedModeToggle';
+import FpsMeter from '../FpsMeter';
 import { getSunTimes, isNight, formatClock } from '../../../utils/daylight';
+import { recommendPreset } from '../../../utils/devicePerf';
 
 const DEFAULT_THEME = {
   darkMode: false,
@@ -58,6 +67,82 @@ const DEFAULT_THEME = {
   nightTorch: true,
   reduceMotion: false,
   darknessLevel: 60,
+  perfPreset: 'balanced',
+  glassLevel: 'panels',
+  saturationBoost: true,
+  cardGlow: true,
+  glassSheen: true,
+  uiAnimations: true,
+  hoverEffects: true,
+};
+
+// ── Performance ────────────────────────────────────────────────────────────
+// Where the app is allowed to spend a backdrop-filter. Nested blurs are the
+// dominant rendering cost: the compositor can't cache them, so each one
+// re-blurs everything painted beneath it. Dropping the tiers that REPEAT
+// (one per booking, per row, per tile) is what actually buys back frames —
+// the page shell and dialogs are only a handful of surfaces either way.
+const GLASS_LEVELS = [
+  {
+    value: 'full',
+    label: 'Everywhere',
+    hint: 'Glass on every surface, including each card and row. The richest look and by far the most expensive.',
+  },
+  {
+    value: 'panels',
+    label: 'Panels & overlays',
+    hint: 'Glass on the page, panels, dialogs and menus — but not on repeated cards and rows. Nearly the same look, a fraction of the cost.',
+  },
+  {
+    value: 'overlays',
+    label: 'Overlays only',
+    hint: 'Glass kept for dialogs, menus and the sidebar. Pages and cards use a solid tint.',
+  },
+  {
+    value: 'off',
+    label: 'Off (fastest)',
+    hint: 'No blur anywhere. Surfaces become solid tints. Fastest possible rendering.',
+  },
+];
+
+// Presets are just named bundles of the switches below. Choosing one applies
+// its values; changing any switch afterwards moves the preset to "Custom".
+const PERF_PRESETS = {
+  quality: {
+    label: 'Maximum quality',
+    icon: GlassIcon,
+    caption: 'Every effect on. For a fast desktop with a dedicated GPU.',
+    values: { glassLevel: 'full', blurStrength: 12, saturationBoost: true, cardGlow: true, glassSheen: true, uiAnimations: true, hoverEffects: true, nightTorch: true, reduceMotion: false },
+  },
+  balanced: {
+    label: 'Balanced',
+    icon: LayersIcon,
+    caption: 'Keeps the glass look, drops the blur on repeated rows. Recommended.',
+    values: { glassLevel: 'panels', blurStrength: 8, saturationBoost: true, cardGlow: true, glassSheen: true, uiAnimations: true, hoverEffects: true, nightTorch: true, reduceMotion: false },
+  },
+  fast: {
+    label: 'Fast',
+    icon: SpeedIcon,
+    caption: 'Glass only on dialogs and menus. Noticeably smoother on laptops.',
+    values: { glassLevel: 'overlays', blurStrength: 6, saturationBoost: false, cardGlow: false, glassSheen: true, uiAnimations: true, hoverEffects: true, nightTorch: false, reduceMotion: false },
+  },
+  fastest: {
+    label: 'Fastest',
+    icon: BoltIcon,
+    caption: 'All decorative effects off. For old or low-powered machines.',
+    values: { glassLevel: 'off', blurStrength: 0, saturationBoost: false, cardGlow: false, glassSheen: false, uiAnimations: false, hoverEffects: false, nightTorch: false, reduceMotion: true },
+  },
+};
+
+// Which preset (if any) the current values correspond to.
+const detectPreset = (data) => {
+  const match = Object.entries(PERF_PRESETS).find(([, preset]) =>
+    Object.entries(preset.values).every(([k, v]) => {
+      if (k === 'blurStrength') return true; // slider is free within a preset
+      return (data?.[k] ?? DEFAULT_THEME[k]) === v;
+    }),
+  );
+  return match ? match[0] : 'custom';
 };
 
 // Darkness comes in 20% steps; each step is a phase of the night. Mirrors the
@@ -385,6 +470,8 @@ const ThemeSection = ({ onNotify }) => {
   const [uploadingBg, setUploadingBg] = useState(false);
   const [userBackgrounds, setUserBackgrounds] = useState([]);
   const [deletingId, setDeletingId] = useState(null);
+  const [probing, setProbing] = useState(false);
+  const [probeResult, setProbeResult] = useState(null);
 
   const refreshUserBackgrounds = async () => {
     try {
@@ -424,6 +511,48 @@ const ThemeSection = ({ onNotify }) => {
 
   const setField = (field, value) => setThemeData((prev) => ({ ...prev, [field]: value }));
 
+  // ── Performance controls ─────────────────────────────────────────────────
+  // These apply to the LIVE app the moment they change, rather than waiting for
+  // Save. That's the whole point of them: the effect of dropping a blur tier is
+  // something you judge by looking at the app and at the frame counter, so the
+  // change has to be visible while you're still deciding. Save then persists it.
+  const applyPerfLive = (next) => {
+    setThemeData(next);
+    updateSettingsTemporary('theme', next);
+  };
+
+  const setPerfField = (field, value) => {
+    const next = { ...themeData, [field]: value };
+    // Any manual change means the values no longer match a named preset.
+    next.perfPreset = detectPreset(next);
+    applyPerfLive(next);
+  };
+
+  const applyPerfPreset = (key) => {
+    const preset = PERF_PRESETS[key];
+    if (!preset) return;
+    applyPerfLive({ ...themeData, ...preset.values, perfPreset: key });
+  };
+
+  // Measure this machine and jump to the preset it can actually sustain.
+  const runDeviceProbe = async () => {
+    setProbing(true);
+    setProbeResult(null);
+    try {
+      const result = await recommendPreset(themeData.glassLevel || 'panels');
+      setProbeResult(result);
+      applyPerfPreset(result.preset);
+    } catch {
+      onNotify?.('Could not measure this device', 'error');
+    } finally {
+      setProbing(false);
+    }
+  };
+
+  const activePreset = themeData.perfPreset === 'custom'
+    ? 'custom'
+    : detectPreset(themeData);
+
   // Darkness level snapped to the 20% steps the toggle uses.
   const darknessValue = (() => {
     const n = Number(themeData.darknessLevel);
@@ -446,7 +575,11 @@ const ThemeSection = ({ onNotify }) => {
   };
 
   const handleReset = () => {
-    setThemeData(DEFAULT_THEME);
+    // Applied live, not just to the form: the performance switches take effect
+    // immediately, so a reset that only touched local state would leave the
+    // running app on the old values until Save.
+    applyPerfLive(DEFAULT_THEME);
+    setProbeResult(null);
   };
 
   const handleBackgroundUpload = async (event) => {
@@ -590,6 +723,202 @@ const ThemeSection = ({ onNotify }) => {
 
   return (
     <Stack spacing={2.5}>
+      {/* Performance — how much rendering work the look is allowed to cost.
+          Placed first because it's the setting people come here to find when
+          the app feels slow. Every control applies immediately. */}
+      <Box sx={sectionPaper(isDarkMode)}>
+        <SectionHeader
+          icon={SpeedIcon}
+          title="Performance"
+          subtitle="Trade visual effects for speed — changes apply instantly"
+        />
+
+        {/* Live frame counter. The reason this sits at the top of the section
+            is feedback: every switch below changes per-frame work, and this is
+            where you watch that happen. */}
+        <Box
+          sx={{
+            p: 2,
+            mb: 2.5,
+            borderRadius: 2,
+            border: '1px solid',
+            borderColor: isDarkMode ? 'rgba(148,163,184,0.18)' : 'rgba(226,232,240,0.9)',
+            background: isDarkMode ? 'rgba(15,23,42,0.4)' : 'rgba(248,250,252,0.8)',
+          }}
+        >
+          <FpsMeter />
+        </Box>
+
+        {/* Presets */}
+        <Typography variant="caption" sx={{ textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, color: 'text.secondary', mb: 1.25, display: 'block' }}>
+          Preset
+        </Typography>
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
+            gap: 1.25,
+            mb: 1.5,
+          }}
+        >
+          {Object.entries(PERF_PRESETS).map(([key, preset]) => {
+            const Icon = preset.icon;
+            const selected = activePreset === key;
+            return (
+              <Box
+                key={key}
+                role="button"
+                tabIndex={0}
+                onClick={() => applyPerfPreset(key)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); applyPerfPreset(key); } }}
+                sx={{
+                  p: 1.75,
+                  borderRadius: 2,
+                  cursor: 'pointer',
+                  border: '1.5px solid',
+                  borderColor: selected ? 'var(--app-primary)' : (isDarkMode ? 'rgba(148,163,184,0.22)' : 'rgba(226,232,240,0.95)'),
+                  background: selected
+                    ? 'rgba(var(--app-primary-rgb), 0.12)'
+                    : (isDarkMode ? 'rgba(15,23,42,0.35)' : '#fff'),
+                  transition: 'border-color .15s ease, background-color .15s ease',
+                  '&:hover': { borderColor: 'var(--app-primary)' },
+                }}
+              >
+                <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 0.5 }}>
+                  <Icon sx={{ fontSize: 18, color: selected ? 'var(--app-primary)' : 'text.secondary' }} />
+                  <Typography sx={{ fontSize: 14, fontWeight: 700, color: selected ? 'var(--app-primary)' : 'text.primary' }}>
+                    {preset.label}
+                  </Typography>
+                  {selected && <CheckIcon sx={{ fontSize: 16, color: 'var(--app-primary)', ml: 'auto' }} />}
+                </Stack>
+                <Typography variant="caption" sx={{ color: 'text.secondary', lineHeight: 1.4 }}>
+                  {preset.caption}
+                </Typography>
+              </Box>
+            );
+          })}
+        </Box>
+
+        {activePreset === 'custom' && (
+          <Typography variant="caption" sx={{ display: 'block', mb: 1.5, color: 'text.secondary', fontStyle: 'italic' }}>
+            Custom — your switches below don't match a preset.
+          </Typography>
+        )}
+
+        {/* Device probe */}
+        <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', mb: 2.5, flexWrap: 'wrap', gap: 1 }}>
+          <Button
+            variant="outlined"
+            size="small"
+            startIcon={probing ? <CircularProgress size={14} /> : <SpeedIcon />}
+            disabled={probing}
+            onClick={runDeviceProbe}
+            sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600 }}
+          >
+            {probing ? 'Measuring…' : 'Measure this device'}
+          </Button>
+          {probeResult && (
+            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+              {probeResult.reason === 'measured'
+                ? `Measured ${probeResult.mean} fps (worst ${probeResult.worst}) — set to ${PERF_PRESETS[probeResult.preset]?.label}.`
+                : `Based on this device's hardware — set to ${PERF_PRESETS[probeResult.preset]?.label}.`}
+            </Typography>
+          )}
+        </Stack>
+
+        {/* Individual controls */}
+        <Typography variant="caption" sx={{ textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, color: 'text.secondary', mb: 1.25, display: 'block' }}>
+          Individual effects
+        </Typography>
+
+        <Stack spacing={2.5}>
+          <Box>
+            <TextField
+              select
+              fullWidth
+              label="Glass blur"
+              value={themeData.glassLevel || 'panels'}
+              onChange={(e) => setPerfField('glassLevel', e.target.value)}
+              sx={{ maxWidth: 420, '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+              slotProps={{
+                select: { MenuProps: { slotProps: {
+                  paper: { sx: { backgroundColor: isDarkMode ? '#1e293b' : '#fff' } }
+                } } }
+              }}
+            >
+              {GLASS_LEVELS.map((opt) => (
+                <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
+              ))}
+            </TextField>
+            <Typography variant="caption" sx={{ display: 'block', mt: 0.75, color: 'text.secondary', maxWidth: 520 }}>
+              {GLASS_LEVELS.find((o) => o.value === (themeData.glassLevel || 'panels'))?.hint}
+            </Typography>
+            <Typography variant="caption" sx={{ display: 'block', mt: 0.5, color: 'text.secondary', maxWidth: 520, opacity: 0.85 }}>
+              This is the biggest single lever. A blurred surface has to re-read
+              everything painted behind it, and blurs stacked inside other blurs
+              can't be cached — so a list of glass rows costs far more than the
+              same list on a solid tint.
+            </Typography>
+          </Box>
+
+          <ToggleRow
+            icon={SaturateIcon}
+            label="Colour boost behind glass"
+            hint="Makes colours behind panels richer. A second filter pass over every glass surface — roughly doubles the cost of the blur."
+            checked={themeData.saturationBoost !== false}
+            disabled={themeData.glassLevel === 'off'}
+            onChange={(v) => setPerfField('saturationBoost', v)}
+          />
+          <ToggleRow
+            icon={GlowIcon}
+            label="Card glow"
+            hint="Coloured light pooling under each card. Repaints on hover across a whole list."
+            checked={themeData.cardGlow !== false}
+            onChange={(v) => setPerfField('cardGlow', v)}
+          />
+          <ToggleRow
+            icon={SheenIcon}
+            label="Glass sheen"
+            hint="Diagonal mirror highlight across each surface. Cheap, but adds an extra paint layer everywhere."
+            checked={themeData.glassSheen !== false}
+            onChange={(v) => setPerfField('glassSheen', v)}
+          />
+          <ToggleRow
+            icon={MotionIcon}
+            label="Page animations"
+            hint="Entry and transition animations on pages, cards and dialogs. Turning this off makes screens appear instantly."
+            checked={themeData.uiAnimations !== false && !themeData.reduceMotion}
+            disabled={Boolean(themeData.reduceMotion)}
+            onChange={(v) => setPerfField('uiAnimations', v)}
+          />
+          <ToggleRow
+            icon={HoverIcon}
+            label="Hover effects"
+            hint="Lift and shadow transitions when pointing at cards and rows. Each one repaints the surface under the cursor."
+            checked={themeData.hoverEffects !== false}
+            onChange={(v) => setPerfField('hoverEffects', v)}
+          />
+
+          <SliderRow
+            label="Blur strength"
+            valueLabel={`${Number(themeData.blurStrength) || 0}px`}
+            value={Number(themeData.blurStrength) || 0}
+            onChange={(_, v) => setPerfField('blurStrength', v)}
+            min={0}
+            max={24}
+            step={1}
+            disabled={themeData.glassLevel === 'off'}
+            marks={[
+              { value: 0, label: 'Off' },
+              { value: 8, label: 'Soft' },
+              { value: 16, label: 'Strong' },
+              { value: 24, label: 'Max' },
+            ]}
+            hint="How frosted the remaining glass is. A wider blur costs more than a narrow one."
+          />
+        </Stack>
+      </Box>
+
       {/* Mode */}
       <Box sx={sectionPaper(isDarkMode)}>
         <SectionHeader
@@ -905,7 +1234,7 @@ const ThemeSection = ({ onNotify }) => {
         <SectionHeader
           icon={GlassIcon}
           title="Glass effect"
-          subtitle="Two sliders control every glass card, table and dialog at once"
+          subtitle="How visible every glass card, table and dialog appears"
         />
         <Stack spacing={4.5}>
           <SliderRow
@@ -924,23 +1253,13 @@ const ThemeSection = ({ onNotify }) => {
             ]}
             hint="How visible every glass card / table / dialog appears."
           />
-
-          <SliderRow
-            label="Blur strength"
-            valueLabel={`${Number(themeData.blurStrength) || 8}px`}
-            value={Number(themeData.blurStrength) || 8}
-            onChange={(_, v) => setField('blurStrength', v)}
-            min={0}
-            max={24}
-            step={1}
-            marks={[
-              { value: 0, label: 'Off' },
-              { value: 8, label: 'Soft' },
-              { value: 16, label: 'Strong' },
-              { value: 24, label: 'Max' },
-            ]}
-            hint="Controls the frosted-glass blur behind every panel."
-          />
+          {/* Blur strength lives in Performance, alongside the switch that
+              decides which surfaces get a blur at all — one control, one place. */}
+          <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+            Blur strength and which surfaces are blurred are in the{' '}
+            <Box component="span" sx={{ fontWeight: 700, color: 'var(--app-primary)' }}>Performance</Box>{' '}
+            section at the top of this page.
+          </Typography>
         </Stack>
       </Box>
       {/* Motion & ambience — night torch + reduce motion */}
@@ -951,20 +1270,22 @@ const ThemeSection = ({ onNotify }) => {
           subtitle="Decorative animations and the dark-mode torch light"
         />
         <Stack spacing={1}>
+          {/* Both apply live, like the Performance switches — they change the
+              same rendering work and are judged the same way, by looking. */}
           <ToggleRow
             icon={TorchIcon}
             label="Night torch"
-            hint="In dark mode, a warm light follows your cursor like a flashlight."
+            hint="In dark mode, a warm light follows your cursor like a flashlight. It blends three full-screen layers, so it costs the most on a slow machine."
             checked={themeData.nightTorch !== false}
             disabled={Boolean(themeData.reduceMotion)}
-            onChange={(v) => setField('nightTorch', v)}
+            onChange={(v) => setPerfField('nightTorch', v)}
           />
           <ToggleRow
             icon={MotionIcon}
             label="Reduce motion"
-            hint="Turns off decorative animations, including the night torch."
+            hint="Turns off every decorative animation, including page transitions and the night torch."
             checked={Boolean(themeData.reduceMotion)}
-            onChange={(v) => setField('reduceMotion', v)}
+            onChange={(v) => setPerfField('reduceMotion', v)}
           />
         </Stack>
       </Box>

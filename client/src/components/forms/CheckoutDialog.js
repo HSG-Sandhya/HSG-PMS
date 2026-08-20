@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -18,6 +18,9 @@ import {
   Chip,
   useTheme,
   InputAdornment,
+  ToggleButton,
+  ToggleButtonGroup,
+  Switch,
 } from '@mui/material';
 import { format, parseISO, differenceInDays, isValid } from 'date-fns';
 import HotelIcon from '@mui/icons-material/HotelOutlined';
@@ -57,6 +60,8 @@ const safeFormat = (input, pattern) => {
   return date ? format(date, pattern) : '—';
 };
 
+const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+
 const moneyRow = (label, value, opts = {}) => (
   <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.6, ...opts.sx }}>
     <Typography sx={{ fontSize: 13, color: opts.muted ? 'text.secondary' : 'inherit' }}>
@@ -78,12 +83,22 @@ const CheckoutDialog = ({ open, onClose, booking, room, onPaymentComplete }) => 
   const [paymentAmount, setPaymentAmount] = useState(0);
   const [paymentReference, setPaymentReference] = useState('');
   const [restaurantOrders, setRestaurantOrders] = useState([]);
+  // Whether the room-service bill is settled on this invoice. Off means the
+  // food is collected separately (guest pays the outlet, company tab, comped):
+  // the orders stay untouched, they just leave this bill and this invoice.
+  const [includeRestaurant, setIncludeRestaurant] = useState(true);
   const [checkoutDate, setCheckoutDate] = useState('');
   const [checkoutTime, setCheckoutTime] = useState('');
   const [actualNights, setActualNights] = useState(0);
-  const [adjustedAmount, setAdjustedAmount] = useState(0);
   // Late checkout is charged only if the front desk types an amount here.
   const [lateCheckoutCharge, setLateCheckoutCharge] = useState('');
+  // Room tariff actually agreed for this stay. Guests bargain at the desk, so
+  // the rate is editable here and the whole bill (GST included) re-prices off
+  // it. `tariffMode` says whether the typed figure is the taxable tariff or the
+  // all-in number the guest was quoted ("₹1,500 total"), which is backed out to
+  // its taxable base so GST is never charged on top of an inclusive price.
+  const [tariffInput, setTariffInput] = useState('');
+  const [tariffMode, setTariffMode] = useState('exclusive');
 
   // Nights stayed, from the dates alone. A late departure no longer silently
   // adds a night — the desk decides what (if anything) to charge, in the Late
@@ -124,37 +139,74 @@ const CheckoutDialog = ({ open, onClose, booking, room, onPaymentComplete }) => 
     setCheckoutDate(initDate);
     setCheckoutTime(initTime);
     setLateCheckoutCharge('');
+    setTariffInput('');
+    setTariffMode('exclusive');
     calculateNights(initDate);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [booking]);
 
-  useEffect(() => {
-    if (booking && actualNights > 0 && room) {
-      const baseRoomPrice = room.pricePerNight || 0;
-      const baseAmount = baseRoomPrice * actualNights;
-      const gstAmount = baseAmount * roomGstFrac;
-      setAdjustedAmount(baseAmount + gstAmount);
-    }
-  }, [actualNights, booking, room, roomGstFrac]);
+  // The tariff the desk starts from: the rate already agreed on this booking (a
+  // re-opened checkout, or a rate negotiated at check-in), else the room's list
+  // price, else the rate implied by the booking total when the room record
+  // carries no price. Always the taxable figure — GST is added on top of it.
+  const listTariff = useMemo(() => {
+    const agreed = Number(booking?.roomRate) || 0;
+    if (agreed > 0) return round2(agreed);
+    const price = Number(room?.pricePerNight) || 0;
+    if (price > 0) return round2(price);
+    const nights = Number(booking?.nights) || actualNights || 1;
+    const total = Number(booking?.totalAmount) || 0;
+    return total > 0 ? round2(total / (1 + roomGstFrac) / nights) : 0;
+  }, [booking, room, actualNights, roomGstFrac]);
+
+  // Blank / nonsense in the tariff field means "no bargain" — bill the list
+  // tariff. A figure typed in "incl. GST" mode is the all-in price the guest
+  // agreed to, so the taxable tariff is backed out of it.
+  const typedTariff = parseFloat(tariffInput);
+  const enteredTariff = Number.isFinite(typedTariff) && typedTariff >= 0 ? typedTariff : null;
+  const baseTariff = enteredTariff === null
+    ? listTariff
+    : round2(tariffMode === 'inclusive' ? enteredTariff / (1 + roomGstFrac) : enteredTariff);
+  const tariffNegotiated = baseTariff !== listTariff;
+
+  const roomBaseAmount = round2(baseTariff * actualNights);
+  const roomGstAmount = round2(roomBaseAmount * roomGstFrac);
+  const adjustedAmount = round2(roomBaseAmount + roomGstAmount);
+  // Once the nights are known the re-priced figure IS the room bill, even when
+  // it comes to zero (a comped room) — only fall back to the booking's stored
+  // total before that first calculation lands.
+  const roomTotal = actualNights > 0 ? adjustedAmount : Number(booking?.totalAmount) || 0;
 
   // Food bill — order.totalAmount is already GST-INCLUSIVE (base + POS GST) and
   // equals the printed invoice's F&B total, so the charge is the sum as-is. We do
   // NOT re-add GST; we only split the base/GST back out for the on-screen breakdown.
-  const restaurantCharges = restaurantOrders.reduce(
+  const restaurantOrdersTotal = restaurantOrders.reduce(
     (total, order) => total + (order.totalAmount || 0),
     0,
   );
+  // Excluding the food bill zeroes it out of every figure below, so the balance
+  // due, the amount collected and the printed invoice all agree.
+  const restaurantCharges = includeRestaurant ? restaurantOrdersTotal : 0;
   const restaurantSubtotal = billing.posGstRate > 0
     ? Math.round((restaurantCharges / (1 + billing.posGstRate / 100)) * 100) / 100
     : restaurantCharges;
   const restaurantGst = Math.round((restaurantCharges - restaurantSubtotal) * 100) / 100;
   // Blank / zero / nonsense means no late charge at all — nothing is added.
   const lateFee = Math.max(0, parseFloat(lateCheckoutCharge) || 0);
-  const totalWithRestaurant = (adjustedAmount || booking?.totalAmount || 0) + restaurantCharges + lateFee;
+  const totalWithRestaurant = roomTotal + restaurantCharges + lateFee;
   const remainingWithRestaurant = totalWithRestaurant - (booking?.paidAmount || 0);
+  // A blank or non-numeric field means "collect nothing", not NaN — NaN would
+  // poison the booking's paidAmount on the way through.
+  const amountToCollect = Math.max(0, parseFloat(paymentAmount) || 0);
+  // Only a bill with money still owed needs a payment before the guest can leave.
+  // A settled (or overpaid) booking checks out with nothing to collect.
+  const balanceDue = remainingWithRestaurant > 0;
+  const canComplete = !balanceDue || amountToCollect > 0;
 
+  // Never pre-fill a negative amount: an overpaid booking has nothing to collect,
+  // and a negative payment would be subtracted from what the guest has paid.
   useEffect(() => {
-    setPaymentAmount(remainingWithRestaurant);
+    setPaymentAmount(Math.max(0, Math.round(remainingWithRestaurant * 100) / 100));
   }, [remainingWithRestaurant]);
 
   useEffect(() => {
@@ -163,21 +215,38 @@ const CheckoutDialog = ({ open, onClose, booking, room, onPaymentComplete }) => 
     }
   }, [open, checkoutTime]);
 
+  // Re-opening checkout for a booking should show the choice made last time
+  // (defaults to billing the food, which is what every existing booking did).
+  useEffect(() => {
+    if (open) {
+      setIncludeRestaurant(booking?.includeRestaurantInInvoice !== false);
+    }
+  }, [open, booking?.includeRestaurantInInvoice]);
+
   const handlePaymentComplete = () => {
     const checkoutDateTime = new Date(`${checkoutDate}T${checkoutTime}`);
     onPaymentComplete({
       method: paymentMethod,
-      amount: parseFloat(paymentAmount),
+      amount: amountToCollect,
       reference: paymentReference,
       date: new Date(),
       checkoutDate: checkoutDateTime,
       actualNights,
       adjustedAmount,
       restaurantCharges,
+      // Persisted on the booking so a re-printed invoice makes the same choice
+      // the desk made at checkout.
+      includeRestaurantInInvoice: includeRestaurant,
       lateCheckoutFee: lateFee,
+      // The agreed per-night tariff and its GST split, so the booking (and the
+      // invoice printed off it) shows the rate the guest actually paid rather
+      // than the room's list price.
+      roomRate: baseTariff,
+      roomBaseAmount,
+      roomGstAmount,
       // Room nights + the manual late charge; the room total the booking stores
       // has to carry the late fee, because that is what the guest is billed.
-      roomTotalWithLateFee: (adjustedAmount || booking?.totalAmount || 0) + lateFee,
+      roomTotalWithLateFee: roomTotal + lateFee,
       totalWithRestaurant,
     });
   };
@@ -195,8 +264,6 @@ const CheckoutDialog = ({ open, onClose, booking, room, onPaymentComplete }) => 
     if (mins <= 12 * 60) return { label: 'Grace window · 11:00 – 12:00', color: 'info' };
     return { label: 'Late checkout · add a charge below if applicable', color: 'warning' };
   })();
-
-  const balancePositive = remainingWithRestaurant > 0;
 
   return (
     <Dialog
@@ -246,7 +313,7 @@ const CheckoutDialog = ({ open, onClose, booking, room, onPaymentComplete }) => 
                 fontSize: 28,
                 fontWeight: 800,
                 letterSpacing: '-0.02em',
-                color: balancePositive ? 'error.main' : 'success.main',
+                color: balanceDue ? 'error.main' : 'success.main',
               }}
             >
               {currencySym()}{remainingWithRestaurant.toFixed(2)}
@@ -284,7 +351,7 @@ const CheckoutDialog = ({ open, onClose, booking, room, onPaymentComplete }) => 
               <Divider sx={{ my: 1.5, opacity: isDarkMode ? 0.2 : 0.4 }} />
 
               <Typography sx={sectionTitleSx(isDarkMode)}>Charges</Typography>
-              {adjustedAmount !== booking.totalAmount && booking.totalAmount ? (
+              {roomTotal !== booking.totalAmount && booking.totalAmount ? (
                 moneyRow(
                   'Original room charges',
                   `${currencySym()}${Number(booking.totalAmount).toFixed(2)}`,
@@ -292,25 +359,55 @@ const CheckoutDialog = ({ open, onClose, booking, room, onPaymentComplete }) => 
                 )
               ) : null}
               {moneyRow(
-                `Room ${actualNights} night${actualNights === 1 ? '' : 's'}`,
-                `${currencySym()}${room?.pricePerNight ? (room.pricePerNight * actualNights).toFixed(2) : ((adjustedAmount || booking.totalAmount) / (1 + roomGstFrac)).toFixed(2)}`,
+                `Room ${actualNights} night${actualNights === 1 ? '' : 's'} × ${currencySym()}${baseTariff.toFixed(2)}`,
+                `${currencySym()}${roomBaseAmount.toFixed(2)}`,
+              )}
+              {tariffNegotiated && (
+                <Chip
+                  size="small"
+                  color="warning"
+                  variant="outlined"
+                  label={`Negotiated rate · list ${currencySym()}${listTariff.toFixed(2)}/night`}
+                  sx={{ borderRadius: 999, my: 0.5 }}
+                />
               )}
               {moneyRow(
                 `GST (${billing.roomGstRate}%)`,
-                `${currencySym()}${room?.pricePerNight ? (room.pricePerNight * actualNights * roomGstFrac).toFixed(2) : (((adjustedAmount || booking.totalAmount) * roomGstFrac) / (1 + roomGstFrac)).toFixed(2)}`,
+                `${currencySym()}${roomGstAmount.toFixed(2)}`,
                 { muted: true },
               )}
               {moneyRow(
                 'Room total (incl. GST)',
-                `${currencySym()}${(adjustedAmount || booking.totalAmount || 0).toFixed(2)}`,
+                `${currencySym()}${roomTotal.toFixed(2)}`,
                 { bold: true },
               )}
               {lateFee > 0 && moneyRow('Late checkout charge', `${currencySym()}${lateFee.toFixed(2)}`)}
-              {restaurantSubtotal > 0 && (
+              {restaurantOrdersTotal > 0 && (
                 <>
-                  {moneyRow('Food & beverage', `${currencySym()}${restaurantSubtotal.toFixed(2)}`)}
-                  {moneyRow(`Food GST (${billing.posGstRate}%)`, `${currencySym()}${restaurantGst.toFixed(2)}`, { muted: true })}
-                  {moneyRow('Food total (incl. GST)', `${currencySym()}${restaurantCharges.toFixed(2)}`, { bold: true })}
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 0.5 }}>
+                    <Typography sx={{ fontSize: 13, fontWeight: 600 }}>
+                      Bill food to this room
+                    </Typography>
+                    <Switch
+                      size="small"
+                      checked={includeRestaurant}
+                      onChange={(e) => setIncludeRestaurant(e.target.checked)}
+                    />
+                  </Box>
+                  {includeRestaurant ? (
+                    <>
+                      {moneyRow('Food & beverage', `${currencySym()}${restaurantSubtotal.toFixed(2)}`)}
+                      {moneyRow(`Food GST (${billing.posGstRate}%)`, `${currencySym()}${restaurantGst.toFixed(2)}`, { muted: true })}
+                      {moneyRow('Food total (incl. GST)', `${currencySym()}${restaurantCharges.toFixed(2)}`, { bold: true })}
+                    </>
+                  ) : (
+                    // Still shown, so the desk can see what is being left off and
+                    // knows there is a food bill to collect elsewhere.
+                    <Typography sx={{ fontSize: 12, color: 'text.secondary', fontStyle: 'italic', mt: 0.5 }}>
+                      {currencySym()}{restaurantOrdersTotal.toFixed(2)} of food excluded — settled separately,
+                      and left off the room invoice.
+                    </Typography>
+                  )}
                 </>
               )}
               <Divider sx={{ my: 1.5, opacity: isDarkMode ? 0.2 : 0.4 }} />
@@ -320,7 +417,7 @@ const CheckoutDialog = ({ open, onClose, booking, room, onPaymentComplete }) => 
               {moneyRow(
                 'Balance due',
                 `${currencySym()}${remainingWithRestaurant.toFixed(2)}`,
-                { bold: true, color: balancePositive ? 'error.main' : 'success.main' },
+                { bold: true, color: balanceDue ? 'error.main' : 'success.main' },
               )}
             </Box>
           </Grid>
@@ -349,6 +446,41 @@ const CheckoutDialog = ({ open, onClose, booking, room, onPaymentComplete }) => 
                   value={checkoutTime || ''}
                   onChange={(newTime) => setCheckoutTime(newTime)}
                 />
+                <Box>
+                  <TextField
+                    label="Room tariff / night"
+                    type="number"
+                    fullWidth
+                    value={tariffInput}
+                    onChange={(e) => setTariffInput(e.target.value)}
+                    placeholder={listTariff ? listTariff.toFixed(2) : '0'}
+                    helperText={
+                      tariffNegotiated
+                        ? `Billing ${currencySym()}${baseTariff.toFixed(2)} + GST = ${currencySym()}${round2(baseTariff * (1 + roomGstFrac)).toFixed(2)}/night · list ${currencySym()}${listTariff.toFixed(2)}`
+                        : `Leave blank for the list rate (${currencySym()}${listTariff.toFixed(2)} + GST = ${currencySym()}${round2(listTariff * (1 + roomGstFrac)).toFixed(2)}/night).`
+                    }
+                    slotProps={{
+                      input: {
+                        startAdornment: <InputAdornment position="start">{currencySym()}</InputAdornment>,
+                      },
+                      htmlInput: { min: 0, step: 50 },
+                    }}
+                  />
+                  <ToggleButtonGroup
+                    size="small"
+                    exclusive
+                    value={tariffMode}
+                    onChange={(e, next) => next && setTariffMode(next)}
+                    sx={{ mt: 1 }}
+                  >
+                    <ToggleButton value="exclusive" sx={{ textTransform: 'none', fontSize: 12, px: 1.5 }}>
+                      + GST on top
+                    </ToggleButton>
+                    <ToggleButton value="inclusive" sx={{ textTransform: 'none', fontSize: 12, px: 1.5 }}>
+                      GST included
+                    </ToggleButton>
+                  </ToggleButtonGroup>
+                </Box>
                 <TextField
                   label="Late checkout charge"
                   type="number"
@@ -387,11 +519,13 @@ const CheckoutDialog = ({ open, onClose, booking, room, onPaymentComplete }) => 
                 fullWidth
                 value={paymentAmount}
                 onChange={(e) => setPaymentAmount(e.target.value)}
+                helperText={balanceDue ? ' ' : 'Bill is settled — nothing left to collect.'}
                 sx={{ mb: paymentMethod !== 'Cash' ? 2 : 0 }}
                 slotProps={{
                   input: {
                     startAdornment: <InputAdornment position="start">{currencySym()}</InputAdornment>,
-                  }
+                  },
+                  htmlInput: { min: 0, step: 50 },
                 }}
               />
 
@@ -414,7 +548,7 @@ const CheckoutDialog = ({ open, onClose, booking, room, onPaymentComplete }) => 
         <Button
           onClick={handlePaymentComplete}
           variant="contained"
-          disabled={!paymentAmount || paymentAmount <= 0}
+          disabled={!canComplete}
           sx={primaryButtonSx}
         >
           Complete checkout

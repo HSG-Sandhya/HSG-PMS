@@ -134,6 +134,7 @@ export const render = (ctx) => `<!doctype html>
         <h3>Billed to</h3>
         <div class="primary">${e(ctx.customer.name)}</div>
         <div class="secondary">
+          ${ctx.customer.company ? `${e(ctx.customer.company)}<br/>` : ''}
           ${ctx.customer.phone ? `${e(ctx.customer.phone)}<br />` : ''}
           ${ctx.customer.email ? `${e(ctx.customer.email)}<br />` : ''}
           ${ctx.customer.address ? `${e(ctx.customer.address)}<br />` : ''}

@@ -4,12 +4,39 @@ import bcrypt from "bcryptjs";
 import mongoosePaginate from "mongoose-paginate-v2";
 
 const userSchema = new mongoose.Schema({
-  username: { type: String, required: true, unique: true, trim: true },
+  // Whether this staff member signs in to the app at all.
+  //
+  // Junior staff (housekeeping, kitchen, room attendants) are tracked for
+  // attendance and payroll but never open the PMS, so issuing them a username
+  // and password is pure attack surface. Their role decides this — see
+  // `Role.allowsLogin()`, which defaults off below hierarchy 6.
+  //
+  // A record with `hasLoginAccess: false` is a personnel record only: it still
+  // appears in the staff roster, attendance and payroll, but has no credentials
+  // and cannot authenticate.
+  hasLoginAccess: { type: Boolean, default: true },
+
+  // Credentials are required only for staff who actually log in. `sparse` on
+  // the unique index so any number of credential-less records can coexist —
+  // they store no username at all rather than an empty string, which would
+  // collide on the second insert.
+  username: {
+    type: String,
+    unique: true,
+    sparse: true,
+    trim: true,
+    required: [function () { return this.hasLoginAccess !== false; }, 'Username is required'],
+  },
   // Email is optional. `sparse` so the unique index skips users who have none
   // (multiple email-less staff are allowed); the controller stores it as unset
   // rather than '' so those documents fall outside the index entirely.
   email: { type: String, unique: true, sparse: true, lowercase: true, trim: true },
-  password: { type: String, required: true, minlength: 6, select: false },
+  password: {
+    type: String,
+    minlength: 6,
+    select: false,
+    required: [function () { return this.hasLoginAccess !== false; }, 'Password is required'],
+  },
   phone: {
     type: String,
     required: true,
@@ -104,6 +131,12 @@ userSchema.pre("save", async function () {
 userSchema.methods.comparePassword = async function (enteredPassword) {
   if (!enteredPassword) {
     throw new Error('Password is required');
+  }
+  // A personnel-only record has no credentials. Fail closed rather than letting
+  // bcrypt.compare run against an undefined hash — belt-and-braces, since such
+  // a record also has no username to look up in the first place.
+  if (this.hasLoginAccess === false || !this.password) {
+    return false;
   }
   return await bcrypt.compare(enteredPassword, this.password);
 };

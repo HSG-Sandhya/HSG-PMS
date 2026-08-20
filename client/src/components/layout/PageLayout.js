@@ -48,7 +48,10 @@ const PageLayoutInner = ({ children }) => {
             minHeight: 'calc(100vh - 48px)',
             borderRadius: 4,
             p: { xs: 2, md: 3.5 },
-            background: isDarkMode ? 'rgba(35,39,47,0.55)' : 'rgba(255, 255, 255, calc(var(--app-surface-alpha, 0.05) * 2))',
+            // The page shell — one surface per route, so it keeps its blur at
+            // every level except "off". Its fill follows the panel tier so the
+            // page stays readable once the blur behind it is switched off.
+            background: 'var(--app-glass-fill-strong)',
             backdropFilter: 'var(--app-blur-strong)',
             WebkitBackdropFilter: 'var(--app-blur-strong)',
             border: isDarkMode ? '1.5px solid rgba(148,163,184,0.14)' : '1.5px solid rgba(255,255,255,0.18)',

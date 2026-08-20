@@ -4,6 +4,15 @@ const GST_RATE = 0.05; // 5% (2.5 CGST + 2.5 SGST) — base inclusive (hotel/res
 // pre-GST (tax added on top); every other banquet line is priced GST-inclusive.
 const DEFAULT_BANQUET_GST = 18;
 const GST_EXCLUSIVE_CATEGORIES = new Set(['catering', 'meals']);
+// Banquet payables are billed in round figures — rounded UP to the next ₹100.
+const BANQUET_ROUNDING_STEP = 100;
+// Weddings are billed GST-free: no 18% is added to the catering and no tax is
+// split out of the other lines, so the document prints plain amounts with no
+// GST column and no CGST/SGST summary. Corporate-style events keep the tax —
+// they need it for input credit. Mirrored on the booking form by
+// isGstExemptType() in client/src/pages/management/banquet/bookingConstants.js.
+const GST_EXEMPT_EVENT_TYPES = new Set(['Wedding']);
+const isGstExempt = (booking) => GST_EXEMPT_EVENT_TYPES.has(String(booking?.eventType || '').trim());
 
 const calculateNights = (booking) => {
   if (!booking) return 1;
@@ -20,8 +29,13 @@ const buildHotelItems = (booking) => {
   const items = [];
   const totalAmount = Number(booking.totalAmount || 0);
   const nights = calculateNights(booking);
-  const rate = booking.roomId?.pricePerNight
-    || booking.baseAmount
+  // Bill the rate agreed for this stay, not the room's list price — a tariff
+  // bargained at checkout is stored on the booking and must be what prints.
+  // baseAmount is the stay's taxable total, so it divides down to a per-night
+  // rate; the room's own price is only the fallback when neither is recorded.
+  const rate = Number(booking.roomRate)
+    || (Number(booking.baseAmount) && nights ? Number(booking.baseAmount) / nights : 0)
+    || booking.roomId?.pricePerNight
     || (totalAmount && nights ? totalAmount / nights : 0);
 
   const roomLabel = booking.roomId?.roomNumber
@@ -287,6 +301,17 @@ const buildBanquetItems = (booking) => {
   //   • Everything else is quoted GST-INCLUSIVE → tax is backed out of the
   //     stored amount (amount unchanged). Facilities set their own split above
   //     and are left as-is here.
+  // A GST-exempt event (wedding) carries no tax at all: nothing is added on top
+  // of the catering, nothing is backed out of the inclusive lines, and the
+  // facilities — which are STORED gross — fall back to their ex-GST base so the
+  // guest is not quietly paying a tax the document says does not exist.
+  if (isGstExempt(booking)) {
+    return items.map((it) => {
+      const amount = it.taxable != null ? Number(it.taxable) || 0 : Number(it.amount) || 0;
+      return { ...it, gstRate: 0, taxable: amount, gstAmount: 0, amount };
+    });
+  }
+
   return items.map((it) => {
     if (it.taxable != null) return it; // already split (facilities)
     const rate = DEFAULT_BANQUET_GST / 100;
@@ -312,8 +337,18 @@ const computeTotals = (items, booking, isBanquet = false) => {
     const taxable = items.reduce((s, it) => s + Number(it.taxable || 0), 0);
     const gst = items.reduce((s, it) => s + Number(it.gstAmount || 0), 0);
     const gross = items.reduce((s, it) => s + Number(it.amount || 0), 0);
-    const discount = Number(booking.discount || 0);
-    const grandTotal = Math.max(0, gross - discount);
+    // Capped at the gross so a stray oversized discount cannot print a "less
+    // discount" line bigger than the bill it is taken off (the booking form
+    // caps it the same way, but an older record or a direct API write might not).
+    const discount = Math.min(gross, Math.max(0, Number(booking.discount || 0)));
+    // Banquet bills are collected in round figures: the payable is rounded UP
+    // to the next ₹100 (after any discount) and the difference is printed as a
+    // "Round off" row, so the items + tax still reconcile to the grand total.
+    // Mirrors roundBanquetTotal() in
+    // client/src/pages/management/banquet/bookingPricing.js — keep in step.
+    const netTotal = gross - discount;
+    const grandTotal = netTotal > 0 ? Math.ceil(netTotal / BANQUET_ROUNDING_STEP) * BANQUET_ROUNDING_STEP : 0;
+    const roundOff = grandTotal - netTotal;
     const balance = Math.max(0, grandTotal - paid);
     // Split the tax into equal CGST/SGST halves as whole rupees that still add
     // back to the full GST (avoids a stray ₹x.5 when the total is odd).
@@ -324,7 +359,8 @@ const computeTotals = (items, booking, isBanquet = false) => {
       sgst: round2(gst - cgst),
       igst: 0,
       gstTotal: round2(gst),
-      discount,
+      discount: round2(discount),
+      roundOff: round2(roundOff),
       total: round2(grandTotal),
       paid: round2(paid),
       balance: round2(balance),

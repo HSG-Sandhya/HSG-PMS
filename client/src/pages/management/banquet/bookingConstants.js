@@ -173,6 +173,14 @@ export const eventCategory = (eventType) => EVENT_CATEGORY[eventType] || 'other'
 export const DURATION_PRICED_TYPES = ['Corporate', 'Meeting', 'Conference', 'Birthday'];
 export const isDurationPricedType = (eventType) => DURATION_PRICED_TYPES.includes(eventType);
 
+// Weddings are billed GST-free: no 18% on the catering, no tax split out of the
+// other lines, and no GST column or CGST/SGST rows on the quotation / invoice.
+// Corporate-style events keep the tax — they need it for input credit. Mirrored
+// server-side by isGstExempt() in services/invoiceTemplates/normalize.js.
+export const GST_EXEMPT_EVENT_TYPES = ['Wedding'];
+export const isGstExemptType = (eventType) =>
+  GST_EXEMPT_EVENT_TYPES.includes(String(eventType || '').trim());
+
 // Sub-types offered for a Social Event (mirrors the eventType choices in that
 // category) — used by the New-Booking "Social Event" preset.
 export const SOCIAL_EVENT_TYPES = ['Engagement', 'Anniversary', 'Party'];
@@ -237,6 +245,7 @@ export const initialFormData = {
   eventDuration: '',
   guestCount: '',
   advanceAmount: '',
+  discount: '',
   totalAmount: 0,
   remainingAmount: 0,
   status: 'Pending',

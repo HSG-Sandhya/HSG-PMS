@@ -944,18 +944,27 @@ const Restaurant = () => {
     }
   };
 
-  const handleDeleteOrder = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this order?')) {return;}
-    
+  const handleDeleteOrder = async (id, order) => {
+    // A completed order has already posted income and may be sitting on a
+    // guest's folio, so spell out what deleting it actually does rather than
+    // asking the same bland question for every status.
+    const isBilled = order && order.status !== 'Pending' && order.status !== 'Cancelled';
+    const message = isBilled
+      ? `Delete ${order.orderNumber || 'this order'} (${order.status})?\n\n`
+        + 'It will be removed from the guest\'s room bill and its income reversed in the accounts. '
+        + 'This cannot be undone.'
+      : 'Are you sure you want to delete this order?';
+    if (!window.confirm(message)) { return; }
+
     try {
       await api.restaurant.deleteOrder(id);
       showSnackbar('Order deleted successfully');
-      
+
       // Refresh orders
       const refreshedOrders = await api.restaurant.getAll();
       setOrders(refreshedOrders.data || []);
     } catch (error) {
-      showSnackbar('Failed to delete order', 'error');
+      showSnackbar(error.response?.data?.message || 'Failed to delete order', 'error');
     }
   };
 

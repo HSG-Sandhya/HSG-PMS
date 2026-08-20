@@ -144,6 +144,7 @@ export const render = (ctx) => `<!doctype html>
       <div class="label">Billed To</div>
       <div class="pname">${e(ctx.customer.name)}</div>
       <div class="pmeta">
+        ${ctx.customer.company ? `${e(ctx.customer.company)}<br/>` : ''}
         ${ctx.customer.address ? `${e(ctx.customer.address)}<br/>` : ''}
         ${[ctx.customer.phone && `Tel: ${e(ctx.customer.phone)}`, ctx.customer.email && e(ctx.customer.email)].filter(Boolean).join(' · ')}
         ${ctx.customer.gstin ? `<br/>GSTIN: ${e(ctx.customer.gstin)}` : ''}

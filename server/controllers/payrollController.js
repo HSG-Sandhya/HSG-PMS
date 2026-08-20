@@ -9,6 +9,15 @@ import PDFDocument from "pdfkit";
 import { syncPayrollExpense } from "../services/accountingSync.js";
 import { getOps } from "../config/operationalConfig.js";
 import { loadAuthUser } from "../middleware/requireManage.js";
+import {
+  num,
+  periodLabel,
+  previousPeriod,
+  nextPeriod,
+  closingBalanceOf,
+  summariseStaffMoney,
+  DEDUCTION_FIELDS,
+} from "../utils/payrollLedger.js";
 
 // Scheduled salary pay date for a payroll period: the configured pay day of the
 // month FOLLOWING the period (salary paid in arrears). payrollPeriod.month is
@@ -74,6 +83,49 @@ const canManagePayroll = async (req) => {
     const rolePerms = dbUser.role?.permissions || [];
     const directPerms = dbUser.permissions || [];
     return PAYROLL_ACCESS.some((p) => rolePerms.includes(p) || directPerms.includes(p));
+  } catch {
+    return false;
+  }
+};
+
+// Approving a payroll is the step that authorises money to leave the business,
+// so it is held to a higher bar than the rest of the payroll screen: managers
+// may generate, recalculate and print, but only an administrator or the owner
+// may approve.
+//
+// This deliberately checks WHO the caller is rather than what permissions they
+// hold. The `approve_payroll` permission cannot discriminate here — every role
+// that can reach payroll at all (Hotel Manager and General Manager included)
+// was granted the entire payroll permission group, so a permission test would
+// pass for exactly the roles this is meant to stop. Grant-based checks can come
+// back once those roles are re-scoped.
+//
+// `isAdminLike` mirrors middleware/staffAuthority.js so "Super Admin" and
+// "System Administrator" resolve the same way across the app.
+const isAdminLike = (roleName = '') => {
+  const n = String(roleName).toLowerCase();
+  return n.includes('admin') || n.includes('system');
+};
+
+const canApprovePayroll = async (req) => {
+  const user = req?.user;
+  if (!user) return false;
+
+  if (user.isSystemAdmin === true || user.isSystemAdmin === 'true') return true;
+  if (isAdminLike(user.roleName || user.role?.name)) return true;
+  if (String(user.roleName || user.role?.name || '').toLowerCase() === 'owner') return true;
+
+  // The token only carries the role held when it was issued, so confirm against
+  // the user's current role before refusing (same reasoning as canManagePayroll).
+  try {
+    const dbUser = req.authUser
+      || (typeof user.hasPermission === 'function' ? user : await loadAuthUser(user));
+    if (!dbUser || dbUser.isActive === false) return false;
+    req.authUser = dbUser;
+
+    if (dbUser.isSystemAdmin) return true;
+    const dbRole = dbUser.role?.name || '';
+    return isAdminLike(dbRole) || dbRole.toLowerCase() === 'owner';
   } catch {
     return false;
   }
@@ -145,12 +197,35 @@ export const generatePayroll = async (req, res) => {
   }
 };
 
+// Active, non-admin users — the people this payroll pays. Admin/Owner roles and
+// anyone in the "System Administration" department are excluded, matching the
+// operational staff list.
+const getEligibleStaff = async () => {
+  const staffList = await User.find({ isSystemAdmin: false, isActive: true }).populate('role department');
+  return staffList.filter((u) =>
+    !['Admin', 'System Administrator', 'Owner'].includes(u.role?.name) &&
+    (u.department?.name || '') !== 'System Administration'
+  );
+};
+
+// Per-category breakdown of what a staff member drew, so the dashboard can show
+// WHY a deduction is what it is rather than one opaque figure.
+const deductionBreakdown = (payroll) => DEDUCTION_FIELDS.reduce((out, field) => {
+  out[field] = num(payroll.deductions?.[field]);
+  return out;
+}, {});
+
 // @desc    Live payroll for every eligible staff member for a month/year.
 //          Rows already generated show their persisted figures + status; the
 //          rest are computed on the fly (not saved) so the dashboard reflects
 //          each staff member's current salary, advances and deductions before
 //          payroll is generated. The row's `persisted` flag drives whether the
 //          UI shows a "Generate" button or the approve/pay/PDF actions.
+//
+//          Every row carries the money drawn during THIS month only, broken
+//          down by form (advance, recharge, part-salary, loan, other), plus the
+//          balance carried in from the previous month and the balance rolling
+//          out to the next one.
 // @route   GET /api/payroll/live?month=&year=
 // @access  Private (Admin/System Admin only)
 export const getLivePayroll = async (req, res) => {
@@ -164,73 +239,177 @@ export const getLivePayroll = async (req, res) => {
       return res.status(400).json({ success: false, message: "month and year are required" });
     }
 
-    // Eligible staff = active, non-admin users. Admin/Owner roles and anyone in
-    // the "System Administration" department are excluded (they aren't paid via
-    // this payroll), matching the operational staff list.
-    const staffList = await User.find({ isSystemAdmin: false, isActive: true }).populate('role department');
-    const eligible = staffList.filter((u) =>
-      !['Admin', 'System Administrator', 'Owner'].includes(u.role?.name) &&
-      (u.department?.name || '') !== 'System Administration'
-    );
+    const eligible = await getEligibleStaff();
 
     // Any payroll already generated for this period, keyed by staff id.
     const existing = await Payroll.find({ 'payrollPeriod.month': month, 'payrollPeriod.year': year });
     const persistedByStaff = new Map(existing.map((p) => [String(p.staff), p]));
 
-    const rows = [];
-    for (const staff of eligible) {
+    // One batched pass computes the whole month for every staff member, and
+    // hands back the carry-in each of them starts from.
+    const { previews, openings, previousPeriod: prevInfo } = await Payroll.previewMonth(eligible, month, year);
+
+    const rows = eligible.map((staff) => {
+      const key = String(staff._id);
       const base = {
-        staffId: String(staff._id),
+        staffId: key,
         employeeId: staff.profile?.employeeId || 'N/A',
         name: `${staff.firstName || ''} ${staff.lastName || ''}`.trim(),
       };
-      const persisted = persistedByStaff.get(String(staff._id));
-      if (persisted) {
-        rows.push({
-          ...base,
-          basicSalary: persisted.salary.basic,
-          totalEarnings: persisted.earnings.totalEarnings,
-          totalDeductions: persisted.deductions.totalDeductions,
-          netSalary: persisted.netSalary,
-          status: persisted.status,
-          persisted: true,
-          payrollId: String(persisted._id),
-        });
-        continue;
-      }
-      try {
-        const preview = await Payroll.previewForStaff(staff._id, month, year, staff);
-        rows.push({
-          ...base,
-          basicSalary: preview.salary.basic,
-          totalEarnings: preview.earnings.totalEarnings,
-          totalDeductions: preview.deductions.totalDeductions,
-          netSalary: preview.netSalary,
-          status: 'not_generated',
-          persisted: false,
-        });
-      } catch (err) {
-        rows.push({
+      const currentOpening = openings.get(key) || { amount: 0, source: 'none' };
+      const persisted = persistedByStaff.get(key);
+      const source = persisted || previews.get(key);
+
+      if (!source) {
+        return {
           ...base,
           basicSalary: staff.profile?.salary || 0,
-          totalEarnings: 0, totalDeductions: 0, netSalary: 0,
-          status: 'not_generated', persisted: false, error: err.message,
+          totalEarnings: 0,
+          deductions: { advance: 0, salaryPaid: 0, recharge: 0, loan: 0, other: 0 },
+          totalDeductions: 0,
+          openingBalance: 0,
+          openingSource: 'none',
+          netThisMonth: 0,
+          netSalary: 0,
+          carryForward: 0,
+          status: 'not_generated',
+          persisted: false,
+        };
+      }
+
+      const opening = num(source.carryForward?.opening);
+      const totalDeductions = num(source.deductions?.totalDeductions);
+      const totalEarnings = num(source.earnings?.totalEarnings);
+
+      return {
+        ...base,
+        basicSalary: num(source.salary?.basic),
+        totalEarnings,
+        deductions: deductionBreakdown(source),
+        totalDeductions,
+        openingBalance: opening,
+        openingSource: source.carryForward?.openingSource || 'none',
+        // Earnings less what was drawn, before the carry-in — the month on its own.
+        netThisMonth: totalEarnings - totalDeductions,
+        netSalary: num(source.netSalary),
+        carryForward: closingBalanceOf(source),
+        amountPaid: num(source.payment?.amountPaid),
+        status: persisted ? persisted.status : 'not_generated',
+        persisted: Boolean(persisted),
+        ...(persisted ? { payrollId: String(persisted._id) } : {}),
+        // A generated record stores the carry-in it was calculated with. If the
+        // previous month has since been recalculated, that stored figure is out
+        // of date and the row needs regenerating — flagged rather than silently
+        // rewritten, because an approved or paid record must not change by itself.
+        openingStale: Boolean(persisted) && Math.abs(opening - num(currentOpening.amount)) >= 0.5,
+      };
+    });
+
+    rows.sort((a, b) => a.name.localeCompare(b.name));
+    const totals = rows.reduce((acc, r) => ({
+      netSalary: acc.netSalary + r.netSalary,
+      totalEarnings: acc.totalEarnings + r.totalEarnings,
+      totalDeductions: acc.totalDeductions + r.totalDeductions,
+      openingBalance: acc.openingBalance + r.openingBalance,
+      carryForward: acc.carryForward + r.carryForward,
+      pendingCount: acc.pendingCount + (r.persisted ? 0 : 1),
+      overdrawnCount: acc.overdrawnCount + (r.netSalary < 0 ? 1 : 0),
+    }), {
+      netSalary: 0, totalEarnings: 0, totalDeductions: 0,
+      openingBalance: 0, carryForward: 0, pendingCount: 0, overdrawnCount: 0,
+    });
+
+    const next = nextPeriod(month, year);
+    res.json({
+      success: true,
+      data: {
+        rows,
+        totals,
+        count: rows.length,
+        month,
+        year,
+        period: { month, year, label: periodLabel(month, year) },
+        // Balances only roll forward out of a month that has been generated, so
+        // the UI can tell the user what is still un-closed behind them.
+        previous: {
+          month: prevInfo.month,
+          year: prevInfo.year,
+          label: periodLabel(prevInfo.month, prevInfo.year),
+          generatedCount: prevInfo.generatedCount,
+          missingCount: Math.max(0, rows.length - prevInfo.generatedCount),
+        },
+        next: { month: next.month, year: next.year, label: periodLabel(next.month, next.year) },
+      },
+    });
+  } catch (error) {
+    console.error('Live payroll error:', error);
+    res.status(500).json({ success: false, message: "Error computing live payroll" });
+  }
+};
+
+// @desc    Generate payroll for every eligible staff member who has none for the
+//          period. Closing a month is what makes its balances roll into the next
+//          one, and doing that one row at a time for a whole team is tedious.
+//          Existing records are left untouched — recalculating an individual row
+//          stays an explicit, per-staff action.
+// @route   POST /api/payroll/generate-month
+// @access  Private (Admin/System Admin only)
+export const generateMonthPayroll = async (req, res) => {
+  try {
+    if (!(await canManagePayroll(req))) {
+      return res.status(403).json({
+        success: false,
+        message: "Access denied. Only Admin and System Admin can generate payroll."
+      });
+    }
+
+    const month = parseInt(req.body.month, 10);
+    const year = parseInt(req.body.year, 10);
+    if (!month || !year || month < 1 || month > 12) {
+      return res.status(400).json({ success: false, message: "A valid month and year are required" });
+    }
+
+    const eligible = await getEligibleStaff();
+    const existing = await Payroll.find(
+      { 'payrollPeriod.month': month, 'payrollPeriod.year': year },
+      { staff: 1 }
+    );
+    const alreadyGenerated = new Set(existing.map((p) => String(p.staff)));
+    const pending = eligible.filter((s) => !alreadyGenerated.has(String(s._id)));
+
+    const generated = [];
+    const failed = [];
+    for (const staff of pending) {
+      try {
+        const payroll = await Payroll.generateForStaff(staff._id, month, year);
+        payroll.calculatedBy = req.user?._id || null;
+        await payroll.save();
+        generated.push({ staffId: String(staff._id), netSalary: payroll.netSalary });
+      } catch (err) {
+        failed.push({
+          staffId: String(staff._id),
+          name: `${staff.firstName || ''} ${staff.lastName || ''}`.trim(),
+          message: err.message,
         });
       }
     }
 
-    rows.sort((a, b) => a.name.localeCompare(b.name));
-    const totals = rows.reduce((acc, r) => ({
-      netSalary: acc.netSalary + (r.netSalary || 0),
-      totalEarnings: acc.totalEarnings + (r.totalEarnings || 0),
-      totalDeductions: acc.totalDeductions + (r.totalDeductions || 0),
-      pendingCount: acc.pendingCount + (r.persisted ? 0 : 1),
-    }), { netSalary: 0, totalEarnings: 0, totalDeductions: 0, pendingCount: 0 });
-
-    res.json({ success: true, data: { rows, totals, count: rows.length, month, year } });
+    res.status(200).json({
+      success: true,
+      message: failed.length
+        ? `Generated ${generated.length} payroll(s) for ${periodLabel(month, year)}; ${failed.length} failed.`
+        : `Generated ${generated.length} payroll(s) for ${periodLabel(month, year)}.`,
+      data: {
+        month,
+        year,
+        generatedCount: generated.length,
+        skippedCount: alreadyGenerated.size,
+        failed,
+      },
+    });
   } catch (error) {
-    console.error('Live payroll error:', error);
-    res.status(500).json({ success: false, message: "Error computing live payroll" });
+    console.error('Generate month payroll error:', error);
+    res.status(500).json({ success: false, message: "Server error while generating payroll for the month" });
   }
 };
 
@@ -337,37 +516,42 @@ export const generatePayrollPDF = async (req, res) => {
       console.log('Could not fetch hotel settings, using defaults');
     }
 
-    // Fetch real staff advance and recharge data for the payroll period
-    let totalAdvanceAmount = 0;
-    let totalRechargeAmount = 0;
+    // Fetch every form in which this staff member drew money during the period.
+    // The individual rows are kept, not just the totals, so the slip can itemise
+    // exactly what was recovered — a staff member querying a deduction needs to
+    // see which advance and which recharge it came from. Classification is
+    // shared with the payroll calculation (utils/payrollLedger.js) so the slip
+    // can never disagree with the stored record.
+    let staffTransactions = [];
+    let rechargeTransactions = [];
 
     try {
-      // Get advance transactions for this staff in the payroll period
-      const advanceTransactions = await StaffTransaction.find({
-        staff: payroll.staff._id,
-        type: 'advance',
-        date: {
-          $gte: payroll.payrollPeriod.startDate,
-          $lte: payroll.payrollPeriod.endDate
-        }
-      });
-
-      totalAdvanceAmount = advanceTransactions.reduce((sum, transaction) => sum + transaction.amount, 0);
-
-      // Get recharge transactions for this staff in the payroll period
-      const rechargeTransactions = await StaffRecharge.find({
+      staffTransactions = await StaffTransaction.find({
         staff: payroll.staff._id,
         date: {
           $gte: payroll.payrollPeriod.startDate,
           $lte: payroll.payrollPeriod.endDate
         }
-      });
+      }).sort({ date: 1 });
 
-      totalRechargeAmount = rechargeTransactions.reduce((sum, recharge) => sum + recharge.amount, 0);
-
+      rechargeTransactions = await StaffRecharge.find({
+        staff: payroll.staff._id,
+        date: {
+          $gte: payroll.payrollPeriod.startDate,
+          $lte: payroll.payrollPeriod.endDate
+        }
+      }).sort({ date: 1 });
     } catch (error) {
       console.log('Could not fetch advance/recharge data:', error);
     }
+
+    const { taken } = summariseStaffMoney(staffTransactions, rechargeTransactions);
+    // Transactions the staff member drew against salary, in date order, for the
+    // itemised card further down.
+    const drawnTransactions = staffTransactions.filter((t) => (
+      ['advance', 'salary', 'loan', 'deduction'].includes(t.type) && t.status !== 'cancelled'
+    ));
+    const recoveredRecharges = rechargeTransactions.filter((r) => !['failed', 'cancelled'].includes(r.status));
 
     // Fallback hotel profile
     if (!hotelProfile) {
@@ -408,6 +592,8 @@ export const generatePayrollPDF = async (req, res) => {
 
     const PAGE_X = 40;
     const PAGE_W = 515;
+    // A4 is 842pt tall; leave room for the footer lines at the bottom.
+    const PAGE_BOTTOM = 842 - 70;
     const headH = 30;
     const rowH = 22;
 
@@ -502,7 +688,7 @@ export const generatePayrollPDF = async (req, res) => {
     // Payment date: the actual paid date once paid, otherwise the scheduled
     // pay day from Settings → Operations → Payroll.
     const { payroll: payCfg } = await getOps();
-    const paidDate = payroll.payment?.paidDate;
+    const paidDate = payroll.payment?.paidAt;
     const payDateLabel = paidDate
       ? `${new Date(paidDate).toLocaleDateString('en-IN')} (paid)`
       : `${scheduledPayDate(payroll.payrollPeriod, payCfg.payDay).toLocaleDateString('en-IN')} (scheduled)`;
@@ -545,13 +731,14 @@ export const generatePayrollPDF = async (req, res) => {
     earnRows.push(['TOTAL EARNINGS', fmt(totalEarnings)]);
 
     // No statutory (PF/ESI/TDS) or attendance-penalty (absent/late) deductions —
-    // salary is attendance-based, so only advances, recharges and any manual
-    // loan/other deductions are recovered.
+    // salary is attendance-based, so what is recovered is simply everything the
+    // staff member drew during the month, whichever form it took.
     const dedAll = [
-      ['Advance Payment', totalAdvanceAmount, true],
-      ['Mobile Recharge', totalRechargeAmount, true],
-      ['Loan', payroll.deductions.loan],
-      ['Other Deductions', payroll.deductions.other],
+      ['Advance Payment', taken.advance, true],
+      ['Mobile Recharge', taken.recharge, true],
+      ['Salary Paid In Month', taken.salaryPaid],
+      ['Loan', taken.loan],
+      ['Other Deductions', taken.other],
     ];
     const totalDeductions = dedAll.reduce((s, r) => s + safeNum(r[1]), 0);
     const dedRows = dedAll
@@ -564,17 +751,102 @@ export const generatePayrollPDF = async (req, res) => {
     const dedEndY = drawCard(PAGE_X + colW + 15, currentY, colW, 'Deductions', warningColor, dedRows, { valueColor: red });
     currentY = Math.max(earnEndY, dedEndY) + 16;
 
+    // ---- Deduction summary (itemised) ----
+    // The Deductions card above gives one line per category; this breaks those
+    // categories back down into the individual advances and recharges behind
+    // them, so the staff member can reconcile every rupee withheld. Skipped
+    // entirely when nothing was recovered — an empty card just wastes a page.
+    const DRAWN_LABEL = {
+      advance: 'Advance',
+      salary: 'Salary paid in month',
+      loan: 'Loan',
+      deduction: 'Deduction',
+    };
+    const dedDetailRows = [
+      ...drawnTransactions.map((t) => [
+        `${DRAWN_LABEL[t.type] || t.type}${t.reason ? ` — ${t.reason}` : ''}`,
+        new Date(t.date).toLocaleDateString('en-IN'),
+        fmt(t.amount),
+      ]),
+      ...recoveredRecharges.map((r) => [
+        `Recharge${r.operator ? ` — ${r.operator}` : ''}${r.phoneNumber ? ` (${r.phoneNumber})` : ''}`,
+        new Date(r.date).toLocaleDateString('en-IN'),
+        fmt(r.amount),
+      ]),
+    ];
+
+    if (dedDetailRows.length > 0) {
+      dedDetailRows.push(['TOTAL DEDUCTIONS', '', fmt(totalDeductions)]);
+
+      // This slip already fills most of an A4 by the time it reaches here, so
+      // spill onto a second page rather than letting the card run off the
+      // bottom edge.
+      const detailH = headH + rowH + dedDetailRows.length * rowH;
+      if (currentY + detailH > PAGE_BOTTOM) {
+        doc.addPage();
+        currentY = 40;
+      }
+      currentY = drawCard(PAGE_X, currentY, PAGE_W, 'Deduction Summary', warningColor, dedDetailRows, {
+        subhead: ['Particulars', 'Date', 'Amount'],
+        valueColor: red,
+      }) + 16;
+    }
+
+    // ---- Running balance (carry-forward) ----
+    // Salary here is a running account: what the staff member did not draw stays
+    // owed to them, and what they over-drew is recovered next month. The slip has
+    // to show both ends of that, or the net will not reconcile against this
+    // month's earnings and deductions on their own.
+    const netThisMonth = totalEarnings - totalDeductions;
+    const opening = safeNum(payroll.carryForward?.opening);
+    const netSalary = netThisMonth + opening;
+    const amountPaid = safeNum(payroll.payment?.amountPaid);
+    const closing = payroll.status === 'paid' ? netSalary - amountPaid : netSalary;
+
+    const prev = previousPeriod(payroll.payrollPeriod.month, payroll.payrollPeriod.year);
+    const next = nextPeriod(payroll.payrollPeriod.month, payroll.payrollPeriod.year);
+    const signed = (v) => `${safeNum(v) < 0 ? '-' : ''}${fmt(Math.abs(safeNum(v)))}`;
+
+    const balanceRows = [
+      [`Balance from ${periodLabel(prev.month, prev.year)}`, signed(opening)],
+      [`Earnings less amount drawn (${payroll.payrollPeriodDisplay})`, signed(netThisMonth)],
+      ...(payroll.status === 'paid' ? [['Paid out', fmt(amountPaid)]] : []),
+      [`Balance carried to ${periodLabel(next.month, next.year)}`, signed(closing)],
+    ];
+
+    const balanceH = headH + balanceRows.length * rowH;
+    if (currentY + balanceH + 54 + 40 > PAGE_BOTTOM) {
+      doc.addPage();
+      currentY = 40;
+    }
+    currentY = drawCard(PAGE_X, currentY, PAGE_W, 'Running Balance', indigo, balanceRows, {
+      valueColor: INK,
+    }) + 16;
+
     // ---- Net salary band ----
-    const netSalary = totalEarnings - totalDeductions;
+    if (currentY + 54 + 40 > PAGE_BOTTOM) {
+      doc.addPage();
+      currentY = 40;
+    }
+    // An over-drawn month pays out nothing, so the band flips to a recovery
+    // notice rather than printing a negative "net salary".
+    const overdrawn = netSalary < 0;
     const netGrad = doc.linearGradient(PAGE_X, currentY, PAGE_X + PAGE_W, currentY + 54);
-    netGrad.stop(0, green).stop(1, greenLite);
+    if (overdrawn) netGrad.stop(0, '#B91C1C').stop(1, red);
+    else netGrad.stop(0, green).stop(1, greenLite);
     doc.roundedRect(PAGE_X, currentY, PAGE_W, 54, 10).fill(netGrad);
     doc.fillColor(white).font('Helvetica-Bold').fontSize(13)
-      .text('NET SALARY', PAGE_X + 18, currentY + 13);
-    doc.fillColor('#D1FAE5').font('Helvetica').fontSize(8.5)
-      .text(`Payable for ${payroll.payrollPeriodDisplay}`, PAGE_X + 18, currentY + 31);
+      .text(overdrawn ? 'EXCESS DRAWN' : 'NET SALARY', PAGE_X + 18, currentY + 13);
+    doc.fillColor(overdrawn ? '#FEE2E2' : '#D1FAE5').font('Helvetica').fontSize(8.5)
+      .text(
+        overdrawn
+          ? `Nothing payable — recovered from ${periodLabel(next.month, next.year)}`
+          : `Payable for ${payroll.payrollPeriodDisplay}`,
+        PAGE_X + 18,
+        currentY + 31
+      );
     doc.fillColor(white).font('Helvetica-Bold').fontSize(20)
-      .text(fmt(netSalary), PAGE_X, currentY + 17, { width: PAGE_W - 18, align: 'right' });
+      .text(fmt(Math.abs(netSalary)), PAGE_X, currentY + 17, { width: PAGE_W - 18, align: 'right' });
     currentY += 72;
 
     // ---- Footer ----
@@ -602,13 +874,13 @@ export const generatePayrollPDF = async (req, res) => {
 
 // @desc    Approve payroll
 // @route   PUT /api/payroll/:id/approve
-// @access  Private (Admin/System Admin only)
+// @access  Private (Admin/System Admin/Owner only — NOT managers)
 export const approvePayroll = async (req, res) => {
   try {
-    if (!(await canManagePayroll(req))) {
+    if (!(await canApprovePayroll(req))) {
       return res.status(403).json({
         success: false,
-        message: "Access denied."
+        message: "Access denied. Only an administrator or the owner can approve payroll."
       });
     }
 
@@ -656,7 +928,7 @@ export const markPayrollAsPaid = async (req, res) => {
       });
     }
 
-    const { paymentMethod, transactionId, bankDetails } = req.body;
+    const { paymentMethod, transactionId, bankDetails, amountPaid } = req.body;
 
     const payroll = await Payroll.findById(req.params.id);
     if (!payroll) {
@@ -673,10 +945,24 @@ export const markPayrollAsPaid = async (req, res) => {
       });
     }
 
+    // Paying more than the balance owed would leave the staff member with a
+    // negative opening balance next month for no reason — refuse it rather than
+    // quietly carrying the difference.
+    const payable = Math.max(0, num(payroll.netSalary));
+    if (amountPaid != null && amountPaid !== '' && num(amountPaid) > payable + 0.5) {
+      return res.status(400).json({
+        success: false,
+        message: `Amount paid cannot exceed the payable balance of ${payable.toFixed(2)}.`
+      });
+    }
+
     const paymentDetails = {
       method: paymentMethod,
       transactionId,
-      bankDetails
+      bankDetails,
+      // Left out, markAsPaid settles the whole payable balance. A part payment
+      // settles only that much and the rest carries into the next month.
+      ...(amountPaid != null && amountPaid !== '' ? { amountPaid: num(amountPaid) } : {}),
     };
 
     payroll.markAsPaid(paymentDetails, req.user?._id || null);

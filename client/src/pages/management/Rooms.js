@@ -34,7 +34,7 @@ import {
 } from '@mui/icons-material';
 import FormDialog, { FormSection } from '../../components/forms/FormDialog';
 import { currencySym, liveRoomGstFraction } from '../../utils/billing';
-import { amenityIcons, getStatusStyles } from './rooms/roomDisplay';
+import { amenityIcons, getStatusCardTheme } from './rooms/roomDisplay';
 import { motion } from 'framer-motion';
 import api from '../../api';
 import { useHousekeeping } from '../../contexts/HousekeepingContext';
@@ -49,6 +49,9 @@ const Rooms = ({ _sidebarOpen }) => {
   const { isAuthenticated } = useAuth();
   const [rooms, setRooms] = useState([]);
   const [bookings, setBookings] = useState([]);
+  // Whether `bookings` reflects a successful fetch. Until it does, an empty
+  // list means "not known yet", not "nobody is checked in" — see fetchBookings.
+  const [bookingsLoaded, setBookingsLoaded] = useState(false);
   const { notifyHousekeeping } = useHousekeeping() || {};
   const [typeFilter, setTypeFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -261,9 +264,16 @@ const Rooms = ({ _sidebarOpen }) => {
         ? response.data
         : (response.data?.data || []);
       setBookings(list);
+      setBookingsLoaded(true);
     } catch (error) {
       console.error('Error fetching bookings:', error);
-      setBookings([]);
+      // Do NOT clear the list and do NOT mark it loaded. The reconciliation
+      // below reads "no booking on this room" as "the room is free", so an
+      // empty list from a failed request would mark every occupied room
+      // available — in the database, not just on screen. A timed-out request
+      // (Atlas throttles this tier) did exactly that to R-201 on 2026-08-11.
+      // Keeping the last good list means the board simply does not re-reconcile.
+      setBookingsLoaded(false);
     }
   }, [isAuthenticated]);
 
@@ -276,9 +286,11 @@ const Rooms = ({ _sidebarOpen }) => {
   //  • 'cleaning' and 'maintenance' are deliberate manual states — never
   //    auto-overridden here; staff clear those from the room's own actions.
   useEffect(() => {
-    // Need rooms loaded; bookings may legitimately be empty (then every
-    // 'occupied' room is stale and should free up).
-    if (rooms.length === 0) return;
+    // Both sides must be loaded. Rooms alone is not enough: on first paint
+    // `bookings` is still [], and freeing rooms off that empty list writes
+    // 'available' over genuinely occupied rooms. Only a list we actually
+    // fetched can be trusted to say a room has no guest in it.
+    if (rooms.length === 0 || !bookingsLoaded) return;
 
     const desiredStatusFor = (room) => {
       const booked = isRoomBooked(room._id);
@@ -295,7 +307,16 @@ const Rooms = ({ _sidebarOpen }) => {
     roomsToUpdate.forEach((room) => {
       const next = desiredStatusFor(room);
       api.rooms
-        .update(room._id, { status: next, isAvailable: next === 'available' })
+        .update(room._id, {
+          status: next,
+          isAvailable: next === 'available',
+          // This correction is inferred from BOOKINGS, not from anyone looking
+          // at the room — it only clears a stale `occupied` flag. Marking a room
+          // available normally closes its open housekeeping tasks, which here
+          // would silently cancel real cleaning work in bulk. Opt out: the tasks
+          // stand, and the board keeps showing the room as needing attention.
+          reconcileHousekeeping: false,
+        })
         .catch((err) => console.error(`Failed to sync room ${room._id} status:`, err));
     });
 
@@ -306,7 +327,7 @@ const Rooms = ({ _sidebarOpen }) => {
         return next !== room.status ? { ...room, status: next } : room;
       }),
     );
-  }, [rooms, bookings, isRoomBooked]);
+  }, [rooms, bookings, bookingsLoaded, isRoomBooked]);
 
   // Helper function to match room type to category ID for filtering
   const matchRoomTypeToCategory = useCallback((roomType, categoryId) => {
@@ -519,9 +540,18 @@ const Rooms = ({ _sidebarOpen }) => {
   const handleCleaningToggle = async (roomId, currentStatus) => {
     try {
       const newStatus = currentStatus === 'cleaning' ? 'available' : 'cleaning';
-      await api.rooms.update(roomId, { status: newStatus });
+      // A deliberate human action, so housekeeping IS reconciled: marking the
+      // room available closes its open cleaning tasks, and marking it for
+      // cleaning raises one. That keeps this page and the housekeeping board
+      // telling the same story.
+      const res = await api.rooms.update(roomId, { status: newStatus });
+      // The server still returns 200 when the room saved but its tasks could
+      // not be reconciled — that means the two views have just diverged, so say
+      // so rather than reporting a clean success.
+      const warning = res?.data?.housekeepingWarning;
       showSnackbar(
-        `Room ${newStatus === 'cleaning' ? 'marked for cleaning' : 'marked as available'}`,
+        warning || `Room ${newStatus === 'cleaning' ? 'marked for cleaning' : 'marked as available'}`,
+        warning ? 'warning' : 'success',
       );
       fetchRooms();
 
@@ -560,6 +590,9 @@ const Rooms = ({ _sidebarOpen }) => {
     const displayOccupancy = category?.maxOccupancy
       ?? (typeof room.capacity === 'object' ? room.capacity?.adults : room.capacity)
       ?? 2;
+    // Every status shade the card wears — tint, rim, glow, accent bar, pill.
+    const roomStatus = room.status || 'available';
+    const statusTheme = getStatusCardTheme(roomStatus, isDarkMode);
     return (
       // No mount entrance / `layout` animation here. Each card is a
       // backdrop-filter glass surface; animating opacity/transform on dozens of
@@ -583,18 +616,36 @@ const Rooms = ({ _sidebarOpen }) => {
                   ? '0px'
                   : '24px',
             overflow: 'hidden',
-            background: isDarkMode
+            // The status tint is a layer ON TOP of the glass, not a replacement:
+            // the gradient paints over the surface colour, so the card keeps the
+            // user's theme opacity and blur and just takes on the status hue.
+            background: `${statusTheme.tint}, ${isDarkMode
               ? 'rgba(35,39,47,0.85)'
-              : 'rgba(255, 255, 255, var(--app-surface-alpha, 0.05))',
+              : 'rgba(255, 255, 255, var(--app-surface-alpha, 0.05))'}`,
             backdropFilter: 'var(--app-blur)',
             WebkitBackdropFilter: 'var(--app-blur)',
-            border: '1px solid rgba(255, 255, 255, var(--app-surface-border-alpha, 0.08))',
-            boxShadow:
-              '0 4px 24px rgba(0, 0, 0, 0.05), 0 0 24px rgba(var(--app-primary-rgb), 0.08), inset 0 1px 0 rgba(255, 255, 255, var(--app-surface-border-alpha, 0.08))',
+            border: statusTheme.border,
+            boxShadow: statusTheme.shadow,
             position: 'relative',
             fontFamily: settings?.theme?.fontFamily,
             fontSize: settings?.theme?.fontSize,
             transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+            // Accent bar across the top — the fastest status read on the board,
+            // and the one cue that survives at a glance from across the desk.
+            '&::before': {
+              content: '""',
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              height: 4,
+              background: statusTheme.accent,
+              opacity: 0.9,
+              zIndex: 3,
+            },
+            '&:hover': {
+              boxShadow: statusTheme.hoverShadow,
+            },
           }}
         >
           <CardContent
@@ -618,7 +669,7 @@ const Rooms = ({ _sidebarOpen }) => {
               }
               size="small"
               sx={{
-                ...getStatusStyles(room.status || 'available'),
+                ...statusTheme.pill,
                 position: 'absolute',
                 top: 16,
                 right: 16,
@@ -627,7 +678,6 @@ const Rooms = ({ _sidebarOpen }) => {
                 fontSize: '0.95em',
                 letterSpacing: 0.2,
                 zIndex: 2,
-                opacity: 0.92,
                 boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
               }}
             />
@@ -1243,8 +1293,9 @@ const Rooms = ({ _sidebarOpen }) => {
                     label={selectedRoom.status}
                     size="small"
                     sx={{
-                      ...getStatusStyles(selectedRoom.status),
+                      ...getStatusCardTheme(selectedRoom.status, isDarkMode).pill,
                       textTransform: 'capitalize',
+                      fontWeight: 600,
                     }}
                   />
                 </Grid>

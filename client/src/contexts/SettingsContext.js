@@ -1,4 +1,4 @@
-import { createContext, useState, useContext, useEffect, useCallback } from 'react';
+import { createContext, useState, useContext, useEffect, useCallback, useMemo } from 'react';
 import api from '../api';
 import { useAuth } from './AuthContext';
 import { BILLING_DEFAULTS, OPERATIONS_DEFAULTS } from '../config/operationalDefaults';
@@ -228,6 +228,19 @@ const defaultSettings = {
     blurStrength: 8,
     darknessLevel: 60,
     compactMode: false,
+    // ── Performance ────────────────────────────────────────────────────────
+    // The glass look is the app's single biggest rendering cost: a nested
+    // backdrop-filter can't be cached by the compositor, so each one re-blurs
+    // everything painted beneath it. These knobs decide how much of that the
+    // machine is asked to do. All of them feed the `--app-*` CSS variables in
+    // AppThemeProvider, so changing one restyles every surface at once.
+    perfPreset: 'balanced',      // quality | balanced | fast | fastest | custom
+    glassLevel: 'panels',        // full | panels | overlays | off
+    saturationBoost: true,       // the saturate() half of the blur filter
+    cardGlow: true,              // coloured glow pooling under every card
+    glassSheen: true,            // diagonal mirror highlight over each surface
+    uiAnimations: true,          // framer-motion page/element animations
+    hoverEffects: true,          // hover transitions on cards, tabs, buttons
   },
 
   // Staff Settings
@@ -733,7 +746,12 @@ export const SettingsProvider = ({ children }) => {
     return () => clearTimeout(timer);
   }, [settings?.theme?.autoTheme]);
 
-  const contextValue = {
+  // MEMOISED DELIBERATELY. A fresh object literal here gives every consumer of
+  // useSettings() a new context value on each provider render, which re-renders
+  // them all — including AppThemeProvider, whose theme then re-renders the
+  // entire MUI tree. The callbacks below are already useCallback-stable, so the
+  // value only changes when the data actually does.
+  const contextValue = useMemo(() => ({
     settings,
     loading,
     error,
@@ -746,7 +764,11 @@ export const SettingsProvider = ({ children }) => {
     exportSettings,
     importSettings,
     reload: loadSettings,
-  };
+  }), [
+    settings, loading, error,
+    updateSettings, updateSettingsTemporary, getSection, resetSettings,
+    uploadLogo, toggleAutoTheme, exportSettings, importSettings, loadSettings,
+  ]);
 
   return (
     <SettingsContext.Provider value={contextValue}>

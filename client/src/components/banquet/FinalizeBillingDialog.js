@@ -4,6 +4,8 @@ import FactCheckOutlinedIcon from '@mui/icons-material/FactCheckOutlined';
 import FormDialog, { FormSection } from '../forms/FormDialog';
 import api from '../../api';
 import { currencySym } from '../../utils/billing';
+import { roundBanquetTotal } from '../../pages/management/banquet/bookingPricing';
+import { isGstExemptType } from '../../pages/management/banquet/bookingConstants';
 
 const fmt = (n) =>
   `${currencySym()}${(Number(n) || 0).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
@@ -20,8 +22,12 @@ const estAmount = (it) => lineAmount(it?.perPlate, it?.plates, it?.days);
 // Catering is billed with 18% GST added on top. `booking.totalAmount` includes
 // this GST, so the catering figures here must be gross too or "other charges"
 // (total − catering) would wrongly absorb the tax. Mirrors the invoice + form.
+// GST-exempt events (weddings) carry no tax, so their catering stays at base.
 const BANQUET_GST_RATE = 0.18;
-const withGst = (base) => (Number(base) || 0) + Math.round((Number(base) || 0) * BANQUET_GST_RATE);
+const withGst = (base, gstExempt = false) => {
+  const n = Number(base) || 0;
+  return gstExempt ? n : n + Math.round(n * BANQUET_GST_RATE);
+};
 
 /**
  * Post-event billing for one banquet booking. Catering is quoted on estimated
@@ -69,8 +75,14 @@ const FinalizeBillingDialog = ({ open, onClose, booking, onUpdated }) => {
     (Number(booking.entertainmentCost) || 0);
   const total = Number(booking.totalAmount) || 0; // stored "quoted" total (reference)
 
-  const newCateringSum = items.reduce((s, it, i) => s + withGst(lineAmount(it.perPlate, actuals[i], it.days)), 0);
-  const newTotal = Math.max(0, nonCatering + newCateringSum);
+  const gstExempt = isGstExemptType(booking.eventType);
+  const newCateringSum = items.reduce((s, it, i) => s + withGst(lineAmount(it.perPlate, actuals[i], it.days), gstExempt), 0);
+  // Same rules as the booking form: the discount agreed at booking still applies
+  // to the actuals (capped at the gross), and the re-billed total is rounded UP
+  // to the next ₹100 so the amount collected at the desk stays a round sum.
+  const gross = nonCatering + newCateringSum;
+  const discount = Math.min(gross, Math.max(0, Number(booking.discount) || 0));
+  const newTotal = roundBanquetTotal(gross - discount);
 
   const collected = (Array.isArray(booking.payments) && booking.payments.length)
     ? booking.payments.reduce((s, p) => s + (Number(p.amount) || 0), 0)
@@ -207,7 +219,8 @@ const FinalizeBillingDialog = ({ open, onClose, booking, onUpdated }) => {
       <FormSection title="Revised bill">
         <Grid container spacing={1.5}>
           <Summary label="Other charges" value={fmt(nonCatering)} />
-          <Summary label="Catering (actual, incl. 18% GST)" value={fmt(newCateringSum)} color="#6366f1" />
+          <Summary label={gstExempt ? 'Catering (actual)' : 'Catering (actual, incl. 18% GST)'} value={fmt(newCateringSum)} color="#6366f1" />
+          {discount > 0 && <Summary label="Discount" value={`− ${fmt(discount)}`} color="#dc2626" />}
           <Summary label="New total" value={fmt(newTotal)} color="#0f7fc9" />
           <Summary label="Collected" value={fmt(collected)} color="#059669" />
           <Summary label="Balance due" value={fmt(newBalance)} color={newBalance > 0 ? '#dc2626' : '#059669'} />

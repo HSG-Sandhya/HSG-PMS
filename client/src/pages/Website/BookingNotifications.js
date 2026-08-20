@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Box, Typography, Badge, IconButton, Avatar, Button, Tooltip,
-  Snackbar, Alert, CircularProgress, Chip, Stack, useTheme,
+  Snackbar, Alert, CircularProgress, Chip, Stack, Menu, MenuItem, useTheme,
 } from '@mui/material';
 import { keyframes } from '@mui/system';
 import {
-  Notifications, Close, CheckCircle, Cancel, Hotel,
-  NotificationsActive, Event, Groups, Phone, CurrencyRupee, MeetingRoom,
+  Notifications, Close, CheckCircle, Cancel, Hotel, VolumeUp, VolumeOff, Tune,
+  RecordVoiceOver, VoiceOverOff, Check,
+  NotificationsActive, NotificationsOff, Event, Groups, Phone, CurrencyRupee, MeetingRoom,
 } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format, parseISO } from 'date-fns';
@@ -14,6 +15,12 @@ import api from '../../api';
 import { currencySym } from '../../utils/billing';
 import { useAuth } from '../../contexts/AuthContext';
 import { connectSocket } from '../../api/socket';
+import {
+  ALERT_SOUNDS, primeAudio, loadAlertPrefs, saveAlertPrefs, playAlert, playFeedback,
+  startRinging, stopRinging, ringOnce, startTitleFlash, stopTitleFlash,
+  ensureNotificationPermission, showDesktopNotification,
+  primeVoices, listVoices, resolveVoiceName, speak, cancelSpeech,
+} from '../../utils/alertSound';
 
 const EASE = [0.22, 1, 0.36, 1];
 
@@ -24,35 +31,17 @@ const pulseRing = keyframes`
   100% { box-shadow: 0 0 0 0 rgba(244,67,54,0); }
 `;
 
-/* ───────────────────────── sound (Web Audio, no assets) ───────────────────────── */
-const playTones = (notes, type = 'sine') => {
-  try {
-    const Ctx = window.AudioContext || window.webkitAudioContext;
-    if (!Ctx) return;
-    const ctx = new Ctx();
-    const now = ctx.currentTime;
-    let end = 0;
-    notes.forEach(({ f, t, d = 0.35, g = 0.22 }) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = type;
-      osc.frequency.value = f;
-      const s = now + t;
-      gain.gain.setValueAtTime(0.0001, s);
-      gain.gain.exponentialRampToValueAtTime(g, s + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, s + d);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start(s);
-      osc.stop(s + d + 0.02);
-      end = Math.max(end, t + d);
-    });
-    setTimeout(() => ctx.close().catch(() => {}), (end + 0.3) * 1000);
-  } catch { /* autoplay blocked → silent */ }
-};
-const playChime = () => playTones([{ f: 880, t: 0 }, { f: 1318.5, t: 0.16, d: 0.42 }], 'sine');
-const playSuccess = () => playTones([{ f: 659, t: 0 }, { f: 880, t: 0.12 }, { f: 1175, t: 0.24, d: 0.5 }], 'sine');
-const playError = () => playTones([{ f: 220, t: 0, d: 0.3 }, { f: 155, t: 0.16, d: 0.42, g: 0.25 }], 'sawtooth');
+// The bell physically rocks while an unacknowledged request is ringing.
+const shakeBell = keyframes`
+  0%, 60%, 100% { transform: rotate(0deg); }
+  5%  { transform: rotate(-18deg); }
+  10% { transform: rotate(16deg); }
+  15% { transform: rotate(-14deg); }
+  20% { transform: rotate(12deg); }
+  25% { transform: rotate(-8deg); }
+  30% { transform: rotate(6deg); }
+  35% { transform: rotate(-3deg); }
+`;
 
 /* ───────────────────────── helpers ───────────────────────── */
 const fmtFull = (d) => {
@@ -80,6 +69,14 @@ const categoryOf = (b) => b.roomId?.type || b.roomType || b.roomTypeName || 'Roo
 const totalOf = (b) => b.totalAmount ?? b.totalPrice ?? 0;
 const guestInitial = (b) => (b.guestName || b.firstName || 'G').trim()[0]?.toUpperCase() || 'G';
 const guestFullName = (b) => (b.firstName && b.lastName ? `${b.firstName} ${b.lastName}` : (b.firstName || b.guestName || 'Guest'));
+
+// What the voice says out loud. Short sentences read better than one long one.
+const announcementFor = (count, guestName) => {
+  if (count > 1) return `Hello! ${count} new booking requests have arrived. Please check the admin panel.`;
+  return guestName
+    ? `Hello! New booking request from ${guestName}. Please check the admin panel.`
+    : 'Hello! A new booking request has arrived. Please check the admin panel.';
+};
 
 const InfoRow = ({ icon, label, value, strong }) => (
   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -215,15 +212,90 @@ const BookingNotifications = () => {
   const [processingId, setProcessingId] = useState(null);
   const [feedback, setFeedback] = useState(null); // { type, key }
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
+  const [alerting, setAlerting] = useState(false);          // unacknowledged request(s)
+  const [alertPrefs, setAlertPrefs] = useState(loadAlertPrefs);
+  const [soundMenuEl, setSoundMenuEl] = useState(null);
+  const [voices, setVoices] = useState([]);
+
+  // Booking ids we have already alerted for. `null` until the first fetch lands,
+  // which is how we tell "app just opened" from "a request just arrived".
+  const knownIdsRef = useRef(null);
 
   const showSnackbar = useCallback((message, severity = 'info') => setSnackbar({ open: true, message, severity }), []);
   const handleCloseSnackbar = () => setSnackbar((s) => ({ ...s, open: false }));
 
   const triggerFeedback = useCallback((type) => {
     setFeedback({ type, key: Date.now() });
-    (type === 'success' ? playSuccess : playError)();
+    playFeedback(type === 'success' ? 'success' : 'error');
     setTimeout(() => setFeedback(null), 1500);
   }, []);
+
+  /* ── the alarm ─────────────────────────────────────────────────────────────
+     A missed website booking is a lost booking, so a new request rings loudly
+     on repeat, flashes the tab title, buzzes the phone and raises a desktop
+     notification — until a human silences it. */
+  const raiseAlarm = useCallback((count, guestName) => {
+    setAlerting(true);
+    startRinging(announcementFor(count, guestName));
+    startTitleFlash(`🔔 ${count} NEW BOOKING${count > 1 ? 'S' : ''}!`);
+    showDesktopNotification({
+      title: count > 1 ? `${count} new booking requests` : 'New booking request',
+      body: guestName ? `${guestName} — approve or reject in the admin panel.`
+                      : 'Open the admin panel to approve or reject.',
+    });
+    setOpen(true);
+  }, []);
+
+  const silenceAlarm = useCallback(() => {
+    stopRinging();
+    cancelSpeech();
+    stopTitleFlash();
+    setAlerting(false);
+  }, []);
+
+  // Browsers keep a page silent until it has seen a real gesture, so start
+  // listening for one immediately — the login click already unlocks audio.
+  useEffect(() => {
+    primeAudio();
+    setVoices(listVoices());               // may be empty on the first tick…
+    primeVoices((list) => setVoices(list)); // …Chrome fills it in asynchronously
+  }, []);
+
+  // Desktop-notification rights, asked for on the first click after login.
+  useEffect(() => {
+    if (!isAuthenticated) return undefined;
+    const ask = () => ensureNotificationPermission();
+    window.addEventListener('pointerdown', ask, { once: true });
+    return () => window.removeEventListener('pointerdown', ask);
+  }, [isAuthenticated]);
+
+  // Never leave an alarm ringing behind us.
+  useEffect(() => () => { stopRinging(); stopTitleFlash(); cancelSpeech(); }, []);
+
+  const toggleVoice = () => {
+    const next = saveAlertPrefs({ voice: !alertPrefs.voice });
+    setAlertPrefs(next);
+    if (next.voice) speak('Voice announcements are on.');
+    else cancelSpeech();
+  };
+
+  const setVoiceName = (name) => {
+    setAlertPrefs(saveAlertPrefs({ voiceName: name, voice: true }));
+    speak('Hello! New booking request from Priya Sharma. Please check the admin panel.', undefined, name);
+  };
+
+  const setSound = (id) => {
+    setAlertPrefs(saveAlertPrefs({ sound: id }));
+    setSoundMenuEl(null);
+    playAlert(id); // preview, so staff hear what they picked
+  };
+
+  const toggleMute = () => {
+    const next = saveAlertPrefs({ muted: !alertPrefs.muted });
+    setAlertPrefs(next);
+    if (next.muted) stopRinging();
+    else if (!alerting) ringOnce(next.sound); // confirm the sound is audible again
+  };
 
   const fetchPendingBookings = useCallback(async () => {
     if (!isAuthenticated) { setLoading(false); setPendingBookings([]); return; }
@@ -231,14 +303,33 @@ const BookingNotifications = () => {
       setLoading(true);
       const response = await api.bookings.getAll({ status: 'Pending' });
       const arr = Array.isArray(response.data) ? response.data : (response.data?.data || []);
-      setPendingBookings(arr.filter((b) => b.bookingStatus === 'Pending'));
+      const pending = arr.filter((b) => b.bookingStatus === 'Pending');
+      setPendingBookings(pending);
+
+      // Alert on anything we haven't seen yet — this is the safety net for when
+      // the socket event is missed (reconnect, sleeping laptop, dropped Wi-Fi).
+      const known = knownIdsRef.current;
+      knownIdsRef.current = new Set(pending.map((b) => b._id));
+      if (known === null) {
+        // First load: flag anything already waiting, but only a single ring.
+        if (pending.length) {
+          ringOnce(null, pending.length > 1
+            ? `Hello! ${pending.length} booking requests are waiting for approval.`
+            : `Hello! A booking request from ${guestFullName(pending[0])} is waiting for approval.`);
+          setAlerting(true);
+          startTitleFlash(`🔔 ${pending.length} BOOKING REQUEST${pending.length > 1 ? 'S' : ''}`);
+        }
+      } else {
+        const fresh = pending.filter((b) => !known.has(b._id));
+        if (fresh.length) raiseAlarm(fresh.length, guestFullName(fresh[0]));
+      }
     } catch (error) {
       console.error('Error fetching pending bookings:', error);
       showSnackbar('Failed to load pending bookings', 'error');
     } finally {
       setLoading(false);
     }
-  }, [showSnackbar, isAuthenticated]);
+  }, [showSnackbar, isAuthenticated, raiseAlarm]);
 
   // Polling fallback.
   useEffect(() => {
@@ -255,15 +346,29 @@ const BookingNotifications = () => {
     if (!isAuthenticated || !token) return undefined;
     const socket = connectSocket(token);
     if (!socket) return undefined;
-    const onNew = () => { playChime(); fetchRef.current(); setOpen(true); };
+    const onNew = (payload) => {
+      // Claim the id right away so the polling fallback doesn't double-alarm.
+      if (payload?._id) {
+        if (knownIdsRef.current?.has(payload._id)) return;
+        knownIdsRef.current = new Set([...(knownIdsRef.current || []), payload._id]);
+      }
+      raiseAlarm(1, payload?.guestName);
+      fetchRef.current();
+    };
     socket.on('booking:new-website', onNew);
     return () => socket.off('booking:new-website', onNew);
-  }, [isAuthenticated, token]);
+  }, [isAuthenticated, token, raiseAlarm]);
+
+  // Nothing left to answer → stop making noise.
+  useEffect(() => {
+    if (!pendingBookings.length && alerting) silenceAlarm();
+  }, [pendingBookings.length, alerting, silenceAlarm]);
 
   const handleApprove = async (bookingId) => {
     if (!isAuthenticated) { showSnackbar('Authentication required', 'error'); return; }
     try {
       setProcessingId(bookingId);
+      silenceAlarm();
       await api.bookings.update(bookingId, { bookingStatus: 'Confirmed' });
       setPendingBookings((prev) => prev.filter((b) => b._id !== bookingId));
       triggerFeedback('success');
@@ -280,6 +385,7 @@ const BookingNotifications = () => {
     if (!isAuthenticated) { showSnackbar('Authentication required', 'error'); return; }
     try {
       setProcessingId(bookingId);
+      silenceAlarm();
       await api.bookings.update(bookingId, { bookingStatus: 'Rejected' });
       setPendingBookings((prev) => prev.filter((b) => b._id !== bookingId));
       triggerFeedback('error');
@@ -295,14 +401,25 @@ const BookingNotifications = () => {
   if (!isAuthenticated) return null;
   const hasPending = pendingBookings.length > 0;
 
+  // Offer the softer/female voices first — the full OS list is far too long to
+  // scroll through, so cap it, and let the module say which one is really in use.
+  const isSoft = (v) => /female|woman|veena|samantha|karen|tessa|moira|fiona|zira|heera|kalpana|priya|google uk english|google us english/i.test(v.name);
+  const selectedVoiceName = resolveVoiceName();
+  const ranked = [...voices].sort((a, b) => (isSoft(b) ? 1 : 0) - (isSoft(a) ? 1 : 0));
+  const voiceChoices = ranked.slice(0, 8);
+  const current = ranked.find((v) => v.name === selectedVoiceName);
+  if (current && !voiceChoices.includes(current)) voiceChoices.push(current);
+
   return (
     <>
       <Box sx={{ display: 'inline-block' }}>
-        <Tooltip title="Booking Requests">
-          <IconButton onClick={() => setOpen(true)} color="inherit">
+        <Tooltip title={alerting ? 'New booking request — click to open' : 'Booking Requests'}>
+          <IconButton onClick={() => { setOpen(true); silenceAlarm(); }} color={alerting ? 'error' : 'inherit'}>
             <Badge badgeContent={pendingBookings.length} color="error"
               sx={{ '& .MuiBadge-badge': { animation: hasPending ? `${pulseRing} 1.8s infinite` : 'none' } }}>
-              {hasPending ? <NotificationsActive /> : <Notifications />}
+              <Box sx={{ display: 'flex', animation: alerting ? `${shakeBell} 1.1s infinite` : 'none', transformOrigin: '50% 15%' }}>
+                {hasPending ? <NotificationsActive /> : <Notifications />}
+              </Box>
             </Badge>
           </IconButton>
         </Tooltip>
@@ -315,7 +432,7 @@ const BookingNotifications = () => {
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             onClick={() => setOpen(false)}
             sx={{ position: 'fixed', inset: 0, zIndex: 1600, display: 'grid', placeItems: 'center', p: 2,
-              backgroundColor: 'rgba(15,23,42,0.55)', backdropFilter: 'blur(6px)' }}>
+              backgroundColor: 'rgba(15,23,42,0.55)', backdropFilter: 'var(--app-blur-overlay)' }}>
             <Box component={motion.div} key="card"
               initial={{ opacity: 0, scale: 0.82, y: 24 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -338,11 +455,44 @@ const BookingNotifications = () => {
                     </Box>
                     <Box>
                       <Typography variant="h6" sx={{ fontWeight: 800, lineHeight: 1.1 }}>Booking Requests</Typography>
-                      <Typography variant="caption" sx={{ opacity: 0.85 }}>{pendingBookings.length} pending · live</Typography>
+                      <Typography variant="caption" sx={{ opacity: 0.85 }}>
+                        {pendingBookings.length} pending · live{alertPrefs.muted ? ' · muted' : ''}
+                      </Typography>
                     </Box>
-                    <IconButton onClick={() => setOpen(false)} sx={{ ml: 'auto', color: '#fff' }}><Close /></IconButton>
+                    <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center' }}>
+                      <Tooltip title={alertPrefs.muted ? 'Alarm muted — turn sound on' : 'Mute the alarm'}>
+                        <IconButton onClick={toggleMute} sx={{ color: '#fff' }}>
+                          {alertPrefs.muted ? <VolumeOff /> : <VolumeUp />}
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title={alertPrefs.voice ? 'Voice announcement on' : 'Voice announcement off'}>
+                        <IconButton onClick={toggleVoice} sx={{ color: '#fff' }}>
+                          {alertPrefs.voice ? <RecordVoiceOver /> : <VoiceOverOff />}
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Choose alert sound & voice">
+                        <IconButton onClick={(e) => setSoundMenuEl(e.currentTarget)} sx={{ color: '#fff' }}><Tune /></IconButton>
+                      </Tooltip>
+                      <IconButton onClick={() => { setOpen(false); silenceAlarm(); }} sx={{ color: '#fff' }}><Close /></IconButton>
+                    </Box>
                   </Box>
                 </Box>
+
+                {alerting && (
+                  <Box component={motion.div}
+                    initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}
+                    sx={{ px: 2, py: 1.25, display: 'flex', alignItems: 'center', gap: 1.5,
+                      bgcolor: 'error.main', color: '#fff' }}>
+                    <NotificationsActive sx={{ animation: `${shakeBell} 1.1s infinite`, transformOrigin: '50% 15%' }} />
+                    <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                      {alertPrefs.muted ? 'New booking request waiting' : 'Alarm ringing — a new booking is waiting'}
+                    </Typography>
+                    <Button size="small" variant="contained" color="inherit" onClick={silenceAlarm}
+                      sx={{ ml: 'auto', fontWeight: 800, color: 'error.main', bgcolor: '#fff', '&:hover': { bgcolor: '#f1f5f9' } }}>
+                      Silence
+                    </Button>
+                  </Box>
+                )}
 
                 <Box sx={{ p: 2, maxHeight: 'calc(86vh - 92px)', overflowY: 'auto' }}>
                   {loading && !hasPending ? (
@@ -379,6 +529,36 @@ const BookingNotifications = () => {
           </Box>
         )}
       </AnimatePresence>
+
+      <Menu anchorEl={soundMenuEl} open={Boolean(soundMenuEl)} onClose={() => setSoundMenuEl(null)}
+        slotProps={{ paper: { sx: { zIndex: 1700 } } }} sx={{ zIndex: 1700 }}>
+        <MenuItem disabled sx={{ opacity: 1, fontWeight: 700, fontSize: 12, letterSpacing: 0.5 }}>ALERT SOUND</MenuItem>
+        {ALERT_SOUNDS.map((s) => (
+          <MenuItem key={s.id} selected={s.id === alertPrefs.sound} onClick={() => setSound(s.id)}>{s.label}</MenuItem>
+        ))}
+        <MenuItem disabled sx={{ opacity: 1, fontWeight: 700, fontSize: 12, letterSpacing: 0.5,
+          borderTop: '1px solid', borderColor: 'divider', mt: 0.5, pt: 1 }}>ANNOUNCEMENT</MenuItem>
+        <MenuItem onClick={toggleVoice} sx={{ gap: 1 }}>
+          {alertPrefs.voice ? <RecordVoiceOver fontSize="small" /> : <VoiceOverOff fontSize="small" />}
+          {alertPrefs.voice ? 'Speaking the guest name' : 'Voice announcement off'}
+        </MenuItem>
+        {alertPrefs.voice && voiceChoices.map((v) => (
+          <MenuItem key={v.name} selected={v.name === selectedVoiceName} onClick={() => setVoiceName(v.name)}
+            sx={{ pl: 4, fontSize: 14 }}>
+            {v.name === selectedVoiceName && <Check fontSize="small" sx={{ position: 'absolute', left: 12 }} />}
+            {v.name.replace(/^(Google|Microsoft)\s+/, '')}
+            <Typography variant="caption" sx={{ ml: 1, color: 'text.secondary' }}>{v.lang}</Typography>
+          </MenuItem>
+        ))}
+        {alertPrefs.voice && !voiceChoices.length && (
+          <MenuItem disabled sx={{ pl: 4, fontSize: 13 }}>No voices installed in this browser</MenuItem>
+        )}
+        <MenuItem onClick={() => { toggleMute(); setSoundMenuEl(null); }}
+          sx={{ borderTop: '1px solid', borderColor: 'divider', mt: 0.5, gap: 1 }}>
+          {alertPrefs.muted ? <Notifications fontSize="small" /> : <NotificationsOff fontSize="small" />}
+          {alertPrefs.muted ? 'Unmute alarm' : 'Mute alarm'}
+        </MenuItem>
+      </Menu>
 
       <ActionFeedback feedback={feedback} />
 

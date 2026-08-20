@@ -95,11 +95,18 @@ const BookingCard = React.memo(({ booking, onUpdateStatus, onEdit, onDelete, onT
   const [guestPrintFormOpen, setGuestPrintFormOpen] = useState(false);
 
   const cardStyle = {
-    background: isDarkMode ? 'rgba(40, 40, 50, 0.22)' : 'rgba(255, 255, 255, 0.22)',
-    backdropFilter: 'var(--app-blur-strong)',
+    // Repeated surface — one per booking — so it reads the "row" glass tier.
+    // That tier is the first thing the Performance settings switch off, because
+    // N glass rows inside the glass page shell means N nested blur passes per
+    // frame and the compositor can't cache any of them.
+    background: 'var(--app-glass-fill-row)',
+    backdropFilter: 'var(--app-blur-row)',
+    WebkitBackdropFilter: 'var(--app-blur-row)',
     border: `1px solid ${isDarkMode ? 'rgba(255, 255, 255, 0.125)' : 'rgba(209, 213, 219, 0.3)'}`,
     borderRadius: '16px',
-    transition: 'all 0.4s ease', // Animate all properties for smooth height change
+    // Was `all 0.4s` — that animates every property including layout-affecting
+    // ones, on every card in the list. Limited to the compositor-friendly set.
+    transition: 'var(--app-surface-transition, background-color 0.3s ease, box-shadow 0.3s ease)',
     overflow: 'hidden',
     position: 'relative',
     display: 'flex',
@@ -204,7 +211,7 @@ const BookingCard = React.memo(({ booking, onUpdateStatus, onEdit, onDelete, onT
                 right: 0,
                 bottom: 0,
                 background: 'rgba(0, 0, 0, 0.3)',
-                backdropFilter: 'blur(4px)',
+                backdropFilter: 'var(--app-blur-overlay)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',

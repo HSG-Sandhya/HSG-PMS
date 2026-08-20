@@ -21,8 +21,11 @@ export const calculateCateringCost = (perPlate, numberOfPlates, days) =>
 // facilities …) is priced GST-inclusive and does not grow. This mirrors the
 // invoice renderer (server/services/invoiceTemplates/normalize.js) so the
 // booking total the PMS tracks equals the total the invoice prints.
+// GST-exempt events (weddings — see isGstExemptType) carry no tax at all, so
+// nothing is added on top of their catering.
 export const BANQUET_GST_RATE = 0.18;
-export const cateringGst = (cateringCost) => Math.round((Number(cateringCost) || 0) * BANQUET_GST_RATE);
+export const cateringGst = (cateringCost, gstExempt = false) =>
+  (gstExempt ? 0 : Math.round((Number(cateringCost) || 0) * BANQUET_GST_RATE));
 
 // One catering line item's amount: per-plate × plates × days.
 //  • After the event, the ACTUAL plates consumed (actualPlates) drive the amount.
@@ -57,14 +60,17 @@ export const sumUtensilItems = (items = []) =>
 // Facilities are quoted ex-GST ("₹2,000 + 18% GST") but BILLED GROSS, so the
 // stored amount already contains the tax and nothing is added on top later.
 // Mirrors addOnTotal() in server/services/quotationPricing.js — keep in step.
-export const facilityItemAmount = (item) => {
+// On a GST-exempt event the line stays at its ex-GST base — the facility is not
+// quietly taxed on a document that says there is no tax.
+export const facilityItemAmount = (item, gstExempt = false) => {
   const base = (Number(item?.price) || 0) * (parseInt(item?.quantity, 10) || 1);
+  if (gstExempt) { return base; }
   return Math.round(base * (1 + (Number(item?.gstPercent) || 0) / 100));
 };
 
 // Sum of every additional-facility line on the booking.
-export const sumFacilityItems = (items = []) =>
-  (items || []).reduce((total, it) => total + facilityItemAmount(it), 0);
+export const sumFacilityItems = (items = [], gstExempt = false) =>
+  (items || []).reduce((total, it) => total + facilityItemAmount(it, gstExempt), 0);
 
 export const calculateTotalAmount = ({
   floorCost,
@@ -82,6 +88,20 @@ export const calculateTotalAmount = ({
   }
   // Everything else: floor (or event package base) + decoration + catering + extras.
   return floorCost + decorationCost + cateringCost + extrasCost;
+};
+
+// Banquet bills are collected in round figures, so the payable total is rounded
+// UP to the next ₹100 — ₹2,59,198.75 becomes ₹2,59,200 and nothing is ever
+// billed below the computed cost. The difference is surfaced as a "Round off"
+// line (on the form breakdown and on the printed document) so the jump from the
+// line items to the grand total is always explainable. The invoice renderer
+// applies the same rule in server/services/invoiceTemplates/normalize.js —
+// change the two together or the PMS total and the printed total will diverge.
+export const BANQUET_ROUNDING_STEP = 100;
+export const roundBanquetTotal = (amount) => {
+  const n = Number(amount) || 0;
+  if (n <= 0) { return 0; }
+  return Math.ceil(n / BANQUET_ROUNDING_STEP) * BANQUET_ROUNDING_STEP;
 };
 
 export const calculateRemainingAmount = (totalAmount, advanceAmount) =>

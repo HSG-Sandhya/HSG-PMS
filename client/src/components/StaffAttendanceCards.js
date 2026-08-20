@@ -948,7 +948,7 @@ const StaffAttendanceCards = () => {
                   <Typography variant="h5" sx={{ fontWeight: 800, color: prevSettlement.net >= 0 ? '#059669' : '#dc2626', lineHeight: 1.1 }}>
                     {currencySym()}{Math.round(prevSettlement.net).toLocaleString('en-IN')}
                   </Typography>
-                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>Net payable</Typography>
+                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>Estimate on full salary</Typography>
                 </Box>
               </Stack>
               <Divider sx={{ my: 1.25 }} />
@@ -965,6 +965,10 @@ const StaffAttendanceCards = () => {
                   No advances or adjustments recorded for {prevSettlement.monthLabel} — settlement equals the base salary.
                 </Typography>
               )}
+              <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mt: 1 }}>
+                Counts these transactions against the full monthly salary. Payroll pays for days attended and also
+                recovers mobile recharges and any balance carried over, so use Payroll for the amount actually payable.
+              </Typography>
             </Box>
 
             {/* Add New Transaction */}

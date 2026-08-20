@@ -82,7 +82,13 @@ export const createRole = asyncHandler(async (req, res) => {
       canDeactivateStaff: settings.canDeactivateStaff || false
     },
     userAccountSettings: {
-      canHaveUserAccount: userAccountSettings.canHaveUserAccount !== false,
+      // Deliberately left UNSET unless the caller sent an explicit boolean.
+      // Absent means "follow the hierarchy rule" (see Role.allowsLogin) — the
+      // old `!== false` coerced undefined to true, which would have given every
+      // new junior role a login and defeated the level-6 default.
+      ...(typeof userAccountSettings.canHaveUserAccount === 'boolean'
+        ? { canHaveUserAccount: userAccountSettings.canHaveUserAccount }
+        : {}),
       defaultPasswordPattern: userAccountSettings.defaultPasswordPattern || '[firstName][0-3][random4]',
       forcePasswordChange: userAccountSettings.forcePasswordChange !== false,
       passwordExpiryDays: userAccountSettings.passwordExpiryDays || 90,
@@ -336,11 +342,26 @@ export const updateRole = asyncHandler(async (req, res) => {
   // Snapshot before mutation, for the audit trail.
   const beforeSnapshot = { name: role.name, hierarchy: role.hierarchy, permissions: [...(role.permissions || [])] };
 
+  // "Follow the level rule" is represented by the field being ABSENT, and
+  // Object.assign merges nested paths rather than replacing them — so clearing
+  // the override needs an explicit $unset after the save. Detect it here,
+  // before the assign overwrites what the client sent.
+  const clearsLoginOverride = Object.prototype.hasOwnProperty.call(updates, 'userAccountSettings')
+    && typeof updates.userAccountSettings?.canHaveUserAccount !== 'boolean';
+
   // Update role. validateModifiedOnly avoids re-validating untouched legacy
   // fields (e.g. older roles with malformed accessLevel data) that would
   // otherwise block a legitimate name/permission edit.
   Object.assign(role, updates);
   await role.save({ validateModifiedOnly: true });
+
+  if (clearsLoginOverride) {
+    await Role.collection.updateOne(
+      { _id: role._id },
+      { $unset: { 'userAccountSettings.canHaveUserAccount': '' } },
+    );
+    if (role.userAccountSettings) role.userAccountSettings.canHaveUserAccount = undefined;
+  }
 
   // If permissions changed, update all users with this role
   if (updates.permissions) {

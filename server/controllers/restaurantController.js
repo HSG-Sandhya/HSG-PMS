@@ -28,6 +28,38 @@ const parseCsvPrice = (value) => {
 };
 const isPositivePrice = (value) => !Number.isNaN(parseCsvPrice(value)) && parseCsvPrice(value) > 0;
 
+// Real menus label the price column in endless ways — "New Price", "Rate",
+// "Amount", "MRP", "Price 2025". Rather than keep growing a list of exact
+// header names, fall back to scanning the row: prefer a price-ish header
+// (favouring the revised one when a sheet carries both old and new), then any
+// leftover numeric column that isn't already mapped to another field.
+const PRICE_HEADER_RE = /(price|rate|amount|cost|mrp|charge|₹|\brs\b)/i;
+const STALE_PRICE_HEADER_RE = /\b(old|prev|previous|last|original)\b/i;
+const REVISED_PRICE_HEADER_RE = /\b(new|current|revised|final|updated)\b/i;
+// Headers already consumed by another field, so a number under them is never a price.
+const RESERVED_HEADER_RE = /^\s*"?\s*(name|item|item[\s_]*name|itemname|category|category[\s_]*name|description|desc|hindi[\s_]*name|item[\s_]*hindi[\s_]*name|item\s*\(hindi\s*name\)|preparation[\s_]*time(\s*\(mins\))?|prep[\s_]*time|popular|is[\s_]*popular|isveg|veg\/non-veg|veg[\s_]*non[\s_]*veg|type|availability|available|is[\s_]*available|isavailable|image|image[\s_]*url|s\.?\s*no\.?|sl\.?\s*no\.?|sr\.?\s*no\.?|serial(\s*no\.?)?|#)\s*"?\s*$/i;
+
+const findPriceInRow = (row) => {
+  const rank = (key) => {
+    if (!PRICE_HEADER_RE.test(key)) return 3;
+    if (REVISED_PRICE_HEADER_RE.test(key)) return 0;
+    if (STALE_PRICE_HEADER_RE.test(key)) return 2;
+    return 1;
+  };
+  let best;
+  let bestRank = Infinity;
+  // Object.keys follows CSV column order, so ties resolve to the left-most column.
+  for (const key of Object.keys(row)) {
+    if (RESERVED_HEADER_RE.test(key) || !isPositivePrice(row[key])) continue;
+    const keyRank = rank(key);
+    if (keyRank < bestRank) {
+      bestRank = keyRank;
+      best = row[key];
+    }
+  }
+  return best;
+};
+
 const populateOrder = (query) =>
   query
     .populate('tableId')
@@ -499,12 +531,14 @@ export const deleteOrder = async (req, res) => {
   try {
     const order = await Order.findById(req.params.id);
     if (!order) return res.status(404).json({ message: 'Order not found' });
-    if (order.status !== 'Pending') {
-      return res.status(400).json({ message: 'Only pending orders can be deleted' });
-    }
+
+    // Any status can be deleted, not just Pending. A wrongly-keyed room-service
+    // order is usually only noticed once the kitchen has closed it, and the desk
+    // needs a way to take it off the guest's folio. Removing the ledger entry
+    // below keeps the accounts consistent when a completed order goes.
     await Order.findByIdAndDelete(req.params.id);
     await releaseTableIfIdle(order.tableId, order._id);
-    // Only pending orders reach here (no ledger entry exists), but stay defensive.
+    // Completed orders have posted income — drop it with the order.
     await removeEntriesBySource('restaurant_order', order._id);
     res.json({ message: 'Order deleted successfully' });
   } catch (error) {

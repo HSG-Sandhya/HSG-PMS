@@ -900,7 +900,11 @@ const api = {
     
     // Generate payroll for staff
     generatePayroll: (payrollData) => axiosInstance.post('/payroll/generate', payrollData),
-    
+
+    // Generate payroll for every eligible staff member still missing one for the
+    // month, which closes it so its balances carry into the next month.
+    generateMonth: ({ month, year }) => axiosInstance.post('/payroll/generate-month', { month, year }),
+
     // Generate and download payroll PDF
     generatePDF: (id) => axiosInstance.get(`/payroll/${id}/pdf`, { 
       responseType: 'blob',

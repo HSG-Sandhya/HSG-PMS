@@ -30,6 +30,36 @@ export const getBanquetBlockedRoomIds = async (checkInDate, checkOutDate) => {
 
 const VALID_STATUSES = ['available', 'occupied', 'maintenance', 'cleaning'];
 
+// A room with a guest physically in it is occupied — full stop. Occupancy is
+// PRESENCE (`checkedIn`), never the reservation status: a booking stays
+// 'Confirmed' for the whole stay, so testing bookingStatus === 'Checked-In'
+// silently matches nothing.
+//
+// This is enforced server-side because the Rooms page infers "no current
+// booking → free the room" from its own fetched bookings list, and an empty
+// list is indistinguishable there from a failed fetch. One timed-out request
+// (this VPS talks to a throttled Atlas tier) was enough to mark every occupied
+// room 'available' in the database, which is exactly how R-201 lost its
+// occupancy on 2026-08-11 while Harendra Kumar was still in it.
+const inHouseBookingFor = async (roomId) => Booking.findOne({
+  roomId,
+  checkedIn: true,
+  bookingStatus: { $nin: ['Completed', 'Cancelled', 'Rejected'] },
+}).select('guestName').lean();
+
+// Coerce an 'available' write back to 'occupied' when the room still holds a
+// checked-in guest. Returns a warning string for the caller to surface, or
+// undefined when the write is fine as-is. Mutates `target` (the update payload).
+const guardOccupancy = async (roomId, target) => {
+  if (target.status !== 'available') return undefined;
+  const inHouse = await inHouseBookingFor(roomId);
+  if (!inHouse) return undefined;
+  target.status = 'occupied';
+  target.isAvailable = false;
+  return `${inHouse.guestName || 'A guest'} is still checked into this room, so it stays "occupied". `
+    + 'Check the guest out to free the room.';
+};
+
 // Seed GST/total on a room from the configured room GST rate (Billing & Tariff).
 const applyGstDefaults = async (body) => {
   if (!body.pricePerNight) return;
@@ -43,17 +73,37 @@ const applyGstDefaults = async (body) => {
   }
 };
 
-const handleStatusSideEffects = async (room, status) => {
+/**
+ * Keep the housekeeping board in step with a room's status.
+ *
+ * The board doesn't read `room.status` for cleanliness — it derives a tile's
+ * state from the room's newest OPEN task (see deriveRoomStatus in the client's
+ * hkConstants.js), and a Pending task always wins. So a room whose status is
+ * changed here without its tasks being reconciled keeps showing the old state
+ * on the board indefinitely: the room reads "Available" on the Rooms page while
+ * the board still calls it "Dirty".
+ *
+ * Every branch below therefore writes BOTH sides.
+ */
+const handleStatusSideEffects = async (room, status, { reconcileOnAvailable = true } = {}) => {
   if (status === 'maintenance') {
-    await Housekeeping.create({
+    // Don't stack duplicates — the same de-dupe the cleaning branch does.
+    const openMaintenance = await Housekeeping.findOne({
       roomId: room._id,
       taskType: 'Maintenance',
-      description: 'Room requires maintenance.',
-      priority: 'High',
-      status: 'Pending',
-      source: 'room_notification',
-      scheduledFor: new Date(),
+      status: { $in: ['Pending', 'In Progress'] },
     });
+    if (!openMaintenance) {
+      await Housekeeping.create({
+        roomId: room._id,
+        taskType: 'Maintenance',
+        description: 'Room requires maintenance.',
+        priority: 'High',
+        status: 'Pending',
+        source: 'room_notification',
+        scheduledFor: new Date(),
+      });
+    }
     return;
   }
 
@@ -71,10 +121,45 @@ const handleStatusSideEffects = async (room, status) => {
         notes: 'Room requires cleaning.',
         priority: 'High',
         status: 'Pending',
-        source: 'room_status_change',
+        // Must be a value from the `source` enum in models/Housekeeping.js.
+        // This previously read 'room_status_change', which isn't in the enum —
+        // Mongoose rejected every one of these writes and the caller swallowed
+        // the error, so marking a room "cleaning" from the Rooms page silently
+        // created no task at all.
+        source: 'room_status_update',
         scheduledFor: new Date(),
       });
     }
+    return;
+  }
+
+  if (status === 'available') {
+    // Closing tasks here means "a human has declared this room ready", which is
+    // what the Rooms page toggle expresses. It is the mirror of completing a
+    // task, which already sets the room back to available.
+    //
+    // It must NOT run for automated corrections. The Rooms page also rewrites a
+    // stale `occupied` to `available` whenever a room has no current booking —
+    // that inference is about BOOKINGS, not cleanliness, and letting it cancel
+    // tasks would silently wipe the housekeeping queue in bulk. Those callers
+    // send `reconcileHousekeeping: false` and leave the tasks standing.
+    //
+    // "Available + Dirty" is then a legitimate state, not a bug: nobody is in
+    // the room, and it still needs cleaning.
+    if (!reconcileOnAvailable) return;
+
+    // Cancelled rather than Completed: nobody did the work, and counting it as
+    // done would inflate the "Completed Today" figure. The board treats both
+    // as closed, so either clears the tile.
+    await Housekeeping.updateMany(
+      { roomId: room._id, status: { $in: ['Pending', 'In Progress'] } },
+      {
+        $set: {
+          status: 'Cancelled',
+          notes: 'Closed automatically — the room was marked available.',
+        },
+      },
+    );
   }
 };
 
@@ -124,12 +209,45 @@ export const updateRoom = async (req, res) => {
     // Room type & amenities follow the dynamic room categories defined in
     // Settings, so no fixed-list validation here.
 
+    // Was the status part of this edit? The Rooms page changes a room's status
+    // through THIS endpoint (PUT /rooms/:id), not /rooms/:id/status — so the
+    // housekeeping reconciliation has to run here too. It previously only ran
+    // on the status endpoint, which the UI never calls, so every status change
+    // made from the Rooms page left the housekeeping board untouched: mark a
+    // room available and its Pending task lived on, keeping the board on
+    // "Dirty" while the Rooms page said "Available".
+    const prevRoom = req.body.status !== undefined
+      ? await Room.findById(req.params.id).select('status')
+      : null;
+
+    // Control flag, not a document field — take it off before the write.
+    const reconcileOnAvailable = req.body.reconcileHousekeeping !== false;
+    delete req.body.reconcileHousekeeping;
+
+    // Applied before the write, so the wrong value never reaches the database.
+    const occupancyWarning = await guardOccupancy(req.params.id, req.body);
+
     const updatedRoom = await Room.findByIdAndUpdate(req.params.id, req.body, {
       returnDocument: 'after',
       runValidators: true,
     });
     if (!updatedRoom) return res.status(404).json({ message: 'Room not found' });
-    res.json(updatedRoom);
+
+    let housekeepingWarning;
+    if (req.body.status !== undefined && req.body.status !== prevRoom?.status) {
+      try {
+        await handleStatusSideEffects(updatedRoom, req.body.status, { reconcileOnAvailable });
+      } catch (taskError) {
+        console.error('Housekeeping sync failed after room update:', taskError);
+        housekeepingWarning = `Room set to "${req.body.status}", but its housekeeping tasks could not be updated `
+          + '— the housekeeping board may disagree with this room until it is retried. '
+          + `(${taskError.message})`;
+      }
+    }
+
+    res.json(housekeepingWarning || occupancyWarning
+      ? { ...updatedRoom.toObject(), ...(housekeepingWarning && { housekeepingWarning }), ...(occupancyWarning && { occupancyWarning }) }
+      : updatedRoom);
   } catch (error) {
     console.error('Error updating room:', error);
     if (error.name === 'ValidationError') {
@@ -161,20 +279,37 @@ export const updateRoomStatus = async (req, res) => {
       });
     }
 
+    // Applied before the write, so the wrong value never reaches the database.
+    const write = { status };
+    const occupancyWarning = await guardOccupancy(req.params.id, write);
+
     const room = await Room.findByIdAndUpdate(
       req.params.id,
-      { status },
+      write,
       { returnDocument: 'after', runValidators: true }
     );
     if (!room) return res.status(404).json({ message: 'Room not found' });
 
+    // The room row is already written, so a failure here can't be undone by
+    // refusing the request — but it MUST be visible, because it means the room
+    // and the housekeeping board have just gone out of step. It used to be
+    // logged and nothing else, which is how the enum bug above survived: the
+    // caller got a clean 200 every time while no task was ever created.
+    let housekeepingWarning;
     try {
-      await handleStatusSideEffects(room, status);
+      await handleStatusSideEffects(room, write.status, {
+        reconcileOnAvailable: req.body.reconcileHousekeeping !== false,
+      });
     } catch (taskError) {
-      console.error('Error creating housekeeping task from status update:', taskError);
+      console.error('Housekeeping sync failed after room status update:', taskError);
+      housekeepingWarning = `Room set to "${write.status}", but its housekeeping tasks could not be updated `
+        + '— the housekeeping board may disagree with this room until it is retried. '
+        + `(${taskError.message})`;
     }
 
-    res.json(room);
+    res.json(housekeepingWarning || occupancyWarning
+      ? { ...room.toObject(), ...(housekeepingWarning && { housekeepingWarning }), ...(occupancyWarning && { occupancyWarning }) }
+      : room);
   } catch (error) {
     console.error('Error updating room status:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -242,15 +377,43 @@ export const bulkUpdateRoomStatus = async (req, res) => {
       return res.status(400).json({ message: 'Room IDs array and status are required' });
     }
 
+    if (!VALID_STATUSES.includes(status)) {
+      return res.status(400).json({
+        message: 'Invalid status. Must be one of: ' + VALID_STATUSES.join(', '),
+      });
+    }
+
     const result = await Room.updateMany(
       { _id: { $in: roomIds } },
       { status },
       { runValidators: true }
     );
 
+    // Reconcile housekeeping for each room, same as the single-room paths —
+    // a bulk change is still a status change, and skipping this here would
+    // reintroduce the desync in batches.
+    const rooms = await Room.find({ _id: { $in: roomIds } }).select('_id status');
+    const failures = [];
+    for (const room of rooms) {
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        await handleStatusSideEffects(room, status);
+      } catch (taskError) {
+        console.error(`Housekeeping sync failed for room ${room._id}:`, taskError);
+        failures.push(String(room._id));
+      }
+    }
+
     res.json({
       message: `Updated ${result.modifiedCount} rooms`,
       modifiedCount: result.modifiedCount,
+      ...(failures.length
+        ? {
+          housekeepingWarning: `${failures.length} room(s) updated, but their housekeeping tasks could not be `
+            + 'reconciled — the housekeeping board may disagree with them until retried.',
+          housekeepingFailedRoomIds: failures,
+        }
+        : {}),
     });
   } catch (error) {
     console.error('Error bulk updating room status:', error);

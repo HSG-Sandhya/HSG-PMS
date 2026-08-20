@@ -33,6 +33,7 @@ import FormDialog, { FormSection } from './forms/FormDialog';
 import AppDatePicker from './forms/AppDatePicker';
 import api from '../api';
 import { currencySym } from '../utils/billing';
+import { roleAllowsLogin } from '../utils/roleLogin';
 
 // Per-section accent styling layered on top of the shared FormSection: a soft
 // gradient "spine" down the left edge, a lift-on-hover glow, and a colour focus
@@ -459,6 +460,11 @@ const StaffDialog = ({ open, onClose, onSuccess, editingStaff, roles: propRoles,
     (!formData.email || /\S+@\S+\.\S+/.test(formData.email))
   );
   const roleComplete = Boolean(formData.roleId && formData.departmentId);
+
+  // Does the chosen role sign in to the app? Drives the Login Credentials
+  // section — see utils/roleLogin.js, which mirrors the server's rule.
+  const selectedRole = roles.find((r) => (r._id || r.id) === formData.roleId);
+  const selectedRoleAllowsLogin = roleAllowsLogin(selectedRole);
 
   return (
     <FormDialog
@@ -935,15 +941,29 @@ const StaffDialog = ({ open, onClose, onSuccess, editingStaff, roles: propRoles,
       </AnimatedSection>
       {!editingStaff && (
         <AnimatedSection index={5} title="Login Credentials" icon={<VerifiedIcon fontSize="small" />} iconColor="#6366f1">
-          <FormControlLabel
-            control={
-              <Switch
-                checked={formData.generateCredentials}
-                onChange={(e) => handleInputChange('generateCredentials', e.target.checked)}
-              />
-            }
-            label="Auto-generate login credentials"
-          />
+          {selectedRoleAllowsLogin ? (
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={formData.generateCredentials}
+                  onChange={(e) => handleInputChange('generateCredentials', e.target.checked)}
+                />
+              }
+              label="Auto-generate login credentials"
+            />
+          ) : (
+            // Junior roles are personnel records only — tracked for attendance
+            // and payroll, with no PMS login. Say so plainly here rather than
+            // offering a credentials switch that the server will ignore.
+            <Alert severity="info" sx={{ borderRadius: 2 }}>
+              <strong>{selectedRole?.name || 'This role'}</strong> (Level {selectedRole?.hierarchy ?? '?'}) doesn&apos;t sign in to the app,
+              so no username or password will be created. The staff member is still
+              tracked for attendance and payroll.
+              <br />
+              To give this role a login, turn on <em>Staff can sign in to the app</em> in
+              Settings → User &amp; Security → Role-Based Access.
+            </Alert>
+          )}
         </AnimatedSection>
       )}
     </FormDialog>

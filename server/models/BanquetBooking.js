@@ -170,6 +170,16 @@ const banquetBookingSchema = new mongoose.Schema({
     default: 0,
     min: 0
   },
+  // Negotiated discount on the event, deducted from the summed line items
+  // BEFORE the payable is rounded up to the next ₹100. totalAmount is already
+  // net of this, so never subtract it a second time — it is stored so the
+  // invoice can print the "Subtotal / Discount / Grand Total" breakdown and
+  // reproduce the same figure from the items (invoiceTemplates/normalize.js).
+  discount: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
 
   // ── Advance collection ledger ────────────────────────────────────────────
   // Each entry is one payment received towards the event. advanceAmount stays

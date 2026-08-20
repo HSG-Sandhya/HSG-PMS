@@ -3,13 +3,13 @@ import { isQuote, docLabels, eventFacts, validUntil, quotationExtras, itemsSum, 
 
 const PAL = { accent: '#1a7a4e', ink: '#233b32', muted: '#5c7268', line: '#dce7db', soft: '#f3f8f1' };
 
-const rows = (items) => items.map((it) => `
+const rows = (items, taxed = true) => items.map((it) => `
   <tr>
     <td><div class="d">${e(it.description)}</div>${it.detail ? `<div class="s">${e(it.detail)}</div>` : ''}</td>
     <td><span class="pill">${e(categoryTag(it.category))}</span></td>
     <td class="n">${e(it.quantity)}</td>
     <td class="n">${formatCurrency(it.rate)}</td>
-    <td class="n">${gstCell(it)}</td>
+    ${taxed ? `<td class="n">${gstCell(it)}</td>` : ''}
     <td class="n b">${formatCurrency(it.amount)}</td>
   </tr>`).join('');
 
@@ -17,6 +17,8 @@ export const render = (ctx, { docType = 'invoice' } = {}) => {
   const L = docLabels(docType);
   const quote = isQuote(docType);
   const t = ctx.totals;
+  // GST-exempt events (weddings) print no tax at all — drop the GST column.
+  const taxed = Number(t.gstTotal || 0) > 0;
   const facts = eventFacts(ctx);
   return `<!doctype html><html lang="en"><head><meta charset="utf-8" />
 <title>${e(L.title)} ${e(ctx.invoice.number)} — ${e(ctx.hotel.name)}</title>
@@ -86,8 +88,8 @@ export const render = (ctx, { docType = 'invoice' } = {}) => {
       <div class="card"><h4>Event details</h4><dl class="facts">${facts.map(([k, v]) => `<dt>${e(k)}</dt><dd>${e(v)}</dd>`).join('')}</dl></div>
     </div>
     <table>
-      <thead><tr><th>Description</th><th>Type</th><th class="n">Qty</th><th class="n">Rate</th><th class="n">GST</th><th class="n">Amount</th></tr></thead>
-      <tbody>${rows(ctx.items)}</tbody>
+      <thead><tr><th>Description</th><th>Type</th><th class="n">Qty</th><th class="n">Rate</th>${taxed ? '<th class="n">GST</th>' : ''}<th class="n">Amount</th></tr></thead>
+      <tbody>${rows(ctx.items, taxed)}</tbody>
     </table>
     <div class="foot">
       <div>

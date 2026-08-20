@@ -19,8 +19,8 @@ export const dialogPaperSx = (isDarkMode) => ({
 
 export const dialogBackdropSx = {
   backgroundColor: 'rgba(15, 23, 42, 0.45)',
-  backdropFilter: 'blur(2px)',
-  WebkitBackdropFilter: 'blur(2px)',
+  backdropFilter: 'var(--app-blur-overlay)',
+  WebkitBackdropFilter: 'var(--app-blur-overlay)',
 };
 
 export const headerWrapSx = (isDarkMode) => ({

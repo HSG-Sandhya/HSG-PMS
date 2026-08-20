@@ -11,7 +11,7 @@ import {
   Stack,
   useTheme,
 } from '@mui/material';
-import { format, addDays, startOfDay, differenceInDays, parseISO } from 'date-fns';
+import { format, addDays, startOfDay, differenceInCalendarDays, parseISO } from 'date-fns';
 import PageLayout from '../../components/layout/PageLayout';
 import api from '../../api';
 import { currencySym } from '../../utils/billing';
@@ -116,20 +116,49 @@ const Reservations = () => {
       date.getFullYear() === today.getFullYear();
   };
 
-  // Calculate booking position and width
-  const getBookingStyle = (booking) => {
-    const checkIn = new Date(booking.checkIn);
+  // The last day the room is actually held by a booking, which is not always
+  // the checkout date printed on the reservation:
+  //   · already departed → the day they physically left (checkedOutAt), so the
+  //     bar stops where the stay really ended;
+  //   · still in-house past their booked checkout → today, so an overstaying
+  //     guest's bar grows a column a day until the front desk checks them out;
+  //   · everything else → the booked checkout date.
+  const getOccupiedUntil = (booking) => {
+    if (booking.checkedOutAt) return new Date(booking.checkedOutAt);
+
     const checkOut = new Date(booking.checkOut);
-    
-    // Calculate how many days from the start date this booking begins
-    const startOffset = Math.max(0, differenceInDays(checkIn, startDate));
-    
-    // Calculate total duration visible in our current view
-    const visibleDuration = Math.min(
-      differenceInDays(checkOut, checkIn) + 1,
-      daysToShow - startOffset,
+    const today = startOfDay(new Date());
+    if (booking.checkedIn && startOfDay(checkOut) < today) return today;
+
+    return checkOut;
+  };
+
+  // Where a booking sits on the grid, in whole day columns clipped to the
+  // visible window. visible:false means it falls entirely outside the window.
+  const getBookingSpan = (booking) => {
+    // Whole calendar days, never raw hours: a 14:00 check-in leaving at 11:00
+    // two days later still covers three columns, which an hour-based diff would
+    // round down to one — that is why multi-night stays rendered as stubs.
+    const firstDay = differenceInCalendarDays(new Date(booking.checkIn), startDate);
+    const lastDay = Math.max(
+      firstDay,
+      differenceInCalendarDays(getOccupiedUntil(booking), startDate),
     );
-    
+
+    // Clip to both edges so a stay that began before the first column starts at
+    // the left edge instead of overflowing the row.
+    const startOffset = Math.max(0, firstDay);
+    const endOffset = Math.min(lastDay, daysToShow - 1);
+
+    return {
+      startOffset,
+      visibleDuration: endOffset - startOffset + 1,
+      visible: endOffset >= startOffset,
+    };
+  };
+
+  // Calculate booking position and width
+  const getBookingStyle = (booking, { startOffset, visibleDuration }) => {
     // Base style
     const baseStyle = {
       position: 'absolute',
@@ -163,12 +192,12 @@ const Reservations = () => {
       },
     };
     
-    // Add special styling for checked out bookings
-    if (booking.bookingStatus === 'Checked Out' || booking.bookingStatus === 'Checkout' || booking.bookingStatus === 'Completed') {
+    // Add special styling for checked out bookings. The bar keeps its real
+    // width — it is a record of the stay that happened, so shortening it would
+    // misreport which nights the room was sold.
+    if (booking.bookingStatus === 'Completed') {
       baseStyle.opacity = 0.7;
       baseStyle.border = '2px dashed rgba(255,255,255,0.5)';
-      // Make it clear this room is now available
-      baseStyle.width = '50%'; // Show only half the original width
       baseStyle.backgroundColor = '#9e9e9e'; // Gray color to indicate completed
     }
     
@@ -680,14 +709,15 @@ const Reservations = () => {
                     
                       {/* Bookings for this room */}
                       {allRoomBookings.map(booking => {
-                        const checkIn = new Date(booking.checkIn);
-                        const checkOut = new Date(booking.checkOut);
-                        
-                        // Skip if booking is completely outside our date range
-                        if (checkOut < startDate || checkIn > addDays(startDate, daysToShow - 1)) {
+                        // Skip if booking is completely outside our date range.
+                        // Measured off the same span the bar uses, so a guest
+                        // overstaying a checkout date that has already scrolled
+                        // past still shows up on today's column.
+                        const span = getBookingSpan(booking);
+                        if (!span.visible) {
                           return null;
                         }
-                        
+
                         return (
                           // Update the booking tooltip to show payment status more prominently
                           <Tooltip 
@@ -709,7 +739,7 @@ const Reservations = () => {
                           >
                             <Box 
                               sx={{
-                                ...getBookingStyle(booking),
+                                ...getBookingStyle(booking, span),
                                 // Add a special border for paid bookings
                                 ...(booking.paymentStatus === 'Paid' && {
                                   border: '2px solid #4caf50',

@@ -675,7 +675,7 @@ const Dashboard = () => {
                           fontSize: 12,
                           fontWeight: 600,
                           letterSpacing: '0.05em',
-                          backdropFilter: 'blur(8px)',
+                          backdropFilter: 'var(--app-blur-overlay)',
                         }}
                       >
                         <Box sx={{ width: 6, height: 6, borderRadius: '50%', background: kpi.color, boxShadow: `0 0 8px ${kpi.color}` }} />
@@ -1409,7 +1409,7 @@ const Dashboard = () => {
                                 formatter={(value) => [`${value}%`, 'Occupancy Rate']}
                                 contentStyle={{ 
                                   background: 'rgba(255,255,255,0.95)', 
-                                  backdropFilter: 'blur(20px)', 
+                                  backdropFilter: 'var(--app-blur-overlay)', 
                                   borderRadius: '16px', 
                                   border: '1px solid rgba(255,255,255,0.2)', 
                                   boxShadow: '0 8px 32px rgba(0,0,0,0.15)',
@@ -1543,7 +1543,7 @@ const Dashboard = () => {
                                 formatter={(value) => [formatCurrency(value), 'Revenue']}
                                 contentStyle={{ 
                                   background: 'rgba(255,255,255,0.95)', 
-                                  backdropFilter: 'blur(20px)', 
+                                  backdropFilter: 'var(--app-blur-overlay)', 
                                   borderRadius: '16px', 
                                   border: '1px solid rgba(255,255,255,0.2)', 
                                   boxShadow: '0 8px 32px rgba(0,0,0,0.15)',

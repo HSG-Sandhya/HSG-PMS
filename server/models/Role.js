@@ -83,7 +83,14 @@ const roleSchema = new mongoose.Schema({
 
   // User account settings
   userAccountSettings: {
-    canHaveUserAccount: { type: Boolean, default: true },
+    // Whether staff holding this role get login credentials.
+    //
+    // Left UNSET on new roles so `allowsLogin()` can fall back to the
+    // hierarchy rule (level 6 and above sign in, below that they don't).
+    // Setting it explicitly is the Super Admin's override — that's how a
+    // Receptionist at level 5 keeps the login they need for check-in.
+    // Existing roles already carry an explicit value, so none of them change.
+    canHaveUserAccount: { type: Boolean, default: undefined },
     defaultPasswordPattern: { type: String, default: "[firstName][0-3][random4]" },
     forcePasswordChange: { type: Boolean, default: true },
     passwordExpiryDays: { type: Number, default: 90 },
@@ -93,7 +100,34 @@ const roleSchema = new mongoose.Schema({
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" }
 }, { timestamps: true });
 
+// The hierarchy level at or above which staff sign in to the PMS by default.
+// Below it, staff are personnel records only (attendance + payroll, no
+// credentials) unless their role explicitly overrides it.
+export const LOGIN_HIERARCHY_THRESHOLD = 6;
+
+/**
+ * Whether staff on this role get login credentials.
+ *
+ * Explicit `canHaveUserAccount` always wins — that's the Super Admin's
+ * per-role override. Only when it's unset does the hierarchy rule apply, so
+ * enabling login for one junior role (Receptionist, front desk) never
+ * re-enables it for the rest.
+ *
+ * Exported as a plain function too, because callers frequently hold a lean
+ * object from `.populate()`/`.lean()` rather than a hydrated document.
+ */
+export const roleAllowsLogin = (role) => {
+  if (!role) return false;
+  const explicit = role.userAccountSettings?.canHaveUserAccount;
+  if (typeof explicit === 'boolean') return explicit;
+  return (role.hierarchy || 1) >= LOGIN_HIERARCHY_THRESHOLD;
+};
+
 // Methods
+roleSchema.methods.allowsLogin = function () {
+  return roleAllowsLogin(this);
+};
+
 roleSchema.methods.hasPermission = function (permission) {
   return this.permissions.includes(permission);
 };

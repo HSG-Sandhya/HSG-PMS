@@ -14,6 +14,20 @@ import {
   HTTP_STATUS
 } from '../utils/index.js';
 import { logActivity } from '../utils/activityLogger.js';
+import { callerHasAnyPermission } from '../middleware/requireManage.js';
+
+// Who may see a staff member's full record (contact details, login username,
+// salary, address) as opposed to just their name for an assignment picker.
+// Payroll and attendance grants count: those screens legitimately show pay and
+// contact data for the staff they cover.
+const STAFF_DETAIL_PERMISSIONS = [
+  'manage_staff', 'view_staff', 'create_staff', 'edit_staff', 'deactivate_staff',
+  'manage_attendance', 'view_attendance',
+  'manage_payroll', 'view_payroll',
+];
+
+const callerMaySeeStaffDetail = (req) =>
+  callerHasAnyPermission(req, STAFF_DETAIL_PERMISSIONS);
 
 // Get all users with optional filtering
 export const getAllUsers = async (req, res) => {
@@ -33,9 +47,31 @@ export const getAllUsers = async (req, res) => {
       .sort({ createdAt: -1 });
 
     // Use toPublic method if available, otherwise return as is
-    const responseData = users.map(user => 
+    let responseData = users.map(user =>
       typeof user.toPublic === 'function' ? user.toPublic() : user.toJSON()
     );
+
+    // This endpoint is the roster behind several assignment pickers
+    // (housekeeping task assignment, department head, the payroll screen), so
+    // it is open to any authenticated user. That is fine for picking a NAME,
+    // but it was also handing every logged-in account — down to a cleaner —
+    // each colleague's contact details, login username, salary and address.
+    //
+    // Callers with genuine staff-view rights keep the full record; everyone
+    // else gets only what a picker needs.
+    if (!(await callerMaySeeStaffDetail(req))) {
+      responseData = responseData.map((u) => ({
+        _id: u._id,
+        id: u.id ?? u._id,
+        firstName: u.firstName,
+        lastName: u.lastName,
+        fullName: u.fullName ?? `${u.firstName || ''} ${u.lastName || ''}`.trim(),
+        isActive: u.isActive,
+        role: u.role ? { _id: u.role._id, name: u.role.name, hierarchy: u.role.hierarchy } : null,
+        department: u.department ? { _id: u.department._id, name: u.department.name, color: u.department.color } : null,
+        profile: { employeeId: u.profile?.employeeId },
+      }));
+    }
 
     res.json({
       success: true,

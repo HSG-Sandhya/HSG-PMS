@@ -91,6 +91,18 @@ const sendAadharOTP = async (req, res) => {
     }
 
     // Dev fallback — no KYC provider configured.
+    //
+    // Never on a live system. A simulated OTP still sets `profile.aadharVerified`
+    // on the staff record, which records a KYC check against UIDAI that never
+    // happened. Aadhaar is optional when saving staff, so refusing here blocks
+    // nothing except the false verification itself.
+    if (process.env.NODE_ENV === 'production') {
+      return res.status(503).json({
+        success: false,
+        message: 'Aadhaar verification is not configured on this server. Save the staff member without KYC, or ask an administrator to configure the KYC provider.',
+      });
+    }
+
     const otp = generateMockOTP();
     otpStorage.set(aadharNumber, { otp, expiry: otpExpiry, attempts: 0, real: false });
     console.log(`🔐 [DEV/simulated] Aadhaar OTP for ${aadharNumber}: ${otp} (no KYC provider configured)`);

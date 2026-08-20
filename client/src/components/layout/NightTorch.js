@@ -16,40 +16,65 @@ import ReactDOM from 'react-dom';
  * `intensity` (0–1) follows the "Darkness level" slider: a softer dark mode
  * gets a gentler veil and lamp, a deeper one a stronger torch.
  */
-const NightTorch = ({ active, intensity = 0.6 }) => {
+const NightTorch = ({ active, intensity = 0.6, flicker = true }) => {
   const rootRef = useRef(null);
   const pos = useRef({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
   const target = useRef({ ...pos.current });
   const raf = useRef(0);
+  const wakeRef = useRef(null);
 
   useEffect(() => {
     if (!active) return undefined;
     const el = rootRef.current;
 
-    const onMove = (e) => { target.current = { x: e.clientX, y: e.clientY }; };
+    const onMove = (e) => {
+      target.current = { x: e.clientX, y: e.clientY };
+      wakeRef.current?.();
+    };
     const onTouch = (e) => {
       const t = e.touches && e.touches[0];
-      if (t) target.current = { x: t.clientX, y: t.clientY };
+      if (t) {
+        target.current = { x: t.clientX, y: t.clientY };
+        wakeRef.current?.();
+      }
     };
     window.addEventListener('mousemove', onMove, { passive: true });
     window.addEventListener('touchmove', onTouch, { passive: true });
 
     const tick = () => {
       // Ease toward the cursor so the torch trails smoothly instead of snapping.
-      pos.current.x += (target.current.x - pos.current.x) * 0.18;
-      pos.current.y += (target.current.y - pos.current.y) * 0.18;
+      const dx = target.current.x - pos.current.x;
+      const dy = target.current.y - pos.current.y;
+
+      // Park the loop once the light has caught up with the pointer. It used to
+      // run forever, repainting three full-viewport gradient layers every frame
+      // even with the mouse completely still — a permanent frame budget cost
+      // for no visible change. The move/touch handlers restart it.
+      if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) {
+        raf.current = 0;
+        return;
+      }
+
+      pos.current.x += dx * 0.18;
+      pos.current.y += dy * 0.18;
       if (el) {
         el.style.setProperty('--tx', `${pos.current.x}px`);
         el.style.setProperty('--ty', `${pos.current.y}px`);
       }
       raf.current = requestAnimationFrame(tick);
     };
-    raf.current = requestAnimationFrame(tick);
+    // Kick the loop only when it isn't already running, so a burst of pointer
+    // events can't stack up multiple concurrent rAF chains.
+    const wake = () => { if (!raf.current) raf.current = requestAnimationFrame(tick); };
+    wakeRef.current = wake;
+    wake();
 
     return () => {
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('touchmove', onTouch);
       cancelAnimationFrame(raf.current);
+      raf.current = 0;
+      wakeRef.current = null;
     };
   }, [active]);
 
@@ -109,7 +134,11 @@ const NightTorch = ({ active, intensity = 0.6 }) => {
           inset: 0,
           transform: 'translateZ(0)',
           mixBlendMode: 'screen',
-          animation: 'torchFlicker 3.6s ease-in-out infinite',
+          // The flicker is a forever-running opacity animation on a
+          // full-viewport blended layer, so the compositor re-blends the whole
+          // page every frame for as long as dark mode is on. Switched off with
+          // the app's other animations.
+          ...(flicker ? { animation: 'torchFlicker 3.6s ease-in-out infinite' } : null),
           background:
             `radial-gradient(circle 260px at var(--tx) var(--ty), rgba(255,224,170,${lamp(0.55).toFixed(3)}) 0%, rgba(255,196,110,${lamp(0.32).toFixed(3)}) 32%, rgba(255,186,96,${lamp(0.12).toFixed(3)}) 58%, rgba(255,186,96,0) 78%)`,
         }}

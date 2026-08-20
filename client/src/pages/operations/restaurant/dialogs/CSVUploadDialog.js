@@ -68,20 +68,9 @@ const CSVUploadDialog = ({ open, onClose, onUpload, csvFile, onFileChange, loadi
 
         {/* Sample CSV Data */}
         <Box sx={{ p: 2, bgcolor: 'primary.50', borderRadius: 2, border: '1px solid', borderColor: 'primary.200', mb: 3 }}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-            <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-              Sample CSV Data:
-            </Typography>
-            <Button
-              size="small"
-              variant="outlined"
-              href="/sample-menu.csv"
-              download="sample-menu.csv"
-              sx={{ fontSize: '0.75rem', py: 0.5, px: 1 }}
-            >
-              Download Template
-            </Button>
-          </Box>
+          <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
+            Sample CSV Data:
+          </Typography>
           <Typography variant="body2" component="div" sx={{ fontFamily: 'monospace', fontSize: '0.75rem', whiteSpace: 'pre-line' }}>
             {SAMPLE_CSV}
           </Typography>

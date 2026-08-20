@@ -115,7 +115,7 @@ const OrdersTab = ({
         p: 2,
         borderRadius: '16px',
         background: 'rgba(255, 255, 255, var(--app-surface-border-alpha, 0.08))',
-        backdropFilter: 'blur(10px)',
+        backdropFilter: 'var(--app-blur-overlay)',
         border: '1px solid rgba(255, 255, 255, calc(var(--app-surface-alpha, 0.05) * 2))',
       }}>
         <FilterListIcon sx={{ color: '#667eea', fontSize: 20 }} />
@@ -421,11 +421,14 @@ const OrdersTab = ({
                         >
                           <EditIcon sx={{ fontSize: 16 }} />
                         </Button>
-                        {order.status === 'Pending' && (
+                        {/* Deletable at any status — a mis-keyed room-service
+                            order is usually caught after the kitchen closes it.
+                            The parent confirms before anything is removed. */}
+                        {(
                           <Button
                             size="small"
                             color="error"
-                            onClick={() => onDeleteOrder(order._id)}
+                            onClick={() => onDeleteOrder(order._id, order)}
                             sx={{
                               borderRadius: '8px',
                               textTransform: 'none',

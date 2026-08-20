@@ -179,8 +179,8 @@ const makeFieldSx = (isDark) => ({
     px: 0.9,
     borderRadius: 1.5,
     background: isDark ? 'rgba(13,18,28,0.65)' : 'rgba(255,255,255,0.8)',
-    backdropFilter: 'blur(8px)',
-    WebkitBackdropFilter: 'blur(8px)',
+    backdropFilter: 'var(--app-blur-overlay)',
+    WebkitBackdropFilter: 'var(--app-blur-overlay)',
     boxShadow: isDark ? 'inset 0 0 0 1px rgba(255,255,255,0.1)' : 'inset 0 0 0 1px rgba(255,255,255,0.9)',
   },
   '& .MuiFormHelperText-root': { ml: 2.5, fontWeight: 500 },
@@ -673,7 +673,7 @@ const Login = () => {
                 borderRadius: 5,
                 p: 2,
                 background: 'rgba(255,255,255,0.18)',
-                backdropFilter: 'blur(6px)',
+                backdropFilter: 'var(--app-blur-overlay)',
                 border: '1px solid rgba(255,255,255,0.3)',
                 boxShadow: '0 16px 44px rgba(0,0,0,0.25)',
               }}
@@ -690,7 +690,7 @@ const Login = () => {
                 alignItems: 'center',
                 justifyContent: 'center',
                 background: 'rgba(255,255,255,0.18)',
-                backdropFilter: 'blur(6px)',
+                backdropFilter: 'var(--app-blur-overlay)',
                 border: '1px solid rgba(255,255,255,0.3)',
                 boxShadow: '0 16px 44px rgba(0,0,0,0.25)',
               }}

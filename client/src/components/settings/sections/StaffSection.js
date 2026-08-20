@@ -80,7 +80,9 @@ const StaffCard = ({ member, onEdit, onDelete, onResetPassword, isDarkMode, can 
             </IconButton>
           </Tooltip>
         )}
-        {can.edit && (
+        {/* Administrator-only, and meaningless for staff who don't sign in —
+            a personnel-only record has no password to reset. */}
+        {can.resetPassword && member.hasLoginAccess !== false && (
           <Tooltip title="Reset login password">
             <IconButton size="small" onClick={() => onResetPassword(member)} sx={{ bgcolor: 'rgba(14,165,233,0.10)', color: '#0ea5e9' }}>
               <VpnKeyIcon fontSize="small" />
@@ -134,6 +136,16 @@ const StaffCard = ({ member, onEdit, onDelete, onResetPassword, isDarkMode, can 
           }}>
             ID: {member.profile?.employeeId || '—'}
           </Typography>
+          {/* Makes the two kinds of record distinguishable at a glance: staff
+              who sign in, and staff who exist only for attendance/payroll. */}
+          {member.hasLoginAccess === false && (
+            <Typography
+              variant="caption"
+              sx={{ display: 'block', color: 'text.secondary', opacity: 0.85, fontStyle: 'italic' }}
+            >
+              No app login
+            </Typography>
+          )}
         </Box>
       </Stack>
       <Stack
@@ -200,16 +212,21 @@ const StaffSection = ({ onNotify }) => {
   // Which actions this user may perform. `manage_staff` is the umbrella grant;
   // the granular ones stand on their own. Mirrors the server guards in
   // server/routes/adminRoutes.js so the UI never offers a button that 403s.
-  const { hasPermission, hasAnyPermission } = usePermissions();
+  const { hasAnyPermission, isAdmin } = usePermissions();
   const can = {
-    // A role can be granted "create staff" WITHOUT the right to browse the
-    // roster — in that case skip the list request entirely rather than firing
-    // one the server will (correctly) refuse.
-    view: hasAnyPermission(['manage_staff', 'view_staff']),
+    // Anyone who may CHANGE the roster may also see it — otherwise a manager
+    // granted create/edit ends up managing an invisible list, adding a staff
+    // member and then being unable to find them. Mirrors SEE_STAFF in
+    // server/routes/adminRoutes.js.
+    view: hasAnyPermission([
+      'manage_staff', 'view_staff', 'create_staff', 'edit_staff', 'deactivate_staff',
+    ]),
     create: hasAnyPermission(['manage_staff', 'create_staff']),
     edit: hasAnyPermission(['manage_staff', 'edit_staff']),
-    // Deleting a record outright needs the umbrella grant.
-    delete: hasPermission('manage_staff'),
+    // Hard delete and password resets are administrator-only: both destroy
+    // something a manager can't restore (payroll history, account access).
+    delete: isAdmin(),
+    resetPassword: isAdmin(),
   };
   const [staff, setStaff] = useState([]);
   const [loading, setLoading] = useState(true);

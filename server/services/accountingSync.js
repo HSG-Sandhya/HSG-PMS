@@ -329,7 +329,11 @@ export const syncPayrollExpense = async (payroll) => {
     account: mapAccount(payroll.payment?.method),
     party: name || 'Staff',
     description: `Salary${period ? ` for ${period}` : ''}${name ? ` — ${name}` : ''}`,
-    amount: Number(payroll.netSalary) || 0,
+    // What actually left the business on payday. Advances and recharges are
+    // already booked as expenses when they happen, and a staff member who
+    // over-drew is paid nothing — so the expense is the amount handed over, not
+    // the (possibly negative) net balance.
+    amount: Math.max(0, Number(payroll.payment?.amountPaid ?? payroll.netSalary) || 0),
     reference: payroll.payment?.transactionId || '',
   });
 };

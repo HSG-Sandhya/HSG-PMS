@@ -94,12 +94,29 @@ export const PermissionProvider = ({ children }) => {
   }, [isAuthenticated, token]);
 
   // Permission helper functions
+  // Matches the server's rule in middleware/staffAuthority.js and
+  // controllers/adminStaffController.js: the admin guards grant access by role
+  // NAME, so any admin-named role is an administrator. An exact 'admin' match
+  // was wrong — the real roles are "Super Admin" and "System Administrator",
+  // so the UI hid admin-only controls from the very accounts that hold them
+  // while the server allowed the calls.
   const isAdmin = () => {
-    return userRole?.toLowerCase() === 'admin' || userPermissions.includes('*');
+    const name = userRole?.toLowerCase() || '';
+    return name.includes('admin') || name.includes('system') || userPermissions.includes('*');
   };
   
   const isManager = () => {
     return userRole?.toLowerCase() === 'manager' || isAdmin();
+  };
+
+  // Approving payroll releases money, so it sits above the rest of the payroll
+  // screen: managers generate and print, administrators and the owner approve.
+  // Mirrors canApprovePayroll() in server/controllers/payrollController.js —
+  // deliberately identity-based, because every role with payroll access was
+  // granted the `approve_payroll` permission and so it cannot discriminate.
+  // Keep the two in step: the server is the enforcement, this only hides the UI.
+  const canApprovePayroll = () => {
+    return isAdmin() || userRole?.toLowerCase() === 'owner';
   };
   
   const hasPermission = (permission) => {
@@ -148,6 +165,7 @@ export const PermissionProvider = ({ children }) => {
         loading,
         isAdmin,
         isManager,
+        canApprovePayroll,
         hasPermission,
         hasAnyPermission,
         hasAllPermissions,

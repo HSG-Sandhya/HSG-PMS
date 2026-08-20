@@ -131,6 +131,7 @@ export const render = (ctx) => `<!doctype html>
       <div class="kv-lab">Billed To</div>
       <div class="strong">${e(ctx.customer.name)}</div>
       <div style="color:#444; line-height:1.6; margin-top:2px">
+        ${ctx.customer.company ? `${e(ctx.customer.company)}<br/>` : ''}
         ${ctx.customer.address ? `${e(ctx.customer.address)}<br/>` : ''}
         ${ctx.customer.phone ? `Tel: ${e(ctx.customer.phone)}<br/>` : ''}
         ${ctx.customer.gstin ? `GSTIN: ${e(ctx.customer.gstin)}` : 'GSTIN: Unregistered'}

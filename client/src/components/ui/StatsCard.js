@@ -96,9 +96,9 @@ const StatsCard = ({
       >
         <Card sx={{ 
           height: '100%',
-          background: 'rgba(255, 255, 255, calc(var(--app-surface-alpha, 0.05) * 2))',
-          backdropFilter: 'var(--app-blur-strong)',
-          WebkitBackdropFilter: 'var(--app-blur-strong)',
+          background: 'var(--app-glass-fill-row)',
+          backdropFilter: 'var(--app-blur-row)',
+          WebkitBackdropFilter: 'var(--app-blur-row)',
           border: '1.5px solid rgba(255,255,255,0.18)',
           position: 'relative',
           overflow: 'hidden',
@@ -126,9 +126,9 @@ const StatsCard = ({
       >
         <Card sx={{ 
           height: '100%',
-          background: 'rgba(255, 255, 255, calc(var(--app-surface-alpha, 0.05) * 2))',
-          backdropFilter: 'var(--app-blur-strong)',
-          WebkitBackdropFilter: 'var(--app-blur-strong)',
+          background: 'var(--app-glass-fill-row)',
+          backdropFilter: 'var(--app-blur-row)',
+          WebkitBackdropFilter: 'var(--app-blur-row)',
           border: '1.5px solid rgba(255,255,255,0.18)',
           position: 'relative',
           overflow: 'hidden',
@@ -164,9 +164,9 @@ const StatsCard = ({
     >
       <Card sx={{
         height: '100%',
-        background: 'rgba(255, 255, 255, calc(var(--app-surface-alpha, 0.05) * 2))',
-        backdropFilter: 'var(--app-blur-strong)',
-        WebkitBackdropFilter: 'var(--app-blur-strong)',
+        background: 'var(--app-glass-fill-row)',
+        backdropFilter: 'var(--app-blur-row)',
+        WebkitBackdropFilter: 'var(--app-blur-row)',
         border: '1.5px solid rgba(255,255,255,0.18)',
         position: 'relative',
         overflow: 'hidden',

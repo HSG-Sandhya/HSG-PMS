@@ -1150,6 +1150,9 @@ const Bookings = ({ view = 'all', bookingType = null }) => {
         checkOutTime: format(new Date(), 'HH:mm'),
         restaurantCharges: restaurantCharges,
         totalWithRestaurant: totalWithRestaurant,
+        // Whether the food bill was settled on this invoice. Drives what the
+        // printed invoice shows, so it has to persist with the booking.
+        includeRestaurantInInvoice: paymentDetails.includeRestaurantInInvoice !== false,
         // Update with correct night count and amount from checkout calculation.
         // `totalAmount` is the room side of the bill and must already include any
         // manual late-checkout charge — the server stores the fee for the invoice
@@ -1159,6 +1162,13 @@ const Bookings = ({ view = 'all', bookingType = null }) => {
         totalAmount: paymentDetails.roomTotalWithLateFee
           || paymentDetails.adjustedAmount
           || checkoutBooking.totalAmount,
+        // The tariff agreed at the desk (guests bargain) and its GST split. The
+        // room's own price is left alone — this rate applies to this stay only,
+        // and it is what the invoice prints. baseAmount/gstAmount exclude the
+        // late-checkout fee, which stays its own line on the bill.
+        roomRate: paymentDetails.roomRate ?? checkoutBooking.roomRate,
+        baseAmount: paymentDetails.roomBaseAmount ?? checkoutBooking.baseAmount,
+        gstAmount: paymentDetails.roomGstAmount ?? checkoutBooking.gstAmount,
         checkOut: paymentDetails.checkoutDate ? format(paymentDetails.checkoutDate, 'yyyy-MM-dd') : checkoutBooking.checkOut,
       };
       
@@ -1725,8 +1735,8 @@ const Bookings = ({ view = 'all', bookingType = null }) => {
                 background: darkMode
                   ? 'rgba(30, 35, 45, 0.55)'
                   : 'rgba(255, 255, 255, calc(var(--app-surface-alpha, 0.05) * 2 + 0.55))',
-                backdropFilter: 'blur(16px) saturate(140%)',
-                WebkitBackdropFilter: 'blur(16px) saturate(140%)',
+                backdropFilter: 'var(--app-blur-overlay)',
+                WebkitBackdropFilter: 'var(--app-blur-overlay)',
                 borderRadius: '18px',
                 border: `1px solid ${darkMode ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.06)'}`,
                 boxShadow: darkMode

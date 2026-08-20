@@ -111,8 +111,8 @@ export const StatusFilter = ({ value, onChange, darkMode = false, options = STAT
               boxShadow: darkMode
                 ? '0 24px 60px -16px rgba(0,0,0,0.55), 0 0 0 1px rgba(var(--app-primary-rgb, 99,102,241), 0.18)'
                 : '0 24px 60px -16px rgba(15,23,42,0.20), 0 0 0 1px rgba(var(--app-primary-rgb, 99,102,241), 0.14)',
-              backdropFilter: 'blur(20px)',
-              WebkitBackdropFilter: 'blur(20px)',
+              backdropFilter: 'var(--app-blur-overlay)',
+              WebkitBackdropFilter: 'var(--app-blur-overlay)',
               zIndex: 1300,
               overflow: 'hidden',
               transformOrigin: 'top center',

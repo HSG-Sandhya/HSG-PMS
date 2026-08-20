@@ -2,6 +2,33 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Surface tokens: first-paint defaults ──────────────────────────────────
+   AppThemeProvider owns these at runtime and rewrites them whenever the
+   Appearance / Performance settings change. The values here only cover the
+   window before that effect first runs — chiefly the Login screen, which
+   renders unauthenticated and so has no saved settings to read yet. Without
+   them, `backdrop-filter: var(--app-blur)` would resolve to an invalid empty
+   value and those surfaces would paint flat.
+
+   The four blur tiers exist so one setting can switch off the expensive ones
+   while keeping the cheap ones:
+     --app-blur          panels and page sections
+     --app-blur-strong   heavier panels (sidebar, stat containers)
+     --app-blur-overlay  dialogs, menus, popovers — few and short-lived
+     --app-blur-row      repeated rows and cards — the ones that multiply */
+:root {
+  --app-blur: blur(5px) saturate(180%);
+  --app-blur-strong: blur(9px) saturate(185%);
+  --app-blur-overlay: blur(9px) saturate(185%);
+  --app-blur-row: blur(5px) saturate(180%);
+  --app-glass-fill: rgba(255, 255, 255, 0.14);
+  --app-glass-fill-strong: rgba(255, 255, 255, 0.52);
+  --app-glass-fill-row: rgba(255, 255, 255, 0.14);
+  --app-glass-sheen: none;
+  --app-card-glow: none;
+  --app-surface-transition: background-color 0.3s ease, box-shadow 0.3s ease;
+}
+
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',

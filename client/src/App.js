@@ -65,15 +65,21 @@ const MainLayout = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = React.useState(true);
   const isMobile = useMediaQuery('(max-width: 767px)'); // Tailwind md breakpoint
 
-  const toggleSidebar = (value) => {
-    setSidebarOpen(typeof value === 'boolean' ? value : !sidebarOpen);
-  };
+  const toggleSidebar = React.useCallback((value) => {
+    setSidebarOpen((prev) => (typeof value === 'boolean' ? value : !prev));
+  }, []);
 
-  // Clone children and inject sidebarOpen prop
-  const childrenWithSidebar = React.Children.map(children, child =>
-    React.isValidElement(child)
-      ? React.cloneElement(child, { sidebarOpen })
-      : child,
+  // Clone children and inject sidebarOpen prop.
+  // Memoised: cloning produces new element identities, so without this every
+  // MainLayout render (each sidebar toggle, each viewport-breakpoint check)
+  // handed the routed page a brand-new element tree and forced it to re-render.
+  const childrenWithSidebar = React.useMemo(
+    () => React.Children.map(children, child =>
+      React.isValidElement(child)
+        ? React.cloneElement(child, { sidebarOpen })
+        : child,
+    ),
+    [children, sidebarOpen],
   );
 
   return (

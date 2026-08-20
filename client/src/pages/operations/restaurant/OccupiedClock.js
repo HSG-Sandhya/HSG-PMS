@@ -95,8 +95,8 @@ const OccupiedClock = ({ startMs, elapsed = 0 }) => {
         <Box sx={{
           position: 'absolute', inset: 0, borderRadius: '50%',
           background: 'radial-gradient(circle at 36% 28%, rgba(255,255,255,0.16), rgba(36,10,14,0.55) 62%, rgba(20,4,8,0.7))',
-          backdropFilter: 'blur(8px)',
-          WebkitBackdropFilter: 'blur(8px)',
+          backdropFilter: 'var(--app-blur-overlay)',
+          WebkitBackdropFilter: 'var(--app-blur-overlay)',
           border: `1px solid ${RED}40`,
           '@keyframes ocBreath': {
             '0%,100%': { boxShadow: `inset 0 2px 10px rgba(255,255,255,0.12), inset 0 -8px 18px ${RED}1a, 0 0 0 1px ${RED}26, 0 6px 20px ${RED}26` },

@@ -1,5 +1,6 @@
 import React from 'react';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
+import { MotionConfig } from 'framer-motion';
 import { useSettings } from '../../contexts/SettingsContext';
 import CssBaseline from '@mui/material/CssBaseline';
 import NightTorch from './NightTorch';
@@ -51,6 +52,33 @@ const hexToRgb = (hex) => {
   if ([r, g, b].some((n) => Number.isNaN(n))) return '99, 102, 241';
   return `${r}, ${g}, ${b}`;
 };
+
+// Format a stored font name into a full CSS font stack. Pure — kept at module
+// scope so it isn't rebuilt on every render.
+const formatFontFamily = (fontName) => {
+  if (!fontName || fontName === 'Nunito') {
+    return '"Nunito", "Quicksand", "Rubik", Arial, sans-serif';
+  }
+  // If it's already a formatted string, return as is
+  if (fontName.includes(',')) {
+    return fontName;
+  }
+  // Format single font name with fallbacks
+  return `"${fontName}", "Nunito", Arial, sans-serif`;
+};
+
+// Static theme used for the brief window before settings have loaded. Built
+// once at module scope — it never varies, so it must never be re-created.
+const FALLBACK_THEME = createTheme({
+  palette: {
+    mode: 'light',
+    primary: { main: '#6366F1', light: '#818CF8', dark: '#4F46E5', contrastText: '#ffffff' },
+    secondary: { main: '#EC4899', light: '#F472B6', dark: '#DB2777', contrastText: '#ffffff' },
+    background: { default: '#f8f9fa', paper: '#ffffff' },
+    text: { primary: '#1e293b', secondary: '#64748b' },
+  },
+  shape: { borderRadius: 8 },
+});
 
 const AppThemeProvider = ({ children }) => {
   const settingsContext = useSettings();
@@ -122,6 +150,32 @@ const AppThemeProvider = ({ children }) => {
   const safeBlur = Number.isFinite(blurStrength) && blurStrength >= 0 && blurStrength <= 40
     ? blurStrength
     : 8;
+
+  // ── Performance knobs (Settings → Appearance → Performance) ──────────────
+  // `glassLevel` decides which tiers of surface are allowed a backdrop-filter.
+  // Nested backdrop-filters are the app's most expensive effect: the compositor
+  // can't cache them, so each one re-blurs everything painted beneath it. A
+  // list of 30 glass rows inside the glass page shell is 30+ full blur passes
+  // per frame. Dropping the repeated tiers is what buys back the frame rate.
+  const glassLevel = settingsContext?.settings?.theme?.glassLevel || 'panels';
+  const saturationBoost = settingsContext?.settings?.theme?.saturationBoost !== false;
+  const cardGlowOn = settingsContext?.settings?.theme?.cardGlow !== false;
+  const glassSheenOn = settingsContext?.settings?.theme?.glassSheen !== false;
+  const hoverEffectsOn = settingsContext?.settings?.theme?.hoverEffects !== false;
+  // "Reduce motion" is the accessibility switch and outranks the decorative
+  // toggle — either one off means no animation.
+  const animationsOn = settingsContext?.settings?.theme?.uiAnimations !== false && !reduceMotion;
+
+  // Which tiers get a real blur at the chosen level.
+  //   row     — repeated surfaces: booking cards, table rows, stat tiles
+  //   panel   — page shell, section cards, tab bars
+  //   overlay — dialogs, menus, popovers, the sidebar
+  const blurTiers = {
+    full:     { row: true,  panel: true,  overlay: true },
+    panels:   { row: false, panel: true,  overlay: true },
+    overlays: { row: false, panel: false, overlay: true },
+    off:      { row: false, panel: false, overlay: false },
+  }[glassLevel] || { row: false, panel: true, overlay: true };
   const backgroundStyle = settingsContext?.settings?.theme?.backgroundStyle || 'none';
   const backgroundImage = settingsContext?.settings?.theme?.backgroundImage || '';
   const solidColor = settingsContext?.settings?.theme?.solidColor || (isDarkMode ? '#0f172a' : '#f8fafc');
@@ -198,22 +252,61 @@ const AppThemeProvider = ({ children }) => {
     // can see through the glass instead of frosting it) but push saturation HIGH
     // so the colour behind the panel reflects vividly — that's what reads as a
     // polished mirror rather than milky frost.
+    //
+    // Every tier resolves to `none` when the Performance settings disallow it,
+    // which is what makes one dropdown restyle the whole app: ~80 components
+    // already declare `backdropFilter: var(--app-blur)` rather than a literal.
     const clearBlur = Math.min(10, Math.max(2, Math.round(safeBlur * 0.55)));
     const saturate = 130 + Math.min(120, safeBlur * 9); // vivid reflection, capped
-    root.style.setProperty('--app-blur', `blur(${clearBlur}px) saturate(${saturate}%)`);
-    // "strong" surfaces (stat cards, sidebar) used to be the milkiest — keep them
-    // only slightly heavier than base so they stay clear and see-through.
     const strongBlur = Math.min(14, Math.max(3, Math.round(safeBlur * 0.9)));
     const strongSaturate = 140 + Math.min(140, strongBlur * 8);
-    root.style.setProperty('--app-blur-strong', `blur(${strongBlur}px) saturate(${strongSaturate}%)`);
+    // saturate() is a second full-surface filter pass on top of the blur, so it
+    // roughly doubles the cost. It's the cheapest thing to drop first.
+    const sat = (pct) => (saturationBoost ? ` saturate(${pct}%)` : '');
+    const filt = (px, pct) => `blur(${px}px)${sat(pct)}`;
+
+    root.style.setProperty('--app-blur', blurTiers.panel ? filt(clearBlur, saturate) : 'none');
+    // "strong" surfaces (stat cards, sidebar) used to be the milkiest — keep them
+    // only slightly heavier than base so they stay clear and see-through.
+    root.style.setProperty('--app-blur-strong', blurTiers.panel ? filt(strongBlur, strongSaturate) : 'none');
+    // Overlays (dialogs, menus, the sidebar) are few and short-lived, so they
+    // keep their blur at every level except "off" — that's where the look
+    // survives most cheaply.
+    root.style.setProperty('--app-blur-overlay', blurTiers.overlay ? filt(strongBlur, strongSaturate) : 'none');
+    // Repeated surfaces — booking cards, table rows, stat tiles. These are the
+    // ones that multiply, so they're the first tier to go.
+    root.style.setProperty('--app-blur-row', blurTiers.row ? filt(clearBlur, saturate) : 'none');
 
     // ─── Liquid-Glass tokens: the SINGLE SOURCE OF TRUTH for the app's glass look ───
     // Every card, table, tab, dialog, menu and the sidebar reference these
     // variables instead of hardcoding rgba()s. Adjust the look here, once.
     // Clear translucent fill (see-through). Overlays use a heavier fill so text
     // stays legible over arbitrary content behind them.
-    root.style.setProperty('--app-glass-fill', isDarkMode ? 'rgba(22, 26, 34, 0.22)' : 'rgba(255, 255, 255, 0.14)');
-    root.style.setProperty('--app-glass-fill-strong', isDarkMode ? 'rgba(20, 24, 32, 0.55)' : 'rgba(255, 255, 255, 0.52)');
+    // The clear fills rely on the blur behind them to stay legible. With the
+    // blur switched off they'd read as a washed-out haze over the page
+    // background, so the fill is made correspondingly more opaque — the panel
+    // keeps its contrast and the look stays close, minus the compositing cost.
+    const panelFill = (blurred, flat) => (blurTiers.panel ? blurred : flat);
+    root.style.setProperty(
+      '--app-glass-fill',
+      isDarkMode
+        ? panelFill('rgba(22, 26, 34, 0.22)', 'rgba(22, 26, 34, 0.82)')
+        : panelFill('rgba(255, 255, 255, 0.14)', 'rgba(255, 255, 255, 0.80)'),
+    );
+    root.style.setProperty(
+      '--app-glass-fill-strong',
+      isDarkMode
+        ? panelFill('rgba(20, 24, 32, 0.55)', 'rgba(20, 24, 32, 0.93)')
+        : panelFill('rgba(255, 255, 255, 0.52)', 'rgba(255, 255, 255, 0.93)'),
+    );
+    // Repeated rows follow their own tier so a list stays readable when its
+    // blur is dropped but the surrounding panels keep theirs.
+    root.style.setProperty(
+      '--app-glass-fill-row',
+      isDarkMode
+        ? (blurTiers.row ? 'rgba(22, 26, 34, 0.22)' : 'rgba(24, 28, 37, 0.78)')
+        : (blurTiers.row ? 'rgba(255, 255, 255, 0.14)' : 'rgba(255, 255, 255, 0.76)'),
+    );
     // Crisp lit edge — both the full shorthand and the bare colour.
     root.style.setProperty('--app-glass-border-color', isDarkMode ? 'rgba(255,255,255,0.16)' : 'rgba(255,255,255,0.7)');
     root.style.setProperty('--app-glass-border', `1px solid ${isDarkMode ? 'rgba(255,255,255,0.16)' : 'rgba(255,255,255,0.7)'}`);
@@ -227,66 +320,26 @@ const AppThemeProvider = ({ children }) => {
     // the BOTTOM edge of every card. Two tinted layers (primary + secondary)
     // give it a crystalline, refracted feel; it follows the chosen palette via
     // the --app-*-rgb variables and is a touch brighter in dark mode.
-    root.style.setProperty('--app-card-glow', isDarkMode
+    // Two large blurred shadow spreads per card — cheap alone, but they repaint
+    // on every hover and re-rasterise with the card, so they're worth a switch.
+    root.style.setProperty('--app-card-glow', !cardGlowOn ? 'none' : (isDarkMode
       ? '0 18px 34px -14px rgba(var(--app-primary-rgb), 0.6), 0 30px 60px -26px rgba(var(--app-secondary-rgb), 0.5)'
-      : '0 16px 30px -14px rgba(var(--app-primary-rgb), 0.45), 0 28px 52px -26px rgba(var(--app-secondary-rgb), 0.35)');
+      : '0 16px 30px -14px rgba(var(--app-primary-rgb), 0.45), 0 28px 52px -26px rgba(var(--app-secondary-rgb), 0.35)'));
     // Diagonal mirror sheen, layered over the fill via backgroundImage.
-    root.style.setProperty('--app-glass-sheen', isDarkMode
+    root.style.setProperty('--app-glass-sheen', !glassSheenOn ? 'none' : (isDarkMode
       ? 'linear-gradient(135deg, rgba(255,255,255,0.16) 0%, rgba(255,255,255,0.04) 24%, rgba(255,255,255,0) 46%, rgba(255,255,255,0.03) 100%)'
-      : 'linear-gradient(135deg, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0.14) 24%, rgba(255,255,255,0) 46%, rgba(255,255,255,0.10) 100%)');
+      : 'linear-gradient(135deg, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0.14) 24%, rgba(255,255,255,0) 46%, rgba(255,255,255,0.10) 100%)'));
+    // Hover/state transitions. Animating box-shadow and background forces a
+    // repaint of the surface on every pointer move across a list, so this
+    // collapses to `none` when the effects are switched off.
+    root.style.setProperty('--app-surface-transition', hoverEffectsOn
+      ? 'background-color 0.3s ease, box-shadow 0.3s ease'
+      : 'none');
     root.style.setProperty('--app-bg', computeBackground());
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [primaryColor, secondaryColor, accentColor, textPrimary, textSecondary, safeSurfaceOpacity, safeBlur, backgroundStyle, backgroundImage, solidColor, solidOpacity, gradientFrom, gradientTo, gradientAngle, bgTexture, isDarkMode, darkness]);
+  }, [primaryColor, secondaryColor, accentColor, textPrimary, textSecondary, safeSurfaceOpacity, safeBlur, backgroundStyle, backgroundImage, solidColor, solidOpacity, gradientFrom, gradientTo, gradientAngle, bgTexture, isDarkMode, darkness, glassLevel, saturationBoost, cardGlowOn, glassSheenOn, hoverEffectsOn]);
 
-  // Handle case when settings context is not yet available
-  if (!settingsContext) {
-    // Return a default light theme while settings are loading
-    const defaultTheme = createTheme({
-      palette: {
-        mode: 'light',
-        primary: {
-          main: '#6366F1',
-          light: '#818CF8',
-          dark: '#4F46E5',
-          contrastText: '#ffffff',
-        },
-        secondary: {
-          main: '#EC4899',
-          light: '#F472B6',
-          dark: '#DB2777',
-          contrastText: '#ffffff',
-        },
-        background: {
-          default: '#f8f9fa',
-          paper: '#ffffff',
-        },
-        text: {
-          primary: '#1e293b',
-          secondary: '#64748b',
-        },
-      },
-      shape: {
-        borderRadius: 8,
-      },
-    });
-    
-    return <ThemeProvider theme={defaultTheme}>{children}</ThemeProvider>;
-  }
-
-  const { settings } = settingsContext;
-
-  // Helper function to format font family
-  const formatFontFamily = (fontName) => {
-    if (!fontName || fontName === 'Nunito') {
-      return '"Nunito", "Quicksand", "Rubik", Arial, sans-serif';
-    }
-    // If it's already a formatted string, return as is
-    if (fontName.includes(',')) {
-      return fontName;
-    }
-    // Format single font name with fallbacks
-    return `"${fontName}", "Nunito", Arial, sans-serif`;
-  };
+  const settings = settingsContext?.settings;
 
   // Liquid-Glass surface tokens for the MUI theme. These simply POINT at the
   // `--app-glass-*` CSS variables defined once in the effect above (the single
@@ -296,14 +349,25 @@ const AppThemeProvider = ({ children }) => {
   const glassFillStrong = `var(--app-glass-fill-strong, ${isDarkMode ? 'rgba(20,24,32,0.55)' : 'rgba(255,255,255,0.52)'})`;
   const glassBlur = `var(--app-blur, blur(5px) saturate(180%))`;
   const glassBlurStrong = `var(--app-blur-strong, blur(9px) saturate(185%))`;
+  // Overlays keep their blur at every level except "off" — few on screen at a
+  // time and short-lived, so they're where the glass look survives cheapest.
+  const glassBlurOverlay = `var(--app-blur-overlay, blur(9px) saturate(185%))`;
   const glassSheen = 'var(--app-glass-sheen)';
+  const surfaceTransition = 'var(--app-surface-transition, background-color 0.3s ease, box-shadow 0.3s ease)';
   const glassBorder = `var(--app-glass-border, 1px solid ${isDarkMode ? 'rgba(255,255,255,0.16)' : 'rgba(255,255,255,0.7)'})`;
   const glassShadow = `var(--app-glass-shadow, ${isDarkMode
     ? 'inset 0 1px 0 rgba(255,255,255,0.2), 0 12px 40px -16px rgba(0,0,0,0.65)'
     : 'inset 0 1px 0 rgba(255,255,255,1), 0 12px 40px -16px rgba(15,23,42,0.22)'})`;
 
-  // Create theme based on current mode and settings
-  const theme = createTheme({
+  // Create theme based on current mode and settings.
+  //
+  // MEMOISED DELIBERATELY. This object carries ~40 component styleOverrides and
+  // sits at the root of the app. Rebuilding it produces a new theme identity,
+  // which re-renders every MUI component in the tree and makes Emotion
+  // re-serialise every override — on each keystroke in a settings field, each
+  // 3-minute auto-dark tick, and each parent state change. The dependency list
+  // below is exactly the set of values the theme actually reads.
+  const theme = React.useMemo(() => createTheme({
     palette: {
       mode: isDarkMode ? 'dark' : 'light',
       primary: {
@@ -430,7 +494,7 @@ const AppThemeProvider = ({ children }) => {
             border: glassBorder,
             // Depth shadow + the crystal glow spilling from the bottom edge.
             boxShadow: `${glassShadow}, var(--app-card-glow)`,
-            transition: 'background-color 0.3s ease, box-shadow 0.3s ease',
+            transition: surfaceTransition,
           },
         },
       },
@@ -442,7 +506,7 @@ const AppThemeProvider = ({ children }) => {
             backdropFilter: glassBlur,
             WebkitBackdropFilter: glassBlur,
             boxShadow: glassShadow,
-            transition: 'background-color 0.3s ease, box-shadow 0.3s ease',
+            transition: surfaceTransition,
           },
           // Flat variant opts out of the glass (e.g. inline table containers).
           outlined: {
@@ -527,8 +591,8 @@ const AppThemeProvider = ({ children }) => {
           paper: {
             backgroundColor: glassFillStrong,
             backgroundImage: glassSheen,
-            backdropFilter: glassBlurStrong,
-            WebkitBackdropFilter: glassBlurStrong,
+            backdropFilter: glassBlurOverlay,
+            WebkitBackdropFilter: glassBlurOverlay,
             border: glassBorder,
             boxShadow: glassShadow,
           },
@@ -539,8 +603,8 @@ const AppThemeProvider = ({ children }) => {
           paper: {
             backgroundColor: glassFillStrong,
             backgroundImage: glassSheen,
-            backdropFilter: glassBlurStrong,
-            WebkitBackdropFilter: glassBlurStrong,
+            backdropFilter: glassBlurOverlay,
+            WebkitBackdropFilter: glassBlurOverlay,
             border: glassBorder,
             boxShadow: glassShadow,
           },
@@ -551,8 +615,8 @@ const AppThemeProvider = ({ children }) => {
           paper: {
             backgroundColor: glassFillStrong,
             backgroundImage: glassSheen,
-            backdropFilter: glassBlurStrong,
-            WebkitBackdropFilter: glassBlurStrong,
+            backdropFilter: glassBlurOverlay,
+            WebkitBackdropFilter: glassBlurOverlay,
             border: glassBorder,
             boxShadow: glassShadow,
           },
@@ -566,8 +630,8 @@ const AppThemeProvider = ({ children }) => {
           paper: {
             backgroundColor: glassFillStrong,
             backgroundImage: glassSheen,
-            backdropFilter: glassBlurStrong,
-            WebkitBackdropFilter: glassBlurStrong,
+            backdropFilter: glassBlurOverlay,
+            WebkitBackdropFilter: glassBlurOverlay,
             border: glassBorder,
             boxShadow: glassShadow,
             borderRadius: 18,
@@ -712,21 +776,44 @@ const AppThemeProvider = ({ children }) => {
           paper: {
             backgroundColor: glassFillStrong,
             backgroundImage: glassSheen,
-            backdropFilter: glassBlurStrong,
-            WebkitBackdropFilter: glassBlurStrong,
+            backdropFilter: glassBlurOverlay,
+            WebkitBackdropFilter: glassBlurOverlay,
             borderRight: glassBorder,
             boxShadow: glassShadow,
           },
         },
       },
     },
-  });
+  }), [
+    isDarkMode, darkBase, textPrimary, textSecondary,
+    settings?.theme?.primaryColor, settings?.theme?.secondaryColor,
+    settings?.theme?.accentColor, settings?.theme?.borderRadius,
+    settings?.theme?.fontFamily,
+    glassFill, glassFillStrong, glassBlur, glassBlurStrong, glassBlurOverlay,
+    glassSheen, glassBorder, glassShadow, surfaceTransition,
+  ]);
+
+  // Settings haven't loaded yet — use the static fallback so the first paint
+  // isn't blocked. Placed after the hooks above so the hook order never varies.
+  if (!settingsContext) {
+    return <ThemeProvider theme={FALLBACK_THEME}>{children}</ThemeProvider>;
+  }
 
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      {children}
-      <NightTorch active={torchActive} intensity={darkness} />
+      {/* One switch for every framer-motion animation in the app. The ~30 files
+          that import `motion` need no change: MotionConfig makes their
+          transitions instant, so elements appear in their final state instead
+          of animating. `reducedMotion="always"` additionally drops transform
+          and layout animations, which are the ones that force layout work. */}
+      <MotionConfig
+        reducedMotion={animationsOn ? 'user' : 'always'}
+        transition={animationsOn ? undefined : { duration: 0 }}
+      >
+        {children}
+      </MotionConfig>
+      <NightTorch active={torchActive} intensity={darkness} flicker={animationsOn} />
     </ThemeProvider>
   );
 };

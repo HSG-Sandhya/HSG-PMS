@@ -74,6 +74,10 @@ const bookingSchema = new mongoose.Schema({
   // Payment
   totalAmount: { type: Number, required: [true, "Total amount is required"] },
   baseAmount: { type: Number, default: 0 },
+  // Per-night room tariff actually agreed for this stay, pre-GST. Guests bargain
+  // at the desk, so this can differ from the room's list pricePerNight; when set
+  // it is the rate the bill and the invoice are built from. 0 = list price.
+  roomRate: { type: Number, default: 0, min: 0 },
   discount: { type: Number, default: 0 },       // percentage off the subtotal (applied 0–100)
   discountAmount: { type: Number, default: 0 }, // rupee value of the discount
   gstAmount: { type: Number, default: 0 },
@@ -90,6 +94,12 @@ const bookingSchema = new mongoose.Schema({
   // Tiered late-checkout fee (base, pre-GST) applied at checkout when the guest
   // leaves past the grace window. Folded into baseAmount/gstAmount/totalAmount.
   lateCheckoutFee: { type: Number, default: 0 },
+  // Whether this stay's room-service orders are billed on the room invoice.
+  // Set at checkout. When false the F&B lines are left off the invoice entirely
+  // and out of the amount collected — the orders still exist and are still the
+  // restaurant's income, they are just settled separately (guest paid the
+  // outlet directly, or the food is on a company/complimentary tab).
+  includeRestaurantInInvoice: { type: Boolean, default: true },
   paidAmount: { type: Number, default: 0 },
   remainingAmount: { type: Number, default: 0 },
   paymentMethod: {

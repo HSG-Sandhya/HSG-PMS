@@ -632,9 +632,10 @@ class HotelRoomInvoiceTemplate extends BaseInvoiceTemplate {
     const roomTotal = Math.max(0, totalAmount - lateFeeTotal); // incl. GST
     const roomBase = (roomTotal * 100) / 105;
 
-    // Show the room's tariff when it reconciles with what is being charged;
-    // otherwise show the rate actually billed, so the line always multiplies out.
-    const listRate = Number(booking.roomId?.pricePerNight) || 0;
+    // Show the agreed tariff (a rate bargained at checkout, else the room's list
+    // price) when it reconciles with what is being charged; otherwise show the
+    // rate actually billed, so the line always multiplies out.
+    const listRate = Number(booking.roomRate) || Number(booking.roomId?.pricePerNight) || 0;
     const perNight = (listRate > 0 && Math.abs(listRate * finalNights - roomBase) <= 1)
       ? listRate
       : (finalNights > 0 ? roomBase / finalNights : roomBase);
@@ -649,6 +650,14 @@ class HotelRoomInvoiceTemplate extends BaseInvoiceTemplate {
     const contactStr = booking.phone ? `+91 ${booking.phone}` : 'Not provided';
     const emailStr   = booking.email || 'Not provided';
     const addressStr = this._assembleAddress(booking);
+
+    // Corporate billing details. An individual booking carries these at the top
+    // level (filled in by the guest form's GST lookup); a company booking keeps
+    // them in the `company` sub-document instead, so both are checked. Both
+    // lines are omitted entirely for a walk-in with no business details rather
+    // than printing an empty "Company —" row.
+    const companyStr = booking.companyName || booking.company?.name || '';
+    const customerGstin = booking.gstNumber || booking.company?.gstNumber || '';
 
     const guestCount = `${booking.adults || 1} adult${(booking.adults || 1) > 1 ? 's' : ''}` +
       ((booking.children && booking.children > 0)
@@ -705,9 +714,11 @@ class HotelRoomInvoiceTemplate extends BaseInvoiceTemplate {
         <div class="eyebrow">— Billed to</div>
         <div class="name">${booking.guestName || 'Guest'}</div>
         <div class="info-list">
+          ${companyStr ? `<div class="row"><span class="key">Company</span><span class="val">${companyStr}</span></div>` : ''}
           <div class="row"><span class="key">Contact</span><span class="val">${contactStr}</span></div>
           <div class="row"><span class="key">Email</span><span class="val">${emailStr}</span></div>
           <div class="row"><span class="key">Address</span><span class="val">${addressStr}</span></div>
+          ${customerGstin ? `<div class="row"><span class="key">GSTIN</span><span class="val">${customerGstin}</span></div>` : ''}
         </div>
       </div>
       <div class="info-block">

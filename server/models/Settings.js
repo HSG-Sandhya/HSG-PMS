@@ -260,7 +260,23 @@ const SettingsSchema = new Schema(
       reduceMotion: { type: Boolean, default: false }, // disables decorative animations
       // How deep dark mode goes (0 = soft charcoal, 100 = near black).
       // Also scales the night-torch intensity proportionally.
-      darknessLevel: { type: Number, default: 60, min: 0, max: 100 }
+      darknessLevel: { type: Number, default: 60, min: 0, max: 100 },
+
+      // ── Performance ──────────────────────────────────────────────────────
+      // How much rendering work the glass look is allowed to cost. Nested
+      // backdrop-filters are the app's most expensive effect (each one re-blurs
+      // everything beneath it), so `glassLevel` is the main lever:
+      //   full     — blur on every surface, including repeated cards/rows
+      //   panels   — blur on the page shell, panels and overlays (no per-row)
+      //   overlays — blur only on dialogs, menus and the sidebar
+      //   off      — no backdrop-filter anywhere; flat translucent fills
+      perfPreset: { type: String, default: 'balanced' }, // quality|balanced|fast|fastest|custom
+      glassLevel: { type: String, default: 'panels' },
+      saturationBoost: { type: Boolean, default: true },
+      cardGlow: { type: Boolean, default: true },
+      glassSheen: { type: Boolean, default: true },
+      uiAnimations: { type: Boolean, default: true },
+      hoverEffects: { type: Boolean, default: true }
     },
 
     // Integration Settings

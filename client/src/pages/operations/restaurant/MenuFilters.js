@@ -37,7 +37,7 @@ const MenuFilters = ({
     mb: 3,
     borderRadius: '16px',
     background: 'rgba(255, 255, 255, 0.25)',
-    backdropFilter: 'blur(10px)',
+    backdropFilter: 'var(--app-blur-overlay)',
     border: '1px solid rgba(255, 255, 255, 0.3)',
     boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
   }}>
