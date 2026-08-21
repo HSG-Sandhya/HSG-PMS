@@ -1,4 +1,4 @@
-import { Box, Typography, Button } from '@mui/material';
+import { Box, Typography, Button, FormControlLabel, Checkbox } from '@mui/material';
 import { UploadFile as UploadFileIcon } from '@mui/icons-material';
 import FormDialog, { FormSection } from '../../../../components/forms/FormDialog';
 
@@ -10,7 +10,7 @@ Biryani,320,Rice Dishes,Aromatic basmati rice with chicken,false,35,true,true`;
 
 const FIELD_DOCS = [
   ['Name', '(required): Menu item name', 'Accepts: name, Item Name, item_name, itemName'],
-  ['Price', '(required): Price in numbers (e.g., 150.50)', 'Accepts: price, Price (INR), price_inr, Price'],
+  ['Price', '(required): Price in numbers (e.g., 150.50)', 'Accepts: price, Price, New Price, Rate, Amount, MRP — or any numeric column'],
   ['Category', "(required): Category name (will be created if doesn't exist)", 'Accepts: category, Category, category_name'],
   ['Description', '(optional): Item description', 'Accepts: description, Description, desc'],
   ['Vegetarian', '(optional): Veg/Non-Veg (default: Veg)', 'Accepts: isVeg, Veg/Non-Veg, veg_non_veg, type'],
@@ -20,7 +20,7 @@ const FIELD_DOCS = [
 ];
 
 // Bulk-import menu items from a CSV file.
-const CSVUploadDialog = ({ open, onClose, onUpload, csvFile, onFileChange, loading }) => (
+const CSVUploadDialog = ({ open, onClose, onUpload, csvFile, onFileChange, loading, updateExisting, onUpdateExistingChange }) => (
   <FormDialog
     open={open}
     onClose={onClose}
@@ -75,6 +75,29 @@ const CSVUploadDialog = ({ open, onClose, onUpload, csvFile, onFileChange, loadi
             {SAMPLE_CSV}
           </Typography>
         </Box>
+
+        {/* Re-uploading a priced menu is normally a revision, not a fresh import. */}
+        <FormControlLabel
+          sx={{ mb: 2, alignItems: 'flex-start' }}
+          control={
+            <Checkbox
+              checked={!!updateExisting}
+              onChange={(e) => onUpdateExistingChange?.(e.target.checked)}
+              sx={{ pt: 0.25 }}
+            />
+          }
+          label={
+            <Box>
+              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                Update items that already exist
+              </Typography>
+              <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                Overwrites the price of matching items instead of skipping them. Columns your CSV
+                leaves out are kept as they are.
+              </Typography>
+            </Box>
+          }
+        />
 
         {/* File Upload */}
         <Box sx={{

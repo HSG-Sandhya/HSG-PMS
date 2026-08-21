@@ -199,6 +199,14 @@ class HotelRoomInvoiceTemplate extends BaseInvoiceTemplate {
         color: #111111;
       }
 
+      /* A separately-billed charge referenced from another document — printed
+         quieter than a real charge row so it is never mistaken for one. */
+      .split-note {
+        margin: 10px 0 0; font-size: 10px; color: #6b6b68;
+        line-height: 1.7; max-width: 560px;
+      }
+      .pay-list .row.muted .key, .pay-list .row.muted .val { color: #8b8b88; font-weight: 400; }
+
       /* ───── sections ───── */
       .section {
         padding: 11px 0;
@@ -484,7 +492,12 @@ class HotelRoomInvoiceTemplate extends BaseInvoiceTemplate {
 
   // ───────────────────────── food bill ─────────────────────────
 
-  async generateFoodBillHTML(booking, hotelInfo = null, invoiceNumber = null) {
+  /**
+   * The Food Bill — a document in its own right, listing only what was eaten.
+   * `settlement` carries the accommodation figures from the stay invoice so
+   * this bill can close with the ONE place the two are added together.
+   */
+  async generateFoodBillHTML(booking, hotelInfo = null, invoiceNumber = null, settlement = null) {
     const hotel = hotelInfo || this.getDefaultHotelInfo();
     const restaurantCharges = booking.restaurantCharges || 0;
     const restaurantOrders = booking.restaurantOrders || [];
@@ -512,6 +525,61 @@ class HotelRoomInvoiceTemplate extends BaseInvoiceTemplate {
       gstin: hotel.restaurant?.gstin || hotel.gstin,
       fssai: hotel.restaurant?.fssai || '',
     };
+
+    // The two bills meet here: accommodation from the stay invoice, food from
+    // this one, added once. Payment is a single settlement covering both, so
+    // the balance is struck against the combined figure rather than either
+    // document alone. Falls back to a plain note when this bill is produced on
+    // its own and there are no accommodation figures to reconcile against.
+    const fmtC = (n) => RestaurantCalculationUtils.formatCurrency(n);
+    let settlementBlock;
+    if (settlement) {
+      const accommodation = Number(settlement.accommodationTotal) || 0;
+      const combined = Number(settlement.combinedTotal) || (accommodation + total);
+      const paid = Number(settlement.paidAmount) || 0;
+      const balance = combined - paid;
+      const settledLabel = balance > 0.5
+        ? `<div class="row"><span class="key">Balance due</span><span class="val" style="font-weight:600;">${fmtC(balance)}</span></div>`
+        : (balance < -0.5
+          ? `<div class="row"><span class="key">To refund</span><span class="val" style="font-weight:600;">${fmtC(Math.abs(balance))}</span></div>`
+          : `<div class="row"><span class="key">Balance</span><span class="val" style="font-weight:600;">Settled in full</span></div>`);
+      settlementBlock = `
+    <div class="section">
+      <div class="eyebrow">— Total payable for this stay</div>
+      <table class="charges">
+        <tbody>
+          <tr>
+            <td>Accommodation<span class="sub">Tax Invoice No. ${settlement.roomInvoiceNumber || '—'}</span></td>
+            <td class="detail">incl. GST 5%</td>
+            <td class="amt">${fmtC(accommodation)}</td>
+          </tr>
+          <tr>
+            <td>Food &amp; Beverage<span class="sub">Food Bill No. ${foodBillNumber}</span></td>
+            <td class="detail">incl. GST 5%</td>
+            <td class="amt">${fmtC(total)}</td>
+          </tr>
+        </tbody>
+        <tfoot>
+          <tr class="total"><td class="lbl" colspan="2">Combined total</td><td class="amt">${fmtC(combined)}</td></tr>
+        </tfoot>
+      </table>
+      <div class="pay-list" style="margin-top:12px;max-width:340px;">
+        ${paid > 0 ? `<div class="row"><span class="key">Paid</span><span class="val">${fmtC(paid)}</span></div>` : ''}
+        ${settledLabel}
+      </div>
+      <p class="split-note">
+        Accommodation and food are invoiced separately; this is the single amount payable for both.
+      </p>
+    </div>`;
+    } else {
+      settlementBlock = `
+    <div class="section no-rule">
+      <div class="eyebrow">— Note</div>
+      <p style="font-size:10.5px;color:#4a4a4a;line-height:1.7;max-width:520px;">
+        These charges are billed separately from your accommodation invoice.
+      </p>
+    </div>`;
+    }
 
     return `
 <!DOCTYPE html>
@@ -585,12 +653,7 @@ class HotelRoomInvoiceTemplate extends BaseInvoiceTemplate {
       </table>
     </div>
 
-    <div class="section no-rule">
-      <div class="eyebrow">— Note</div>
-      <p style="font-size:10.5px;color:#4a4a4a;line-height:1.7;max-width:520px;">
-        These charges form part of your stay invoice and will be settled together at check-out.
-      </p>
-    </div>
+    ${settlementBlock}
 
     <div class="closing">
       Thank you for dining with us<span class="mark"></span>${restaurant.name}
@@ -615,12 +678,26 @@ class HotelRoomInvoiceTemplate extends BaseInvoiceTemplate {
     const restaurantCharges = booking.restaurantCharges || 0;
     const restaurantCalc = RestaurantCalculationUtils.calculateRestaurantTotals(restaurantOrders, restaurantCharges);
     const finalRestaurantCharges = restaurantCalc.total;
-    const grandTotal = totalAmount + finalRestaurantCharges;
+    // Food is billed on its OWN document (the Food Bill that follows), so this
+    // invoice covers accommodation alone — the two are added up once, at the
+    // end of the food bill, rather than mixed into the stay charges here.
+    const grandTotal = totalAmount;
+    const combinedTotal = totalAmount + finalRestaurantCharges;
     const paidAmount = booking.paidAmount || 0;
-    const status = this._statusFor(grandTotal, paidAmount);
+    // One payment covers both documents, so it has to be attributed. Food is
+    // settled first and accommodation takes the remainder — the same split
+    // accountingSync.js uses (roomPaid = paid − foodTotal), so the printed
+    // invoice and the books never disagree about what the room earned.
+    const roomPaid = Math.max(0, paidAmount - finalRestaurantCharges);
+    const status = this._statusFor(grandTotal, roomPaid);
 
     const invoiceNumber = await this.generateInvoiceNumber(booking);
-    const foodBillHTML = await this.generateFoodBillHTML(booking, hotelInfo, invoiceNumber);
+    const foodBillHTML = await this.generateFoodBillHTML(booking, hotelInfo, invoiceNumber, {
+      accommodationTotal: totalAmount,
+      combinedTotal,
+      paidAmount,
+      roomInvoiceNumber: invoiceNumber,
+    });
 
     // `totalAmount` is the GST-inclusive room total and may carry a late-checkout
     // charge folded in. Peel that out so the nights line is just nights, and the
@@ -759,18 +836,17 @@ class HotelRoomInvoiceTemplate extends BaseInvoiceTemplate {
           </tr>
           ` : ''}
           <tr class="subtotal-row"><td class="lbl"><strong>Accommodation subtotal</strong></td><td class="detail">incl. GST 5%</td><td class="amt"><strong>${this.formatCurrency(accommodationTotal + lateFeeTotal)}</strong></td></tr>
-          ${finalRestaurantCharges > 0 ? `
-          <tr>
-            <td>Food &amp; Beverage<span class="sub">Restaurant &amp; room service · ${restaurantOrders.length} order${restaurantOrders.length === 1 ? '' : 's'}</span></td>
-            <td class="detail">Inclusive of GST 5%</td>
-            <td class="amt">${RestaurantCalculationUtils.formatCurrency(finalRestaurantCharges)}</td>
-          </tr>
-          ` : ''}
         </tbody>
         <tfoot>
-          <tr class="total"><td class="lbl" colspan="2">Grand total</td><td class="amt">${this.formatCurrency(grandTotal)}</td></tr>
+          <tr class="total"><td class="lbl" colspan="2">Total — accommodation</td><td class="amt">${this.formatCurrency(grandTotal)}</td></tr>
         </tfoot>
       </table>
+      ${finalRestaurantCharges > 0 ? `
+      <p class="split-note">
+        Food &amp; Beverage is billed separately on Food Bill No. ${invoiceNumber.replace('HSG', 'FB')},
+        which follows this invoice. The two bills are totalled there.
+      </p>
+      ` : ''}
     </section>
 
     <section class="section">
@@ -778,12 +854,12 @@ class HotelRoomInvoiceTemplate extends BaseInvoiceTemplate {
       <div class="payment-grid">
         <div class="pay-list">
           <div class="row"><span class="key">Accommodation</span><span class="val">${this.formatCurrency(totalAmount)}</span></div>
-          ${finalRestaurantCharges > 0 ? `
-          <div class="row"><span class="key">Food &amp; Beverage</span><span class="val">${RestaurantCalculationUtils.formatCurrency(finalRestaurantCharges)}</span></div>
+          <div class="row"><span class="key">Total payable</span><span class="val" style="font-weight:500;">${this.formatCurrency(grandTotal)}</span></div>
+          ${roomPaid > 0 ? `
+          <div class="row"><span class="key">Paid</span><span class="val">${this.formatCurrency(roomPaid)}${paymentInfoLine}</span></div>
           ` : ''}
-          <div class="row"><span class="key">Grand total</span><span class="val" style="font-weight:500;">${this.formatCurrency(grandTotal)}</span></div>
-          ${paidAmount > 0 ? `
-          <div class="row"><span class="key">Paid${paymentInfoLine ? '' : ''}</span><span class="val">${this.formatCurrency(paidAmount)}${paymentInfoLine}</span></div>
+          ${finalRestaurantCharges > 0 ? `
+          <div class="row muted"><span class="key">Food &amp; Beverage</span><span class="val">Billed separately · ${RestaurantCalculationUtils.formatCurrency(finalRestaurantCharges)}</span></div>
           ` : ''}
         </div>
         <div class="status-card">
@@ -823,7 +899,7 @@ class HotelRoomInvoiceTemplate extends BaseInvoiceTemplate {
 
     <div class="closing">
       Thank you for staying with us<span class="mark"></span>${hotel.name}
-      ${finalRestaurantCharges > 0 ? '<div style="margin-top:6px;font-size:9.5px;color:#8b8b88;letter-spacing:0.18em;text-transform:uppercase;">Food bill attached overleaf</div>' : ''}
+      ${finalRestaurantCharges > 0 ? '<div style="margin-top:6px;font-size:9.5px;color:#8b8b88;letter-spacing:0.18em;text-transform:uppercase;">Separate food bill follows</div>' : ''}
     </div>
   </div>
 </body>

@@ -1,10 +1,12 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Box, Typography, TextField, Grid, Stack, Divider } from '@mui/material';
+import { Box, Typography, TextField, Grid, Stack, Divider, Button, IconButton } from '@mui/material';
 import FactCheckOutlinedIcon from '@mui/icons-material/FactCheckOutlined';
+import AddIcon from '@mui/icons-material/Add';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined';
 import FormDialog, { FormSection } from '../forms/FormDialog';
 import api from '../../api';
 import { currencySym } from '../../utils/billing';
-import { roundBanquetTotal } from '../../pages/management/banquet/bookingPricing';
+import { roundBanquetTotal, facilityItemAmount, sumFacilityItems } from '../../pages/management/banquet/bookingPricing';
 import { isGstExemptType } from '../../pages/management/banquet/bookingConstants';
 
 const fmt = (n) =>
@@ -38,6 +40,7 @@ const withGst = (base, gstExempt = false) => {
  */
 const FinalizeBillingDialog = ({ open, onClose, booking, onUpdated }) => {
   const [actuals, setActuals] = useState({}); // line index -> string
+  const [extras, setExtras] = useState([]);  // items taken during the event
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -54,6 +57,19 @@ const FinalizeBillingDialog = ({ open, onClose, booking, onUpdated }) => {
         seed[i] = cur != null ? String(cur) : '';
       });
       setActuals(seed);
+      // Re-opening a settled booking shows what was already billed, so the
+      // list can be corrected rather than duplicated.
+      setExtras(
+        (Array.isArray(booking.postEventItems) ? booking.postEventItems : []).map((it) => ({
+          name: it.name || '',
+          detail: it.detail || '',
+          price: it.price != null && it.price !== 0
+            ? it.price
+            : (Number(it.amount) || 0) / Math.max(1, Number(it.quantity) || 1),
+          gstPercent: it.price != null && it.price !== 0 ? (it.gstPercent || 0) : 0,
+          quantity: it.quantity != null ? it.quantity : 1,
+        })),
+      );
       setError('');
     }
   }, [open, booking, items]);
@@ -77,10 +93,16 @@ const FinalizeBillingDialog = ({ open, onClose, booking, onUpdated }) => {
 
   const gstExempt = isGstExemptType(booking.eventType);
   const newCateringSum = items.reduce((s, it, i) => s + withGst(lineAmount(it.perPlate, actuals[i], it.days), gstExempt), 0);
+  // Items the host took on the day. Priced with the same ex-GST-in / gross-out
+  // rule as the booking form's facilities, so one line means the same money
+  // wherever it is entered. `nonCatering` deliberately excludes the stored
+  // postEventCost — these are recomputed live from the editable list, and
+  // counting both would bill the extras twice.
+  const postEventSum = sumFacilityItems(extras, gstExempt);
   // Same rules as the booking form: the discount agreed at booking still applies
   // to the actuals (capped at the gross), and the re-billed total is rounded UP
   // to the next ₹100 so the amount collected at the desk stays a round sum.
-  const gross = nonCatering + newCateringSum;
+  const gross = nonCatering + newCateringSum + postEventSum;
   const discount = Math.min(gross, Math.max(0, Number(booking.discount) || 0));
   const newTotal = roundBanquetTotal(gross - discount);
 
@@ -88,6 +110,16 @@ const FinalizeBillingDialog = ({ open, onClose, booking, onUpdated }) => {
     ? booking.payments.reduce((s, p) => s + (Number(p.amount) || 0), 0)
     : (Number(booking.advanceAmount) || 0);
   const newBalance = Math.max(0, newTotal - collected);
+
+  // A booking with no catering can still be settled — the host may only have
+  // taken extras on the day.
+  const canSubmit = items.length > 0 || extras.length > 0;
+
+  const addExtra = () =>
+    setExtras((p) => [...p, { name: '', detail: '', price: 0, gstPercent: gstExempt ? 0 : 18, quantity: 1 }]);
+  const updateExtra = (idx, patch) =>
+    setExtras((p) => p.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
+  const removeExtra = (idx) => setExtras((p) => p.filter((_, i) => i !== idx));
 
   const handleSubmit = async (e) => {
     e?.preventDefault?.();
@@ -103,8 +135,23 @@ const FinalizeBillingDialog = ({ open, onClose, booking, onUpdated }) => {
           amount: lineAmount(it.perPlate, actualPlates, it.days),
         };
       });
+      // Keep the ex-GST inputs AND the gross amount the invoice bills, so the
+      // line stays editable later and the money stays exact. Unnamed or
+      // zero-value rows are dropped rather than saved as blanks.
+      const postEventItems = extras
+        .filter((it) => (it.name || '').trim() && facilityItemAmount(it, gstExempt) > 0)
+        .map((it) => ({
+          name: it.name.trim(),
+          detail: (it.detail || '').trim(),
+          price: Number(it.price) || 0,
+          gstPercent: Number(it.gstPercent) || 0,
+          quantity: parseInt(it.quantity, 10) || 1,
+          amount: facilityItemAmount(it, gstExempt),
+        }));
       const { data } = await api.banquet.updateBooking(booking._id, {
         cateringItems,
+        postEventItems,
+        postEventCost: postEventItems.reduce((sum, it) => sum + it.amount, 0),
         totalAmount: newTotal,
         billingFinalized: true,
         finalizedAt: new Date().toISOString(),
@@ -127,9 +174,9 @@ const FinalizeBillingDialog = ({ open, onClose, booking, onUpdated }) => {
       icon={<FactCheckOutlinedIcon />}
       eyebrow="Banquet · Post-event"
       title="Finalize billing"
-      onSubmit={items.length ? handleSubmit : null}
+      onSubmit={canSubmit ? handleSubmit : null}
       submitLabel={saving ? 'Finalizing…' : 'Finalize & update bill'}
-      submitDisabled={saving || !items.length}
+      submitDisabled={saving || !canSubmit}
     >
       <FormSection>
         <Typography
@@ -144,8 +191,9 @@ const FinalizeBillingDialog = ({ open, onClose, booking, onUpdated }) => {
         <Typography variant="caption" sx={{
           color: "text.secondary"
         }}>
-          Enter the actual plates consumed for each catering line. The catering charge, grand total
-          and balance update from the actuals; venue, décor and other charges stay as quoted.
+          Enter the actual plates consumed for each catering line, and list anything the host took
+          on the day that was not booked. The catering charge, extras, grand total and balance
+          update from what you enter; venue, décor and other quoted charges stay as they are.
         </Typography>
       </FormSection>
       {items.length === 0 ? (
@@ -216,10 +264,98 @@ const FinalizeBillingDialog = ({ open, onClose, booking, onUpdated }) => {
           </Stack>
         </FormSection>
       )}
+      <FormSection>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1, mb: 0.5 }}>
+          <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+            Extras taken during the event
+          </Typography>
+          <Button size="small" startIcon={<AddIcon />} onClick={addExtra} sx={{ textTransform: 'none', borderRadius: '999px' }}>
+            Add item
+          </Button>
+        </Box>
+        <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mb: 1.5 }}>
+          Anything served or hired beyond the booking — an extra round of starters, more mineral
+          water, a second mic. Enter the price {gstExempt ? 'per unit' : 'per unit excluding GST'};
+          the line total is what gets billed{gstExempt ? '' : ', GST included'}. These print on the
+          invoice under their own heading.
+        </Typography>
+        {extras.length === 0 ? (
+          <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+            No extras taken.
+          </Typography>
+        ) : (
+          <Stack divider={<Divider />} spacing={0}>
+            {extras.map((it, idx) => (
+              <Box key={idx} sx={{ py: 1.25 }}>
+                <Grid container spacing={1.5} sx={{ alignItems: 'center' }}>
+                  <Grid size={{ xs: 12, sm: 4 }}>
+                    <TextField
+                      fullWidth size="small" label="Item"
+                      placeholder="Paneer Tikka"
+                      value={it.name}
+                      onChange={(e) => updateExtra(idx, { name: e.target.value })}
+                    />
+                  </Grid>
+                  <Grid size={{ xs: 6, sm: 2 }}>
+                    <TextField
+                      fullWidth size="small" type="number" label={`Price (${currencySym()})`}
+                      value={it.price}
+                      onChange={(e) => updateExtra(idx, { price: Math.max(0, parseFloat(e.target.value) || 0) })}
+                      helperText={gstExempt ? 'Per unit' : 'Excluding GST'}
+                      slotProps={{ htmlInput: { min: 0 } }}
+                    />
+                  </Grid>
+                  <Grid size={{ xs: 6, sm: 1.5 }}>
+                    <TextField
+                      fullWidth size="small" type="number" label="Qty"
+                      value={it.quantity}
+                      onChange={(e) => { if (/^\d*$/.test(e.target.value)) updateExtra(idx, { quantity: e.target.value }); }}
+                      slotProps={{ htmlInput: { min: 0 } }}
+                    />
+                  </Grid>
+                  <Grid size={{ xs: 6, sm: 1.5 }}>
+                    <TextField
+                      fullWidth size="small" type="number" label="GST %"
+                      value={gstExempt ? 0 : it.gstPercent}
+                      disabled={gstExempt}
+                      onChange={(e) => updateExtra(idx, { gstPercent: Math.max(0, Math.min(28, parseFloat(e.target.value) || 0)) })}
+                      helperText={gstExempt ? 'Exempt event' : ''}
+                      slotProps={{ htmlInput: { min: 0, max: 28 } }}
+                    />
+                  </Grid>
+                  <Grid size={{ xs: 10, sm: 2 }}>
+                    <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>Line total</Typography>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
+                      {fmt(facilityItemAmount(it, gstExempt))}
+                    </Typography>
+                  </Grid>
+                  <Grid size={{ xs: 2, sm: 1 }} sx={{ textAlign: 'right' }}>
+                    <IconButton size="small" onClick={() => removeExtra(idx)} sx={{ color: '#ef4444' }}>
+                      <DeleteOutlineIcon fontSize="small" />
+                    </IconButton>
+                  </Grid>
+                  <Grid size={12}>
+                    <TextField
+                      fullWidth size="small" label="Note (optional)"
+                      placeholder="Served at dinner"
+                      value={it.detail || ''}
+                      onChange={(e) => updateExtra(idx, { detail: e.target.value })}
+                    />
+                  </Grid>
+                </Grid>
+              </Box>
+            ))}
+            <Typography variant="body2" sx={{ fontWeight: 800, textAlign: 'right', pt: 1.25, color: 'var(--app-primary)' }}>
+              Extras total: {fmt(postEventSum)}
+            </Typography>
+          </Stack>
+        )}
+      </FormSection>
       <FormSection title="Revised bill">
         <Grid container spacing={1.5}>
           <Summary label="Other charges" value={fmt(nonCatering)} />
           <Summary label={gstExempt ? 'Catering (actual)' : 'Catering (actual, incl. 18% GST)'} value={fmt(newCateringSum)} color="#6366f1" />
+          {postEventSum > 0 && <Summary label="Extras taken" value={fmt(postEventSum)} color="#b45309" />}
           {discount > 0 && <Summary label="Discount" value={`− ${fmt(discount)}`} color="#dc2626" />}
           <Summary label="New total" value={fmt(newTotal)} color="#0f7fc9" />
           <Summary label="Collected" value={fmt(collected)} color="#059669" />

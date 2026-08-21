@@ -810,6 +810,12 @@ export const uploadMenuCsv = async (req, res) => {
   const filePath = req.file.path;
   const errors = [];
   let imported = 0;
+  let updated = 0;
+  // Re-uploading a menu is normally a price revision, so allow the caller to
+  // opt into patching existing items instead of rejecting every row.
+  const updateExisting = ['true', '1', 'yes'].includes(
+    (req.body.updateExisting ?? '').toString().toLowerCase().trim()
+  );
 
   const cleanup = () => {
     fs.unlink(filePath, (err) => {
@@ -905,7 +911,9 @@ export const uploadMenuCsv = async (req, res) => {
                     'Zomato Price',
                     'Swiggy Price',
                     'Online Price',
-                  ]) || (isPositivePrice(categoryValue) ? categoryValue : undefined),
+                  ]) ||
+                  (isPositivePrice(categoryValue) ? categoryValue : undefined) ||
+                  findPriceInRow(row),
                 category:
                   effectiveCategory ||
                   req.body.category ||
@@ -965,7 +973,7 @@ export const uploadMenuCsv = async (req, res) => {
                 category: category._id,
               });
 
-              if (existingItem) {
+              if (existingItem && !updateExisting) {
                 errors.push({ row: rowNumber, data: row, error: 'Menu item already exists' });
                 continue;
               }
@@ -998,6 +1006,24 @@ export const uploadMenuCsv = async (req, res) => {
                 image: mappedRow.image ? mappedRow.image.toString().trim() : '',
               };
 
+              if (existingItem) {
+                // Patch only the columns this CSV actually carried, so a bare
+                // "Category,Item Name,New Price" sheet can't blank out
+                // descriptions or reset prep times on the way through.
+                const patch = { price: menuItemData.price };
+                const provided = (value) =>
+                  value !== undefined && value !== null && value.toString().trim() !== '';
+                if (provided(mappedRow.description)) patch.description = menuItemData.description;
+                if (provided(mappedRow.isVeg)) patch.isVeg = menuItemData.isVeg;
+                if (provided(mappedRow.preparationTime)) patch.preparationTime = menuItemData.preparationTime;
+                if (provided(mappedRow.popular)) patch.popular = menuItemData.popular;
+                if (provided(mappedRow.isAvailable)) patch.isAvailable = menuItemData.isAvailable;
+                if (provided(mappedRow.image)) patch.image = menuItemData.image;
+                await MenuItem.updateOne({ _id: existingItem._id }, patch);
+                updated++;
+                continue;
+              }
+
               await MenuItem.create(menuItemData);
               imported++;
             } catch (err) {
@@ -1012,14 +1038,17 @@ export const uploadMenuCsv = async (req, res) => {
             return summary;
           }, {});
 
+          const parts = [`Successfully imported ${imported} menu items`];
+          if (updated > 0) parts.push(`updated ${updated}`);
+          if (errors.length > 0) parts.push(`${errors.length} errors`);
+
           res.json({
             success: true,
             imported,
+            updated,
             errors,
             errorSummary,
-            message: `Successfully imported ${imported} menu items${
-              errors.length > 0 ? ` with ${errors.length} errors` : ''
-            }`,
+            message: parts.join(', '),
           });
 
           resolve();

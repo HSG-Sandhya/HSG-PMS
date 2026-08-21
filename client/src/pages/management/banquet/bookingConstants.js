@@ -279,6 +279,10 @@ export const initialFormData = {
   decorationItems: [],  // [{ decorationPackageId, name, category, cost, details }]
   utensilItems: [],     // [{ utensilItemId, name, unit, cost, quantity }] — rented cookware
   extraItems: [],       // [{ name, detail, price, gstPercent, quantity }] — additional facilities
+  // Extras the host took on the event day, entered in the Finalize-billing
+  // dialog. Same shape as extraItems; the wizard has no editor for them but
+  // MUST carry them through, or an edit after settlement would drop the money.
+  postEventItems: [],   // [{ name, detail, price, gstPercent, quantity }]
   utensilsCost: 0,      // computed sum of utensil line amounts
 
   menuCost: 0, // computed catering total (kept for invoice compatibility)

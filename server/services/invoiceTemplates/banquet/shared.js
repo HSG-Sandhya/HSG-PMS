@@ -119,6 +119,7 @@ export const validUntil = (ctx) => {
 const BANQUET_SAC = {
   hall: '996334', rooms: '996311', decoration: '998596',
   catering: '996334', meals: '996334', side: '996334', extra: '996334',
+  postEvent: '996334',
   photography: '998383',
 };
 export const banquetSac = (category) => BANQUET_SAC[category] || '996334';
@@ -132,6 +133,7 @@ export const categoryTag = (category) => ({
   meals: 'Catering',
   side: 'Add-on',
   extra: 'Add-on',
+  postEvent: 'Extra',
   photography: 'Media',
 }[category] || 'Service');
 
@@ -182,6 +184,7 @@ const SECTION_OF = {
   meals: 'Catering & Menu',
   side: 'Add-ons & Extras',
   extra: 'Add-ons & Extras',
+  postEvent: 'Extras Taken During Event',
   photography: 'Media & Services',
 };
 

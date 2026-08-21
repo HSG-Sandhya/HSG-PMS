@@ -260,29 +260,38 @@ const buildBanquetItems = (booking) => {
     });
   }
 
-  // Additional facilities (sound system, projector, Wi-Fi …). These are billed
-  // GST-INCLUSIVE — the stored amount already contains the tax — so we back the
-  // taxable value out rather than adding GST on top. `price` is the ex-GST unit
-  // rate when present (post-quotation bookings); legacy rows without it fall
-  // back to dividing the gross by (1 + rate).
-  (Array.isArray(booking.extraItems) ? booking.extraItems : []).forEach((it) => {
-    const gross = Number(it.amount) || 0;
-    if (gross <= 0) return;
-    const qty = Number(it.quantity) || 1;
-    const rate = (Number(it.gstPercent) || DEFAULT_BANQUET_GST) / 100;
-    const taxable = Number(it.price) ? Number(it.price) * qty : Math.round(gross / (1 + rate));
-    items.push({
-      description: it.name || 'Additional facility',
-      detail: it.detail || '',
-      quantity: qty,
-      rate: Number(it.price) || Math.round(taxable / qty),
-      taxable,
-      gstRate: rate,
-      gstAmount: gross - taxable,
-      amount: gross,
-      category: 'extra',
+  // Gross-priced add-on lines (facilities quoted up front, and extras the host
+  // took during the event). These are billed GST-INCLUSIVE — the stored amount
+  // already contains the tax — so we back the taxable value out rather than
+  // adding GST on top. `price` is the ex-GST unit rate when present
+  // (post-quotation bookings); legacy rows without it fall back to dividing the
+  // gross by (1 + rate).
+  const pushGrossLines = (list, category, fallbackName, detailFallback = '') => {
+    (Array.isArray(list) ? list : []).forEach((it) => {
+      const gross = Number(it.amount) || 0;
+      if (gross <= 0) return;
+      const qty = Number(it.quantity) || 1;
+      const rate = (Number(it.gstPercent) || DEFAULT_BANQUET_GST) / 100;
+      const taxable = Number(it.price) ? Number(it.price) * qty : Math.round(gross / (1 + rate));
+      items.push({
+        description: it.name || fallbackName,
+        detail: it.detail || detailFallback,
+        quantity: qty,
+        rate: Number(it.price) || Math.round(taxable / qty),
+        taxable,
+        gstRate: rate,
+        gstAmount: gross - taxable,
+        amount: gross,
+        category,
+      });
     });
-  });
+  };
+
+  // Additional facilities (sound system, projector, Wi-Fi …) quoted at booking.
+  pushGrossLines(booking.extraItems, 'extra', 'Additional facility');
+  // Extras the host took on the event day — billed under their own heading so
+  // the guest can see what was consumed beyond the booking.
+  pushGrossLines(booking.postEventItems, 'postEvent', 'Extra item', 'Taken during event');
 
   if (!items.length) {
     items.push({

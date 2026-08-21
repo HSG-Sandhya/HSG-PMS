@@ -124,6 +124,7 @@ const Restaurant = () => {
   const [selectedTable, setSelectedTable] = useState(null);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [csvFile, setCSVFile] = useState(null);
+  const [csvUpdateExisting, setCSVUpdateExisting] = useState(false);
   
   // Snackbar state
   const [snackbar, setSnackbar] = useState({
@@ -1108,6 +1109,7 @@ const Restaurant = () => {
   const handleCloseCSVDialog = () => {
     setOpenCSVDialog(false);
     setCSVFile(null);
+    setCSVUpdateExisting(false);
   };
 
   const handleCSVFileChange = (e) => {
@@ -1124,11 +1126,12 @@ const Restaurant = () => {
       setLoading(true);
       const formData = new FormData();
       formData.append('file', csvFile);
+      formData.append('updateExisting', csvUpdateExisting ? 'true' : 'false');
       
       const response = await api.restaurant.uploadMenuCSV(formData);
       
       if (response.data.success) {
-        const { imported, errors, errorSummary } = response.data;
+        const { imported, updated = 0, errors, errorSummary } = response.data;
 
         // Turn the grouped reasons into a short, human-readable "why": e.g.
         // "Valid price is required (184)". Falls back to grouping the raw
@@ -1145,17 +1148,23 @@ const Restaurant = () => {
           .map(([reason, count]) => `${reason} (${count})`)
           .join(' · ');
 
-        if (imported > 0 && errors.length === 0) {
-          showSnackbar(`Successfully imported ${imported} menu items!`, 'success');
-        } else if (imported > 0 && errors.length > 0) {
-          showSnackbar(`Imported ${imported} items — skipped ${errors.length}: ${reasonText}`, 'warning');
+        const changed = imported + updated;
+        const changedText = [
+          imported > 0 ? `imported ${imported}` : null,
+          updated > 0 ? `updated ${updated}` : null,
+        ].filter(Boolean).join(' · ');
+
+        if (changed > 0 && errors.length === 0) {
+          showSnackbar(`Menu CSV done — ${changedText}.`, 'success');
+        } else if (changed > 0 && errors.length > 0) {
+          showSnackbar(`Menu CSV done — ${changedText}; skipped ${errors.length}: ${reasonText}`, 'warning');
         } else {
           showSnackbar(`Import failed (${errors.length}). Reason: ${reasonText}`, 'error');
         }
         if (errors.length > 0) console.warn('[CSV import] error breakdown:', summary, errors.slice(0, 10));
         
-        // Refresh menu items and categories if any were imported
-        if (imported > 0) {
+        // Refresh menu items and categories if anything was imported or updated
+        if (changed > 0) {
           const [menuResponse, categoryResponse] = await Promise.all([
             api.restaurant.getMenuItems(),
             api.restaurant.getCategories(),
@@ -1432,6 +1441,8 @@ const Restaurant = () => {
           onUpload={handleCSVUpload}
           csvFile={csvFile}
           onFileChange={handleCSVFileChange}
+          updateExisting={csvUpdateExisting}
+          onUpdateExistingChange={setCSVUpdateExisting}
           loading={loading}
         />
 

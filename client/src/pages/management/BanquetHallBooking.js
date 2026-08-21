@@ -372,12 +372,17 @@ const BanquetHallBooking = () => {
     // it, editing a converted booking would silently drop the facilities.
     const extrasCost = sumFacilityItems(formData.extraItems, gstExempt);
 
+    // Extras taken during the event, entered at settlement. The wizard has no
+    // editor for them, but they are part of the bill — leave them out of the
+    // total here and re-editing a settled booking would silently refund them.
+    const postEventCost = sumFacilityItems(formData.postEventItems, gstExempt);
+
     // 18% GST on the catering value — catering is priced pre-GST, so it is added
     // on top to reach the billed total (every other line is GST-inclusive). This
     // keeps the tracked total in step with the printed tax invoice.
     const cateringGstAmount = cateringGst(cateringCost, gstExempt);
 
-    const rawTotal = floorCost + roomsCost + decorationCost + cateringCost + cateringGstAmount + utensilsCost + vendorExtras + extrasCost;
+    const rawTotal = floorCost + roomsCost + decorationCost + cateringCost + cateringGstAmount + utensilsCost + vendorExtras + extrasCost + postEventCost;
 
     // Negotiated discount, capped at the gross so the payable can never go
     // negative. Deducted BEFORE the rounding, so the amount the guest actually
@@ -403,6 +408,7 @@ const BanquetHallBooking = () => {
       menuCost: cateringCost,
       utensilsCost,
       extrasCost,
+      postEventCost,
       numberOfDays,
       grossAmount: rawTotal,
       discountApplied: discount,
@@ -412,7 +418,7 @@ const BanquetHallBooking = () => {
       eventDuration,
     }));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [formData.selectedFloors, formData.rooms, formData.complimentaryRooms, formData.decorationItems, formData.cateringItems, formData.utensilItems, formData.extraItems, formData.guestCount, formData.packageId, formData.packageBasePrice, formData.packageDecorationCost, formData.advanceAmount, formData.discount, formData.eventType, formData.eventDate, formData.endDate, formData.startTime, formData.endTime, formData.photographyAmount, formData.entertainmentCost]);
+  }, [formData.selectedFloors, formData.rooms, formData.complimentaryRooms, formData.decorationItems, formData.cateringItems, formData.utensilItems, formData.extraItems, formData.postEventItems, formData.guestCount, formData.packageId, formData.packageBasePrice, formData.packageDecorationCost, formData.advanceAmount, formData.discount, formData.eventType, formData.eventDate, formData.endDate, formData.startTime, formData.endTime, formData.photographyAmount, formData.entertainmentCost]);
 
   // Remember when the Payment (final) step was shown, for the submit guard.
   useEffect(() => {
@@ -550,6 +556,21 @@ const BanquetHallBooking = () => {
           }))
           : [],
         extrasCost: booking.extrasCost || 0,
+
+        // Extras taken during the event (entered at settlement). Read-only in
+        // this wizard — carried so an edit re-saves them instead of losing them.
+        postEventItems: Array.isArray(booking.postEventItems)
+          ? booking.postEventItems.map((it) => ({
+            name: it.name || '',
+            detail: it.detail || '',
+            price: it.price != null && it.price !== 0
+              ? it.price
+              : (Number(it.amount) || 0) / Math.max(1, Number(it.quantity) || 1),
+            gstPercent: it.price != null && it.price !== 0 ? (it.gstPercent || 0) : 0,
+            quantity: it.quantity != null ? it.quantity : 1,
+          }))
+          : [],
+        postEventCost: booking.postEventCost || 0,
 
         endDate: booking.endDate ? format(parseISO(new Date(booking.endDate).toISOString()), 'yyyy-MM-dd') : '',
         daysWithMeals: booking.daysWithMeals !== undefined && booking.daysWithMeals !== null && booking.daysWithMeals !== '' ? String(booking.daysWithMeals) : String(getNumberOfDays(booking.eventDate, booking.endDate)),
@@ -756,6 +777,19 @@ const BanquetHallBooking = () => {
         }));
       const extrasCost = extraItems.reduce((s, it) => s + it.amount, 0);
 
+      // Extras taken during the event — same gross convention, own bucket.
+      const postEventItems = (formData.postEventItems || [])
+        .filter((it) => (it.name || '').trim() && facilityItemAmount(it, gstExempt) > 0)
+        .map((it) => ({
+          name: it.name.trim(),
+          detail: (it.detail || '').trim(),
+          price: Number(it.price) || 0,
+          gstPercent: Number(it.gstPercent) || 0,
+          quantity: parseInt(it.quantity, 10) || 1,
+          amount: facilityItemAmount(it, gstExempt),
+        }));
+      const postEventCost = postEventItems.reduce((s, it) => s + it.amount, 0);
+
       const firstCatering = cateringItems[0] || null;
       const totalPlates = cateringItems.reduce((s, it) => s + it.plates, 0);
       const maxMealDays = cateringItems.reduce((m, it) => Math.max(m, it.days), 0);
@@ -778,6 +812,8 @@ const BanquetHallBooking = () => {
         utensilsCost,
         extraItems,
         extrasCost,
+        postEventItems,
+        postEventCost,
         eventDetails,
         guestCount: parseInt(formData.guestCount, 10) || 0,
         advanceAmount: parseFloat(formData.advanceAmount) || 0,

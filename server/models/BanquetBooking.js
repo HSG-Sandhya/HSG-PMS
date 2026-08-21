@@ -272,6 +272,25 @@ const banquetBookingSchema = new mongoose.Schema({
   }],
   extrasCost: { type: Number, default: 0, min: 0 },
 
+  // ── Extras taken DURING the event (post-event consumption) ───────────────
+  // Items the host actually took on the day that were never part of the
+  // booking — another round of starters, a second mic, extra mineral water.
+  // Entered at settlement in the Finalize-billing dialog and deliberately kept
+  // in their OWN bucket rather than merged into extraItems, so the invoice can
+  // bill them under a separate heading, clearly apart from the facilities
+  // quoted up front. Same convention as extraItems: `price`/`gstPercent` are
+  // the ex-GST inputs kept editable, `amount` is the GROSS figure billed.
+  // postEventCost is the sum and is included in totalAmount.
+  postEventItems: [{
+    name: { type: String, trim: true, default: '' },
+    detail: { type: String, trim: true, default: '' },
+    price: { type: Number, default: 0, min: 0 },
+    gstPercent: { type: Number, default: 0, min: 0, max: 28 },
+    quantity: { type: Number, default: 1, min: 0 },
+    amount: { type: Number, default: 0, min: 0 },
+  }],
+  postEventCost: { type: Number, default: 0, min: 0 },
+
   // ── Origin quotation ─────────────────────────────────────────────────────
   // Set when the booking was created by converting an EventQuotation, so the
   // sales trail from proposal → booking → invoice stays intact.
