@@ -2,6 +2,10 @@
  * Restaurant Calculation Utilities
  * Common calculation logic for restaurant orders across all invoice templates
  */
+// POS GST on food — 5% (2.5 CGST + 2.5 SGST), the same rate the rest of the
+// invoice stack uses for restaurant lines.
+const GST_RATE = 0.05;
+
 class RestaurantCalculationUtils {
   /**
    * Calculate restaurant order totals with proper GST handling
@@ -49,42 +53,65 @@ class RestaurantCalculationUtils {
       }
     });
     
-    // Determine which calculation method to use
+    // ── GST follows the order's own convention ──────────────────────────────
+    // Order.js: `totalAmount = itemsTotal + (gstIncluded ? 0 : gst)`. So a menu
+    // price is the BASE and 5% is added on top, EXCEPT on orders flagged
+    // gstIncluded (POS sales priced tax-in), where the item prices already
+    // contain the tax and nothing may be added. Honour the flag per order —
+    // guessing one convention for the whole bill is what produced wrong totals
+    // before. `totalAmount` is the payable figure either way, so it is trusted
+    // as the gross whenever the order carries it.
+    const round2 = (n) => Math.round(n * 100) / 100;
+
+    let grossTotal = 0;
+    let baseTotal = 0;
+    let anyInclusive = false;
+    let anyExclusive = false;
+
+    restaurantOrders.forEach((order) => {
+      const itemsTotal = (order.items || []).reduce(
+        (sum, it) => sum + (it.price || 0) * (it.quantity || 1), 0,
+      );
+      const inclusive = !!order.gstIncluded;
+
+      if (itemsTotal > 0) {
+        if (inclusive) {
+          anyInclusive = true;
+          const gross = Number(order.totalAmount) || itemsTotal;
+          grossTotal += gross;
+          baseTotal += gross / (1 + GST_RATE);
+        } else {
+          anyExclusive = true;
+          // Prefer the POS's own payable figure; fall back to base + 5%.
+          const gross = Number(order.totalAmount) || itemsTotal * (1 + GST_RATE);
+          grossTotal += gross;
+          baseTotal += itemsTotal;
+        }
+      } else if (order.totalAmount) {
+        // No item detail — totalAmount is the payable, so back the tax out.
+        anyInclusive = true;
+        grossTotal += Number(order.totalAmount);
+        baseTotal += Number(order.totalAmount) / (1 + GST_RATE);
+      }
+    });
+
     let finalSubtotal, finalGstAmount, finalTotal;
     let calculationMethod = 'none';
-    
-    if (calculatedSubtotal > 0) {
-      // Use calculated amounts from detailed items (most accurate)
-      finalSubtotal = calculatedSubtotal;
-      finalGstAmount = Math.round(calculatedSubtotal * 0.05 * 100) / 100;
-      finalTotal = finalSubtotal + finalGstAmount;
-      calculationMethod = 'calculated';
-      
-      
+
+    if (grossTotal > 0) {
+      finalTotal = round2(grossTotal);
+      finalSubtotal = round2(baseTotal);
+      finalGstAmount = round2(finalTotal - finalSubtotal);
+      calculationMethod = 'itemised';
+
     } else if (restaurantCharges > 0) {
-      // Fallback: determine if restaurantCharges is subtotal or total
-      // If restaurantCharges seems to be subtotal (common case), treat it as such
-      const potentialTotal = restaurantCharges * 1.05;
-      const potentialSubtotal = (restaurantCharges * 100) / 105;
-      
-      // Heuristic: if restaurantCharges is a round number and close to calculated subtotal,
-      // it's likely the subtotal, not the total
-      if (Math.abs(restaurantCharges - calculatedSubtotal) < 1 || restaurantCharges % 10 === 0) {
-        // Treat restaurantCharges as subtotal
-        finalSubtotal = restaurantCharges;
-        finalGstAmount = Math.round(restaurantCharges * 0.05 * 100) / 100;
-        finalTotal = finalSubtotal + finalGstAmount;
-        calculationMethod = 'subtotal_provided';
-        
-      } else {
-        // Treat restaurantCharges as total (extract GST)
-        finalTotal = restaurantCharges;
-        finalSubtotal = Math.round(potentialSubtotal);
-        finalGstAmount = Math.round((finalSubtotal * 5) / 100 * 100) / 100;
-        calculationMethod = 'total_provided';
-        
-      }
-      
+      // Fallback: the booking's stored restaurantCharges, summed from
+      // Order.totalAmount — the payable figure, so the tax is backed out of it.
+      finalTotal = round2(restaurantCharges);
+      finalSubtotal = round2(finalTotal / (1 + GST_RATE));
+      finalGstAmount = round2(finalTotal - finalSubtotal);
+      calculationMethod = 'order_totals';
+
     } else {
       // No data available
       finalSubtotal = 0;
@@ -92,8 +119,12 @@ class RestaurantCalculationUtils {
       finalTotal = 0;
       calculationMethod = 'empty';
     }
-    
-    return {
+
+    // Whether the AMOUNTS PRINTED against each item already contain the tax —
+    // drives the wording on the bill so the column always reconciles.
+    const pricesIncludeGst = anyInclusive && !anyExclusive;
+
+        return {
       // Calculated values
       subtotal: finalSubtotal,
       gstAmount: finalGstAmount,
@@ -106,6 +137,7 @@ class RestaurantCalculationUtils {
       
       // Metadata
       calculationMethod,
+      pricesIncludeGst,
       originalRestaurantCharges: restaurantCharges,
       calculatedFromItems: calculatedSubtotal
     };

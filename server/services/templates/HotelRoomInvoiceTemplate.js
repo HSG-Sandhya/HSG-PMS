@@ -199,13 +199,13 @@ class HotelRoomInvoiceTemplate extends BaseInvoiceTemplate {
         color: #111111;
       }
 
-      /* A separately-billed charge referenced from another document — printed
-         quieter than a real charge row so it is never mistaken for one. */
+      /* Explanatory line under a totals table — printed quieter than a charge
+         row so it is never mistaken for one. Used on the food bill only: the
+         stay invoice deliberately carries no reference to the food bill. */
       .split-note {
         margin: 10px 0 0; font-size: 10px; color: #6b6b68;
         line-height: 1.7; max-width: 560px;
       }
-      .pay-list .row.muted .key, .pay-list .row.muted .val { color: #8b8b88; font-weight: 400; }
 
       /* ───── sections ───── */
       .section {
@@ -629,7 +629,7 @@ class HotelRoomInvoiceTemplate extends BaseInvoiceTemplate {
         <div class="name">${totalItems} item${totalItems !== 1 ? 's' : ''}</div>
         <div class="info-list">
           <div class="row"><span class="key">Orders</span><span class="val">${calc.totalOrders}</span></div>
-          <div class="row"><span class="key">Method</span><span class="val">${calc.calculationMethod}</span></div>
+          <div class="row"><span class="key">Prices</span><span class="val">${calc.pricesIncludeGst ? 'Inclusive of GST' : 'Exclusive of GST'}</span></div>
         </div>
       </div>
     </div>
@@ -646,8 +646,8 @@ class HotelRoomInvoiceTemplate extends BaseInvoiceTemplate {
         </thead>
         <tbody>${itemsRows}</tbody>
         <tfoot>
-          <tr class="sub"><td class="lbl" colspan="2">Food subtotal</td><td class="amt">${RestaurantCalculationUtils.formatCurrency(subtotal)}</td></tr>
-          <tr class="sub"><td class="lbl" colspan="2">GST @ 5%</td><td class="amt">${RestaurantCalculationUtils.formatCurrency(gstAmount)}</td></tr>
+          <tr class="sub"><td class="lbl" colspan="2">Taxable value</td><td class="amt">${RestaurantCalculationUtils.formatCurrency(subtotal)}</td></tr>
+          <tr class="sub"><td class="lbl">GST @ 5%</td><td class="detail">CGST 2.5% + SGST 2.5%${calc.pricesIncludeGst ? ', included above' : ''}</td><td class="amt">${RestaurantCalculationUtils.formatCurrency(gstAmount)}</td></tr>
           <tr class="total"><td class="lbl" colspan="2">Food bill total</td><td class="amt">${RestaurantCalculationUtils.formatCurrency(total)}</td></tr>
         </tfoot>
       </table>
@@ -841,12 +841,6 @@ class HotelRoomInvoiceTemplate extends BaseInvoiceTemplate {
           <tr class="total"><td class="lbl" colspan="2">Total — accommodation</td><td class="amt">${this.formatCurrency(grandTotal)}</td></tr>
         </tfoot>
       </table>
-      ${finalRestaurantCharges > 0 ? `
-      <p class="split-note">
-        Food &amp; Beverage is billed separately on Food Bill No. ${invoiceNumber.replace('HSG', 'FB')},
-        which follows this invoice. The two bills are totalled there.
-      </p>
-      ` : ''}
     </section>
 
     <section class="section">
@@ -857,9 +851,6 @@ class HotelRoomInvoiceTemplate extends BaseInvoiceTemplate {
           <div class="row"><span class="key">Total payable</span><span class="val" style="font-weight:500;">${this.formatCurrency(grandTotal)}</span></div>
           ${roomPaid > 0 ? `
           <div class="row"><span class="key">Paid</span><span class="val">${this.formatCurrency(roomPaid)}${paymentInfoLine}</span></div>
-          ` : ''}
-          ${finalRestaurantCharges > 0 ? `
-          <div class="row muted"><span class="key">Food &amp; Beverage</span><span class="val">Billed separately · ${RestaurantCalculationUtils.formatCurrency(finalRestaurantCharges)}</span></div>
           ` : ''}
         </div>
         <div class="status-card">
@@ -899,7 +890,6 @@ class HotelRoomInvoiceTemplate extends BaseInvoiceTemplate {
 
     <div class="closing">
       Thank you for staying with us<span class="mark"></span>${hotel.name}
-      ${finalRestaurantCharges > 0 ? '<div style="margin-top:6px;font-size:9.5px;color:#8b8b88;letter-spacing:0.18em;text-transform:uppercase;">Separate food bill follows</div>' : ''}
     </div>
   </div>
 </body>

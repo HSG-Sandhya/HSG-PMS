@@ -74,9 +74,15 @@ const SettleBalanceDialog = ({ open, onClose, booking, onSettled }) => {
 
   const { roomTotal, foodSubtotal, foodGst, foodTotal, grandTotal, paidAmount, balance } = useMemo(() => {
     const rt = Number(booking?.totalAmount || 0);
-    const fs = restaurantOrders.reduce((t, o) => t + (Number(o.totalAmount) || 0), 0);
-    const fg = Math.round(fs * (billing.posGstRate / 100) * 100) / 100;
-    const ft = fs + fg;
+    // Order.totalAmount is the PAYABLE figure — Order.js already added the POS
+    // GST to the base item prices (`itemsTotal + gst`). So the food total is
+    // simply their sum; the tax is BACKED OUT of it for the breakdown rather
+    // than added again, which would charge the guest the 5% twice and disagree
+    // with the printed food bill.
+    const ft = restaurantOrders.reduce((t, o) => t + (Number(o.totalAmount) || 0), 0);
+    const rate = (Number(billing.posGstRate) || 0) / 100;
+    const fs = rate > 0 ? Math.round((ft / (1 + rate)) * 100) / 100 : ft;
+    const fg = Math.round((ft - fs) * 100) / 100;
     const gt = rt + ft;
     const pa = Number(booking?.paidAmount || 0);
     const bal = Math.max(0, gt - pa);
@@ -171,9 +177,9 @@ const SettleBalanceDialog = ({ open, onClose, booking, onSettled }) => {
           ) : (
             <>
               {moneyRow('Room total (incl. GST)', `${currencySym()}${roomTotal.toFixed(2)}`)}
-              {foodSubtotal > 0 && (
+              {foodTotal > 0 && (
                 <>
-                  {moneyRow('Food & beverage', `${currencySym()}${foodSubtotal.toFixed(2)}`)}
+                  {moneyRow('Food & beverage (taxable)', `${currencySym()}${foodSubtotal.toFixed(2)}`)}
                   {moneyRow(`Food GST (${billing.posGstRate}%)`, `${currencySym()}${foodGst.toFixed(2)}`, { muted: true })}
                   {moneyRow('Food total (incl. GST)', `${currencySym()}${foodTotal.toFixed(2)}`, { bold: true })}
                 </>
