@@ -98,7 +98,7 @@ export const createStaffRecharge = async (req, res) => {
       paymentMethod: paymentMethod || 'cash',
       notes,
       ...(paidOn ? { date: paidOn } : {}),
-      processedBy: req.user?._id || null,
+      processedBy: req.user?._id || req.user?.id || req.user?.userId || null,
       status: 'processing' // Start with processing status
     });
 

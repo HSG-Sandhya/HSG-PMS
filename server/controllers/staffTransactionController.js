@@ -86,7 +86,7 @@ export const createStaffTransaction = async (req, res) => {
       paymentMethod: paymentMethod || 'cash',
       notes,
       ...(takenOn ? { date: takenOn } : {}),
-      processedBy: req.user?._id || null
+      processedBy: req.user?._id || req.user?.id || req.user?.userId || null
     });
 
     await transaction.save();

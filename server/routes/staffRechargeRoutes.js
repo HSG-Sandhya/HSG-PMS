@@ -11,7 +11,8 @@ import {
   getAllRecharges,
   getMonthlyRechargeStats
 } from '../controllers/staffRechargeController.js';
-import { requireAuth, requireAdmin } from '../middleware/auth.js';
+import { authenticateToken } from '../middleware/auth.js';
+import { requireManage } from '../middleware/requireManage.js';
 
 const router = express.Router();
 
@@ -37,48 +38,58 @@ const updateRechargeValidation = [
   body('notes').optional().trim()
 ];
 
-// Apply authentication and admin middleware to all routes (disabled for development)
-// router.use(requireAuth);
-// router.use(requireAdmin);
+// Recharges spend hotel money on staff phone numbers. These guards were
+// commented out "for development" and shipped that way, leaving the whole
+// router anonymous in production. They stay on.
+router.use(authenticateToken);
+
+// Reads: anyone who already runs the workforce screens.
+const canView = requireManage(['manage_attendance', 'manage_payroll', 'view_payroll', 'manage_staff']);
+// Creating a recharge: matches the client gate on the Attendance tab
+// (WorkforceManagement.js), which is the only UI that posts here today.
+const canCreate = requireManage(['manage_attendance', 'manage_payroll', 'manage_staff']);
+// Marking a recharge success/failed or cancelling it has no UI consumer, so it
+// is held to the narrower grant.
+const canSettle = requireManage(['manage_payroll', 'manage_staff']);
 
 // @route   GET /api/staff/recharges
 // @desc    Get all recharges (admin view)
 // @access  Private (Admin/System Admin only)
-router.get('/', getAllRecharges);
+router.get('/', canView, getAllRecharges);
 
 // @route   POST /api/staff/recharges
 // @desc    Create new staff recharge
 // @access  Private (Admin/System Admin only)
-router.post('/', createRechargeValidation, createStaffRecharge);
+router.post('/', canCreate, createRechargeValidation, createStaffRecharge);
 
 // @route   GET /api/staff/recharges/stats/:year/:month
 // @desc    Get monthly recharge statistics
 // @access  Private (Admin/System Admin only)
-router.get('/stats/:year/:month', getMonthlyRechargeStats);
+router.get('/stats/:year/:month', canView, getMonthlyRechargeStats);
 
 // @route   GET /api/staff/recharges/transaction/:transactionId
 // @desc    Get recharge by transaction ID
 // @access  Private (Admin/System Admin only)
-router.get('/transaction/:transactionId', getRechargeByTransactionId);
+router.get('/transaction/:transactionId', canView, getRechargeByTransactionId);
 
 // @route   GET /api/staff/:staffId/recharges
 // @desc    Get all recharges for a staff member
 // @access  Private (Admin/System Admin only)
-router.get('/:staffId/recharges', getStaffRecharges);
+router.get('/:staffId/recharges', canView, getStaffRecharges);
 
 // @route   GET /api/staff/:staffId/recharges/summary
 // @desc    Get staff recharge summary
 // @access  Private (Admin/System Admin only)
-router.get('/:staffId/recharges/summary', getStaffRechargeSummary);
+router.get('/:staffId/recharges/summary', canView, getStaffRechargeSummary);
 
 // @route   PUT /api/staff/recharges/:id
 // @desc    Update recharge status
 // @access  Private (Admin/System Admin only)
-router.put('/recharges/:id', updateRechargeValidation, updateRechargeStatus);
+router.put('/recharges/:id', canSettle, updateRechargeValidation, updateRechargeStatus);
 
 // @route   DELETE /api/staff/recharges/:id
 // @desc    Cancel recharge
 // @access  Private (Admin/System Admin only)
-router.delete('/recharges/:id', cancelRecharge);
+router.delete('/recharges/:id', canSettle, cancelRecharge);
 
 export default router;
