@@ -2,6 +2,7 @@ import express from 'express';
 import multer from 'multer';
 import settingsController from '../controllers/settingsController.js';
 import permissionMiddleware from '../middleware/permissionMiddleware.js';
+import { requireManage } from '../middleware/requireManage.js';
 
 const router = express.Router();
 
@@ -11,6 +12,28 @@ router.get('/public/theme', settingsController.getPublicTheme);
 router.get('/public/branding', settingsController.getPublicBranding);
 
 router.use(permissionMiddleware.authenticateToken);
+
+// Authorisation for EVERY mutation on this router, applied once here rather
+// than per route. Two things made the per-route approach unsafe:
+//
+//  1. Only 21 of 67 mutations actually named a guard. The rest — payment and
+//     security config, integrations, hotel profile, data import, templates —
+//     were reachable by any logged-in account, a cleaner included. The legacy
+//     section aliases were a straight bypass: `PUT /section/payment` was
+//     guarded, while `PUT /payment` reached the very same controller unguarded.
+//
+//  2. The guard it used (requireSettingsAccess) tests `isSystemAdmin` or a role
+//     literally named "admin". This hotel's admins hold a role named
+//     "Super Admin", so they failed it and could only save settings through the
+//     unguarded aliases — the hole was load-bearing.
+//
+// requireManage('manage_settings') fixes both: it honours the real permission
+// from the catalogue, still lets system admins through, and rejects inactive
+// accounts. Defaulting to deny means a route added later is guarded on arrival.
+router.use((req, res, next) => {
+  if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return next();
+  return requireManage('manage_settings')(req, res, next);
+});
 
 const storage = multer.memoryStorage();
 const fileFilter = (req, file, cb) => {
@@ -27,32 +50,29 @@ const { sectionHandler } = settingsController;
 router.get('/', settingsController.getAllSettings);
 router.get('/section/:section', settingsController.getSettingsSection);
 router.get('/invalid-endpoint', settingsController.invalidEndpoint);
-router.put('/section/:section', permissionMiddleware.requireSettingsAccess, settingsController.updateSettingsSection);
-router.put('/', permissionMiddleware.requireSettingsAccess, settingsController.updateAllSettings);
-router.post('/reset', permissionMiddleware.requireSettingsAccess, settingsController.resetSettings);
+router.put('/section/:section', settingsController.updateSettingsSection);
+router.put('/', settingsController.updateAllSettings);
+router.post('/reset', settingsController.resetSettings);
 
 // === FILE UPLOADS ===
-router.post('/upload-logo', permissionMiddleware.requireSettingsAccess, upload.single('logo'), settingsController.uploadLogo);
-router.post('/upload-background', permissionMiddleware.requireSettingsAccess, upload.single('background'), settingsController.uploadBackgroundImage);
+router.post('/upload-logo', upload.single('logo'), settingsController.uploadLogo);
+router.post('/upload-background', upload.single('background'), settingsController.uploadBackgroundImage);
 
 // === ROOM CATEGORIES MANAGEMENT ===
 router.get('/room-categories', settingsController.getRoomCategories);
-router.post('/room-categories/initialize', permissionMiddleware.requireSettingsAccess, settingsController.initializeRoomCategories);
-router.put('/room-categories/update-names', permissionMiddleware.requireSettingsAccess, settingsController.updateRoomCategoryNames);
-router.post('/room-categories', permissionMiddleware.requireSettingsAccess, settingsController.addRoomCategory);
-router.put('/room-categories/:id', permissionMiddleware.requireSettingsAccess, settingsController.updateRoomCategory);
-router.delete('/room-categories/:id', permissionMiddleware.requireSettingsAccess, settingsController.deleteRoomCategory);
+router.post('/room-categories/initialize', settingsController.initializeRoomCategories);
+router.put('/room-categories/update-names', settingsController.updateRoomCategoryNames);
+router.post('/room-categories', settingsController.addRoomCategory);
+router.put('/room-categories/:id', settingsController.updateRoomCategory);
+router.delete('/room-categories/:id', settingsController.deleteRoomCategory);
 
 // Room types / amenities (mock stubs for extended API tests)
 router.post('/room-types', settingsController.createRoomType);
 router.post('/amenities', settingsController.createAmenity);
 
 // === STATIC DATA ===
-router.get('/indian-states', settingsController.getIndianStates);
-router.get('/indian-languages', settingsController.getIndianLanguages);
 
 // === HOTEL PROFILE MANAGEMENT ===
-router.post('/validate-business-numbers', settingsController.validateBusinessNumbers);
 router.post('/tax/validate-gst', settingsController.validateGST);
 router.post('/tax/validate-pan', settingsController.validatePAN);
 router.get('/hotel-profile', settingsController.getHotelProfile);
@@ -62,8 +82,6 @@ router.post('/hotel-profile/email-otp/send', settingsController.sendHotelEmailOt
 router.post('/hotel-profile/email-otp/verify', settingsController.verifyHotelEmailOtp);
 
 // === DATA MANAGEMENT ===
-router.get('/data/export', settingsController.exportSettings);
-router.post('/data/import', settingsController.importSettings);
 
 // === INVOICE TEMPLATE MANAGEMENT ===
 router.get('/invoice-templates', settingsController.getAvailableInvoiceTemplates);
@@ -79,49 +97,23 @@ router.put('/banquet-template', settingsController.updateSelectedBanquetTemplate
 router.post('/banquet/preview', settingsController.previewBanquetTemplate);
 
 // === DEPARTMENTS / ROLES / PERMISSIONS ===
-router.get('/departments', settingsController.getAllDepartments);
-router.post('/departments', permissionMiddleware.requireSettingsAccess, settingsController.createDepartment);
-router.put('/departments/:id', permissionMiddleware.requireSettingsAccess, settingsController.updateDepartment);
-router.delete('/departments/:id', permissionMiddleware.requireSettingsAccess, settingsController.deleteDepartment);
 
-router.get('/roles', settingsController.getAllRoles);
-router.post('/roles', permissionMiddleware.requireSettingsAccess, settingsController.createRole);
-router.put('/roles/:id', permissionMiddleware.requireSettingsAccess, settingsController.updateRole);
-router.delete('/roles/:id', permissionMiddleware.requireSettingsAccess, settingsController.deleteRole);
-router.get('/roles/:id/users', settingsController.getUsersByRole);
 
 router.get('/permissions', settingsController.getAvailablePermissions);
 
 // === LEGACY STAFF MGMT ===
-router.get('/staff/departments', settingsController.getAllDepartments);
-router.post('/staff/departments', settingsController.addDepartment);
-router.get('/staff/roles', settingsController.getAllRoles);
-router.post('/staff/roles', settingsController.addRole);
-router.delete('/staff/departments/:id', settingsController.deleteDepartment);
-router.delete('/staff/roles/:id', settingsController.deleteRole);
 router.get('/staff/permissions', settingsController.getAllPermissions);
-router.put('/staff/roles/:id', settingsController.updateRole);
 router.get('/staff/shift-templates', settingsController.getShiftTemplates);
 
 // === INTEGRATIONS ===
-router.get('/integrations', settingsController.getAllIntegrations);
-router.put('/integrations/email-service', settingsController.updateEmailService);
-router.put('/integrations/email', settingsController.updateEmailService);
-router.put('/integrations/sms-service', settingsController.updateSmsService);
-router.put('/integrations/sms', settingsController.updateSmsService);
-router.put('/integrations/channel-manager', settingsController.updateChannelManager);
-router.put('/integrations/analytics', settingsController.updateAnalytics);
-router.post('/integrations/test-connection', settingsController.testIntegrationConnection);
 
 // === BACKUP ===
-router.post('/backup/manual', permissionMiddleware.requireSettingsAccess, settingsController.createManualBackup);
+router.post('/backup/manual', settingsController.createManualBackup);
 router.get('/backup', settingsController.getAllBackups);
 router.get('/backup/history', settingsController.getAllBackups);
 router.get('/backup/storage-stats', settingsController.getStorageStats);
 router.get('/backup/download/:filename', settingsController.downloadBackup);
-router.delete('/backup/:filename', permissionMiddleware.requireSettingsAccess, settingsController.deleteBackup);
-router.post('/backup/restore/:filename', permissionMiddleware.requireSettingsAccess, settingsController.restoreBackup);
-router.post('/backup/upload', permissionMiddleware.requireSettingsAccess, upload.single('backup'), settingsController.uploadBackup);
+router.delete('/backup/:filename', settingsController.deleteBackup);
 
 // === LEGACY SECTION ALIASES ===
 router.get('/marriage', sectionHandler('hotelProfile', 'get'));
@@ -165,7 +157,7 @@ router.patch('/tax', sectionHandler('tax', 'put'));
 
 // === SETTINGS PANEL MISC ===
 router.post('/payment/test-connection', settingsController.testPaymentConnection);
-router.put('/security/policy', permissionMiddleware.requireSettingsAccess, settingsController.updateSecurityPolicy);
+router.put('/security/policy', settingsController.updateSecurityPolicy);
 router.post('/security/test', settingsController.testSecuritySettings);
 router.post('/notifications/test', settingsController.testNotification);
 router.post('/theme/apply', settingsController.applyTheme);

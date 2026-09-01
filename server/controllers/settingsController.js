@@ -687,17 +687,8 @@ const updateRoomCategoryNames = async (req, res) => {
   }
 };
 
-const getIndianStates = async (req, res) => {
-  res.status(200).json({ success: true, data: [], message: 'Indian states endpoint' });
-};
 
-const getIndianLanguages = async (req, res) => {
-  res.status(200).json({ success: true, data: [], message: 'Indian languages endpoint' });
-};
 
-const validateBusinessNumbers = async (req, res) => {
-  res.status(200).json({ success: true, message: 'Business numbers validated' });
-};
 
 const validateGST = async (req, res) => {
   const gstNumber = (req.body?.gstNumber || '').trim().toUpperCase();
@@ -918,13 +909,7 @@ const verifyHotelEmailOtp = async (req, res) => {
 };
 
 // Add more placeholder functions for other missing endpoints
-const exportSettings = async (req, res) => {
-  res.status(200).json({ success: true, message: 'Settings export endpoint' });
-};
 
-const importSettings = async (req, res) => {
-  res.status(200).json({ success: true, message: 'Settings import endpoint' });
-};
 
 const getAvailableInvoiceTemplates = async (req, res) => {
   try {
@@ -1090,53 +1075,20 @@ const previewBanquetTemplate = async (req, res) => {
   }
 };
 
-const getAllDepartments = async (req, res) => {
-  res.status(200).json({ success: true, data: [], message: 'Departments endpoint' });
-};
 
-const createDepartment = async (req, res) => {
-  res.status(200).json({ success: true, message: 'Department created' });
-};
 
-const updateDepartment = async (req, res) => {
-  res.status(200).json({ success: true, message: 'Department updated' });
-};
 
-const deleteDepartment = async (req, res) => {
-  res.status(200).json({ success: true, message: 'Department deleted' });
-};
 
-const getAllRoles = async (req, res) => {
-  res.status(200).json({ success: true, data: [], message: 'Roles endpoint' });
-};
 
-const createRole = async (req, res) => {
-  res.status(200).json({ success: true, message: 'Role created' });
-};
 
-const updateRole = async (req, res) => {
-  res.status(200).json({ success: true, message: 'Role updated' });
-};
 
-const deleteRole = async (req, res) => {
-  res.status(200).json({ success: true, message: 'Role deleted' });
-};
 
-const getUsersByRole = async (req, res) => {
-  res.status(200).json({ success: true, data: [], message: 'Users by role endpoint' });
-};
 
 const getAvailablePermissions = async (_req, res) => {
   res.status(200).json({ success: true, data: PERMISSION_CATALOG, message: 'Permission catalog' });
 };
 
-const addDepartment = async (req, res) => {
-  res.status(200).json({ success: true, message: 'Department added' });
-};
 
-const addRole = async (req, res) => {
-  res.status(200).json({ success: true, message: 'Role added' });
-};
 
 const getAllPermissions = async (req, res) => {
   try {
@@ -1157,29 +1109,11 @@ const getAllPermissions = async (req, res) => {
   }
 };
 
-const getAllIntegrations = async (req, res) => {
-  res.status(200).json({ success: true, data: {}, message: 'Integrations endpoint' });
-};
 
-const updateEmailService = async (req, res) => {
-  res.status(200).json({ success: true, message: 'Email service updated' });
-};
 
-const updateSmsService = async (req, res) => {
-  res.status(200).json({ success: true, message: 'SMS service updated' });
-};
 
-const updateChannelManager = async (req, res) => {
-  res.status(200).json({ success: true, message: 'Channel manager updated' });
-};
 
-const updateAnalytics = async (req, res) => {
-  res.status(200).json({ success: true, message: 'Analytics updated' });
-};
 
-const testIntegrationConnection = async (req, res) => {
-  res.status(200).json({ success: true, message: 'Integration connection tested' });
-};
 
 const createManualBackup = async (req, res) => {
   try {
@@ -1431,13 +1365,7 @@ const deleteBackup = async (req, res) => {
   }
 };
 
-const restoreBackup = async (req, res) => {
-  res.status(200).json({ success: true, message: 'Backup restored' });
-};
 
-const uploadBackup = async (req, res) => {
-  res.status(200).json({ success: true, message: 'Backup uploaded' });
-};
 
 // ── Inline-extracted endpoints ───────────────────────────────────────────────
 
@@ -1631,9 +1559,6 @@ export default {
   updateRoomCategory,
   deleteRoomCategory,
   updateRoomCategoryNames,
-  getIndianStates,
-  getIndianLanguages,
-  validateBusinessNumbers,
   validateGST,
   validatePAN,
   getShiftTemplates,
@@ -1643,8 +1568,6 @@ export default {
   saveHotelProfile,
   sendHotelEmailOtp,
   verifyHotelEmailOtp,
-  exportSettings,
-  importSettings,
   getAvailableInvoiceTemplates,
   getInvoiceTemplateSettings,
   updateSelectedInvoiceTemplate,
@@ -1652,32 +1575,13 @@ export default {
   getBanquetTemplateSettings,
   updateSelectedBanquetTemplate,
   previewBanquetTemplate,
-  getAllDepartments,
-  createDepartment,
-  updateDepartment,
-  deleteDepartment,
-  getAllRoles,
-  createRole,
-  updateRole,
-  deleteRole,
-  getUsersByRole,
   getAvailablePermissions,
-  addDepartment,
-  addRole,
   getAllPermissions,
-  getAllIntegrations,
-  updateEmailService,
-  updateSmsService,
-  updateChannelManager,
-  updateAnalytics,
-  testIntegrationConnection,
   createManualBackup,
   getAllBackups,
   getStorageStats,
   downloadBackup,
   deleteBackup,
-  restoreBackup,
-  uploadBackup,
   invalidEndpoint,
   createRoomType,
   createAmenity,
