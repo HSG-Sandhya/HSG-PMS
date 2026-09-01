@@ -14,6 +14,7 @@ import { syncRoomBookingIncome } from '../services/accountingSync.js';
 import { emitNewWebsiteBooking } from '../config/socket.js';
 import { getBilling, posGst } from '../config/operationalConfig.js';
 import { getBanquetBlockedRoomIds } from './roomController.js';
+import { getInventorySnapshot, availabilityByType } from '../services/inventory.js';
 
 // ── Public restaurant ─────────────────────────────────────────────────────────
 
@@ -117,64 +118,23 @@ export const createBanquetBooking = async (req, res) => {
 export const getAvailability = async (req, res) => {
   try {
     const { checkIn, checkOut, guests } = req.query;
+    if (!checkIn || !checkOut) {
+      return res.status(400).json({ message: 'checkIn and checkOut are required' });
+    }
     const minGuests = guests ? parseInt(guests, 10) : 0;
 
-    // Look at every room so each category can report its full size (`total`)
-    // and how many are actually free for the requested dates (`available`).
     const allRooms = await Room.find({});
+    // One inventory snapshot — assigned bookings, banquet blocks AND the
+    // category holds every website booking creates. See services/inventory.js.
+    const snapshot = await getInventorySnapshot(checkIn, checkOut);
+    const byType = availabilityByType(allRooms, snapshot, { minGuests });
 
-    // Rooms physically blocked over the range — only count holds that already
-    // have a specific room assigned (category-only holds are filled at check-in).
-    const bookedRoomIds = new Set(
-      (await Booking.find({
-        checkIn: { $lt: new Date(checkOut) },
-        checkOut: { $gt: new Date(checkIn) },
-        bookingStatus: { $in: ['Confirmed', 'Pending'] },
-        roomId: { $ne: null },
-      }).distinct('roomId')).map((id) => id.toString())
-    );
+    const categories = Array.from(byType.values());
+    const totalAvailable = categories.reduce((n, c) => n + c.available, 0);
 
-    // Rooms held by a banquet/marriage event over the range are not bookable —
-    // exclude them so a category's "available" count reflects real inventory.
-    const banquetBlocked = await getBanquetBlockedRoomIds(new Date(checkIn), new Date(checkOut));
-
-    const map = new Map();
-    const trulyAvailable = [];
-    for (const room of allRooms) {
-      const key = room.type || 'Room';
-      let cat = map.get(key);
-      if (!cat) {
-        cat = {
-          type: key,
-          capacity: room.capacity, // { adults, children }
-          price: room.pricePerNight,
-          amenities: room.amenities,
-          total: 0,
-          available: 0,
-        };
-        map.set(key, cat);
-      }
-      cat.total += 1;
-      if (room.pricePerNight < cat.price) cat.price = room.pricePerNight;
-
-      const free =
-        room.status === 'available' &&
-        !bookedRoomIds.has(room._id.toString()) &&
-        !banquetBlocked.has(room._id.toString()) &&
-        (!minGuests || (room.capacity?.adults || 0) >= minGuests);
-      if (free) {
-        cat.available += 1;
-        trulyAvailable.push(room);
-      }
-    }
-
-    // Cheapest categories first; this drives the website availability card.
-    const byCategory = Array.from(map.values()).sort((a, b) => a.price - b.price);
-
-    // Public DTO, not the Mongoose documents. A Room carries operational fields
-    // — maintenanceHistory, lastCleaned, housekeeping status — that have no
-    // business on an anonymous endpoint, and returning the whole document means
-    // any field added to the schema later is published by default.
+    // Public DTO, never the Mongoose documents: a Room carries operational
+    // fields (maintenanceHistory, lastCleaned, housekeeping status) that have no
+    // business on an anonymous endpoint.
     const publicRoom = (r) => ({
       id: r._id,
       type: r.type,
@@ -185,11 +145,18 @@ export const getAvailability = async (req, res) => {
       image: (r.images && r.images[0]) || null,
     });
 
+    // Only surface as many concrete rooms as are actually sellable: a category
+    // hold removes a slot without naming a room, so the free-room list can be
+    // longer than the sellable count.
+    const rooms = categories.flatMap((c) => c.freeRooms.slice(0, c.available)).map(publicRoom);
+
     res.json({
-      available: trulyAvailable.length > 0,
-      rooms: trulyAvailable.map(publicRoom),
-      count: trulyAvailable.length,
-      byCategory,
+      available: totalAvailable > 0,
+      rooms,
+      count: totalAvailable,
+      byCategory: categories
+        .map(({ freeRooms, ...c }) => c)
+        .sort((a, b) => a.price - b.price),
     });
   } catch (error) {
     console.error('Error checking availability:', error);
@@ -197,36 +164,30 @@ export const getAvailability = async (req, res) => {
   }
 };
 
-export const getRoomTypes = async (_req, res) => {
+export const getRoomTypes = async (req, res) => {
   try {
-    // Look at every room so each category reports its full size (`total`) and
-    // how many are free right now (`available` — the live "left to book" count).
+    // Accepts an optional date range. Without one this reported whatever was
+    // free at this instant (room.status) as though it were bookable for any
+    // future stay — and it never subtracted category holds at all.
+    const { checkIn, checkOut } = req.query;
     const rooms = await Room.find({});
-    const map = new Map();
-    for (const room of rooms) {
-      const key = room.type || 'Room';
-      let cat = map.get(key);
-      if (!cat) {
-        cat = {
-          type: key,
-          capacity: room.capacity, // { adults, children }
-          price: room.pricePerNight,
-          amenities: room.amenities,
-          total: 0,
-          available: 0,
-          rooms: [],
-        };
-        map.set(key, cat);
-      }
-      cat.total += 1;
-      if (room.pricePerNight < cat.price) cat.price = room.pricePerNight;
-      if (room.status === 'available') {
-        cat.available += 1;
-        cat.rooms.push(room);
-      }
+
+    let byType;
+    if (checkIn && checkOut) {
+      byType = availabilityByType(rooms, await getInventorySnapshot(checkIn, checkOut));
+    } else {
+      // No range asked for: report current free-now status, still net of any
+      // category hold that is live today.
+      const now = new Date();
+      const tomorrow = new Date(now.getTime() + 86400000);
+      byType = availabilityByType(rooms, await getInventorySnapshot(now, tomorrow));
     }
-    // `count` kept as a back-compat alias for the available count.
-    const roomTypes = Array.from(map.values()).map((c) => ({ ...c, count: c.available }));
+
+    const roomTypes = Array.from(byType.values()).map(({ freeRooms, ...c }) => ({
+      ...c,
+      // `count` kept as a back-compat alias for the available count.
+      count: c.available,
+    }));
     res.json(roomTypes);
   } catch (error) {
     console.error('Error getting room types:', error);

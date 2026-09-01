@@ -2,31 +2,15 @@ import Room from '../models/Room.js';
 import Booking from '../models/Booking.js';
 import Housekeeping from '../models/Housekeeping.js';
 import Image from '../models/Image.js';
-import BanquetBooking from '../models/BanquetBooking.js';
 import { optimizeImage } from '../utils/imageOptimizer.js';
 import { getBilling } from '../config/operationalConfig.js';
 import { pctToFraction } from '../config/operationalDefaults.js';
+import {
+  getInventorySnapshot,
+  freeRoomsForRange,
+  getBanquetBlockedRoomIds,
+} from '../services/inventory.js';
 
-// Room ids reserved by banquet/marriage events overlapping the given date range.
-export const getBanquetBlockedRoomIds = async (checkInDate, checkOutDate) => {
-  const banquetBookings = await BanquetBooking.find({
-    status: { $ne: 'Cancelled' },
-    rooms: { $exists: true, $ne: [] },
-  }).select('rooms eventDate endDate');
-
-  const blocked = new Set();
-  for (const b of banquetBookings) {
-    const start = new Date(b.eventDate);
-    const end = b.endDate ? new Date(b.endDate) : new Date(b.eventDate);
-    // Treat the event as occupying the whole of its last day
-    end.setHours(23, 59, 59, 999);
-    // Overlap test against the requested stay [checkIn, checkOut)
-    if (start < checkOutDate && end > checkInDate) {
-      (b.rooms || []).forEach((r) => blocked.add(r.toString()));
-    }
-  }
-  return blocked;
-};
 
 const VALID_STATUSES = ['available', 'occupied', 'maintenance', 'cleaning'];
 
@@ -501,16 +485,16 @@ export const getAvailableRooms = async (req, res) => {
         { checkIn: { $lt: checkOutDate } },
         { checkOut: { $gt: checkInDate } },
         { bookingStatus: { $in: ['Confirmed', 'Pending'] } },
-        // Ignore category holds with no room assigned yet (assigned at check-in).
         { roomId: { $ne: null } },
       ],
     });
 
-    const bookedRoomIds = bookings.map((b) => b.roomId.toString());
-    const banquetBlockedIds = await getBanquetBlockedRoomIds(checkInDate, checkOutDate);
-    const availableRooms = rooms.filter(
-      (r) => !bookedRoomIds.includes(r._id.toString()) && !banquetBlockedIds.has(r._id.toString())
-    );
+    // This endpoint lists CONCRETE rooms for assignment, so category holds are
+    // deliberately not subtracted — a hold names no room, and is usually the
+    // very booking being assigned. Use the inventory service for "how many can
+    // I sell", which is a different question. See services/inventory.js.
+    const snapshot = await getInventorySnapshot(checkInDate, checkOutDate);
+    const availableRooms = freeRoomsForRange(rooms, snapshot);
 
     res.json({
       success: true,
@@ -526,3 +510,6 @@ export const getAvailableRooms = async (req, res) => {
     });
   }
 };
+
+// Re-exported for the controllers and routes that already import it from here.
+export { getBanquetBlockedRoomIds };

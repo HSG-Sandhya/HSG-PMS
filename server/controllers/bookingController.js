@@ -679,22 +679,13 @@ const createGroupFromRoomBlock = async (res, ctx) => {
 
   // Availability: ensure enough free rooms of each blocked type for the window.
   const allRooms = await Room.find({ status: { $ne: 'maintenance' } });
-  const overlapping = await Booking.find({
-    $and: [
-      { checkIn: { $lt: checkOutDate } },
-      { checkOut: { $gt: checkInDate } },
-      { bookingStatus: { $in: ACTIVE_HOLD_STATUSES } },
-      { roomId: { $ne: null } },
-    ],
+  // A room block creates one roomId=null hold per blocked room, so this check
+  // MUST count existing holds or two overlapping blocks can claim the same
+  // rooms. See services/inventory.js.
+  const snapshot = await getInventorySnapshot(checkInDate, checkOutDate, {
+    statuses: ACTIVE_HOLD_STATUSES,
   });
-  const bookedRoomIds = new Set(overlapping.map((b) => b.roomId.toString()));
-  const banquetBlocked = await getBanquetBlockedRoomIds(checkInDate, checkOutDate);
-  const freeByType = {};
-  for (const r of allRooms) {
-    const id = r._id.toString();
-    if (bookedRoomIds.has(id) || banquetBlocked.has(id)) continue;
-    freeByType[r.type] = (freeByType[r.type] || 0) + 1;
-  }
+  const freeByType = freeCountByType(allRooms, snapshot);
   for (const b of roomBlock) {
     const free = freeByType[b.roomType] || 0;
     if (Number(b.qty) > free) {
@@ -1011,22 +1002,11 @@ export const createCompanyBooking = async (req, res) => {
 
     // Availability: enough free rooms of each required type for the window.
     const allRooms = await Room.find({ status: { $ne: 'maintenance' } });
-    const overlapping = await Booking.find({
-      $and: [
-        { checkIn: { $lt: checkOutDate } },
-        { checkOut: { $gt: checkInDate } },
-        { bookingStatus: { $in: ACTIVE_HOLD_STATUSES } },
-        { roomId: { $ne: null } },
-      ],
-    });
-    const bookedRoomIds = new Set(overlapping.map((b) => b.roomId.toString()));
-    const banquetBlocked = await getBanquetBlockedRoomIds(checkInDate, checkOutDate);
-    const freeByType = {};
-    for (const r of allRooms) {
-      const id = r._id.toString();
-      if (bookedRoomIds.has(id) || banquetBlocked.has(id)) continue;
-      freeByType[r.type] = (freeByType[r.type] || 0) + 1;
-    }
+    // Counts category holds too — company blocks also create roomId=null rows.
+    const freeByType = freeCountByType(
+      allRooms,
+      await getInventorySnapshot(checkInDate, checkOutDate, { statuses: ACTIVE_HOLD_STATUSES }),
+    );
     for (const b of roomRequirement) {
       const free = freeByType[b.roomType] || 0;
       if (Number(b.qty) > free) {
