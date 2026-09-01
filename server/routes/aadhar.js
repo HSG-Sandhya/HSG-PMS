@@ -1,5 +1,6 @@
 import express from 'express';
 import { sendAadharOTP, verifyAadharOTP, uploadAadharImage, upload } from '../controllers/aadharController.js';
+import { verifyUploadedImages } from '../middleware/verifyUploadedImages.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { requireManage } from '../middleware/requireManage.js';
 
@@ -20,6 +21,6 @@ router.post('/send-otp', requireManage(MANAGE_STAFF), sendAadharOTP);
 router.post('/verify-otp', requireManage(MANAGE_STAFF), verifyAadharOTP);
 
 // Upload Aadhar image
-router.post('/upload', requireManage(MANAGE_STAFF), upload.single('aadharImage'), uploadAadharImage);
+router.post('/upload', requireManage(MANAGE_STAFF), upload.single('aadharImage'), verifyUploadedImages, uploadAadharImage);
 
 export default router;

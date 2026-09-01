@@ -25,8 +25,6 @@ import {
   createRazorpayOrder,
   verifyRazorpayPayment,
   processPayment,
-  refundPayment,
-  getPaymentDetails,
   handleRazorpayWebhook,
 } from '../controllers/websiteController.js';
 
@@ -68,8 +66,8 @@ router.get('/payment/config', getPaymentConfig);
 router.post('/create-razorpay-order', createRazorpayOrder);
 router.post('/verify-razorpay-payment', verifyRazorpayPayment);
 router.post('/process-payment', processPayment);
-router.post('/refund-payment', refundPayment);
-router.get('/payment/:paymentId', getPaymentDetails);
+// Refunds and payment lookups are NOT public — they live on the authenticated,
+// permission-gated /api/payments router (see routes/paymentRoutes.js).
 router.post('/webhook/razorpay', handleRazorpayWebhook);
 
 export default router;

@@ -1003,53 +1003,8 @@ export const processPayment = async (req, res) => {
   }
 };
 
-export const refundPayment = async (req, res) => {
-  try {
-    const { paymentId, amount, reason = 'Customer request' } = req.body;
-    if (!paymentId) return res.status(400).json({ message: 'Payment ID is required' });
-
-    const refund = await paymentService.refundPayment(paymentId, amount, reason);
-    res.json({
-      success: true,
-      message: 'Refund processed successfully',
-      refund: {
-        id: refund.id,
-        amount: refund.amount,
-        currency: refund.currency,
-        status: refund.status,
-        receipt: refund.receipt,
-        created_at: refund.created_at,
-      },
-    });
-  } catch (error) {
-    console.error('Error processing refund:', error);
-    res.status(500).json({
-      message: error.message || 'Failed to process refund',
-      error: error.message,
-    });
-  }
-};
-
-export const getPaymentDetails = async (req, res) => {
-  try {
-    const payment = await paymentService.getPaymentDetails(req.params.paymentId);
-    res.json({
-      success: true,
-      payment: {
-        id: payment.id,
-        amount: payment.amount,
-        currency: payment.currency,
-        status: payment.status,
-        method: payment.method,
-        created_at: payment.created_at,
-        description: payment.description,
-      },
-    });
-  } catch (error) {
-    console.error('Error fetching payment details:', error);
-    res.status(500).json({ message: 'Failed to fetch payment details', error: error.message });
-  }
-};
+// refundPayment / getPaymentDetails moved to controllers/paymentController.js —
+// they are staff-only gateway operations, not part of the public website API.
 
 export const handleRazorpayWebhook = async (req, res) => {
   try {

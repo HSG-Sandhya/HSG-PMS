@@ -199,9 +199,10 @@ const StaffDialog = ({ open, onClose, onSuccess, editingStaff, roles: propRoles,
           }
         });
         
-        // Set image previews if URLs exist
-        setAadharFrontPreview(editingStaff.profile?.aadharFrontUrl || '');
-        setAadharBackPreview(editingStaff.profile?.aadharBackUrl || '');
+        // Stored Aadhaar images are no longer public files — they are fetched
+        // from the authenticated endpoint by the effect below.
+        setAadharFrontPreview('');
+        setAadharBackPreview('');
         setOtpSent(false);
         setOtpVerified(editingStaff.profile?.aadharVerified || false);
         setOtp('');
@@ -222,6 +223,38 @@ const StaffDialog = ({ open, onClose, onSuccess, editingStaff, roles: propRoles,
       }
     }
   }, [open, editingStaff, propRoles, propDepartments]);
+
+  // Aadhaar images stream from /api/private-files, which needs the auth header,
+  // so they are fetched as blobs and shown via object URLs. Newly picked files
+  // set their own data-URL preview and are left untouched here.
+  useEffect(() => {
+    const staffId = editingStaff?._id || editingStaff?.id;
+    if (!open || !staffId) return undefined;
+
+    const created = [];
+    let cancelled = false;
+
+    const load = async (side, stored, setPreview) => {
+      if (!stored) return;
+      try {
+        const { data } = await api.privateFiles.staffAadhaar(staffId, side);
+        if (cancelled) return;
+        const objectUrl = URL.createObjectURL(data);
+        created.push(objectUrl);
+        setPreview(objectUrl);
+      } catch {
+        if (!cancelled) setPreview('');
+      }
+    };
+
+    load('front', editingStaff.profile?.aadharFrontUrl || editingStaff.profile?.aadharImageUrl, setAadharFrontPreview);
+    load('back', editingStaff.profile?.aadharBackUrl, setAadharBackPreview);
+
+    return () => {
+      cancelled = true;
+      created.forEach((u) => URL.revokeObjectURL(u));
+    };
+  }, [open, editingStaff]);
 
   const loadInitialData = async () => {
     try {

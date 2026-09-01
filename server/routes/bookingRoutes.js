@@ -20,6 +20,7 @@ const ID_CARD_DIR = path.join(__dirname, '../uploads/id-cards');
 fs.mkdirSync(ID_CARD_DIR, { recursive: true }); // ensure the folder exists
 import { createBooking, getBookings, getBookingById, updateBooking, deleteBooking, checkInGuest, getCheckedOutBookings, generateMissingInvoiceNumbers, createGroupBooking, createCompanyBooking, getGroupBookings, assignRoom, updateGroupStatus, addRoomToGroup, transferRoom } from '../controllers/bookingController.js';
 import { objectIdParam } from '../middleware/validateObjectId.js';
+import { verifyUploadedImages } from '../middleware/verifyUploadedImages.js';
 import { getBanquetBlockedRoomIds } from '../controllers/roomController.js';
 const isAuthenticated = authenticateToken;
 
@@ -58,62 +59,30 @@ const upload = multer({
 
 // Accept an ID document as front + back images (Aadhaar has the address on the
 // reverse). Both fields are optional.
-const uploadFields = upload.fields([
-  { name: 'idCardImage', maxCount: 1 },
-  { name: 'idCardImageBack', maxCount: 1 },
-]);
+// The filter above only sees the filename, so a renamed non-image passes it.
+// verifyUploadedImages re-checks the written bytes and deletes anything that
+// isn't genuinely an image before a controller can persist a path to it.
+const uploadFields = [
+  upload.fields([
+    { name: 'idCardImage', maxCount: 1 },
+    { name: 'idCardImageBack', maxCount: 1 },
+  ]),
+  verifyUploadedImages,
+];
 
-// Check room availability (no auth for extended tests)
-router.get('/availability', async (req, res) => {
-  try {
-    const { checkIn, checkOut, guests } = req.query;
-    
-    if (!checkIn || !checkOut) {
-      return res.status(400).json({
-        success: false,
-        message: 'Check-in and check-out dates are required'
-      });
-    }
-    
-    const checkInDate = new Date(checkIn);
-    const checkOutDate = new Date(checkOut);
-    
-    // Find rooms that are not booked during the requested period
-    const bookedRooms = await Booking.find({
-      $and: [
-        {
-          $or: [
-            { checkIn: { $lte: checkOutDate }, checkOut: { $gte: checkInDate } }
-          ]
-        },
-        { bookingStatus: { $in: ['Confirmed', 'Pending'] } }
-      ]
-    }).distinct('roomId');
-    
-    const availableRooms = await Room.find({
-      _id: { $nin: bookedRooms },
-      isAvailable: true,
-      ...(guests && { "capacity.adults": { $gte: parseInt(guests, 10) } })
-    });
-    
-    res.json({
-      success: true,
-      data: {
-        availableRooms,
-        checkIn: checkInDate,
-        checkOut: checkOutDate,
-        totalAvailable: availableRooms.length
-      },
-      message: 'Room availability checked successfully'
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error checking room availability',
-      error: error.message
-    });
-  }
-});
+// REMOVED: GET /bookings/availability.
+//
+// It was left unauthenticated on an otherwise-protected router with the comment
+// "no auth for extended tests", duplicating the public
+// GET /api/website/availability that the website actually calls. Nothing in the
+// admin client or the website ever used this copy.
+//
+// It was also WRONG. It matched overlaps inclusively:
+//     checkIn: { $lte: checkOutDate }, checkOut: { $gte: checkInDate }
+// so a booking ending on the 5th blocked a stay starting on the 5th — turning
+// away back-to-back bookings that the hotel could have taken. The website
+// version uses the correct half-open comparison ($lt / $gt) and additionally
+// excludes banquet-blocked rooms, which this one ignored.
 
 // Rooms held by a banquet/marriage event over a stay window. The booking form
 // uses this to grey out event-reserved rooms so staff can't pick one that the
@@ -183,7 +152,7 @@ router.get('/range', isAuthenticated, async (req, res) => {
 });
 
 // Create new booking
-router.post('/', isAuthenticated, requireManage('manage_bookings'), uploadFields, createBooking);
+router.post('/', isAuthenticated, requireManage('manage_bookings'), ...uploadFields, createBooking);
 
 // Create a group booking (one coordinator, several rooms, one master folio)
 router.post('/group', isAuthenticated, requireManage('manage_bookings'), createGroupBooking);
@@ -274,7 +243,7 @@ router.put('/:id/checkout', isAuthenticated, requireManage('manage_bookings'), a
 });
 
 // Update a booking
-router.put('/:id', isAuthenticated, requireManage('manage_bookings'), uploadFields, updateBooking);
+router.put('/:id', isAuthenticated, requireManage('manage_bookings'), ...uploadFields, updateBooking);
 
 // Get booking by ID
 router.get('/:id', isAuthenticated, async (req, res) => {

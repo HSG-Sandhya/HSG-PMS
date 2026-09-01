@@ -12,6 +12,7 @@ import {
   Tooltip,
   useTheme,
 } from '@mui/material';
+import { useEffect, useState } from 'react';
 import { format, parseISO, isValid, differenceInCalendarDays } from 'date-fns';
 import EmailIcon from '@mui/icons-material/EmailOutlined';
 import PhoneIcon from '@mui/icons-material/PhoneOutlined';
@@ -34,6 +35,35 @@ import {
   secondaryButtonSx,
 } from './formStyles';
 import { useBilling, useCurrency } from '../../hooks/useBilling';
+import api from '../../api';
+
+// ID documents are no longer public files under /uploads — they stream from an
+// authenticated endpoint, so they have to be fetched with the auth header and
+// handed to <img> as an object URL.
+const useBookingIdCard = (bookingId, hasImage) => {
+  const [url, setUrl] = useState(null);
+
+  useEffect(() => {
+    if (!bookingId || !hasImage) { setUrl(null); return undefined; }
+
+    let objectUrl;
+    let cancelled = false;
+    api.privateFiles.bookingIdCard(bookingId, 'front')
+      .then(({ data }) => {
+        if (cancelled) return;
+        objectUrl = URL.createObjectURL(data);
+        setUrl(objectUrl);
+      })
+      .catch(() => { if (!cancelled) setUrl(null); });
+
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [bookingId, hasImage]);
+
+  return url;
+};
 
 const safeParse = (input) => {
   if (!input) return null;
@@ -86,6 +116,11 @@ const BookingDetailsDialog = ({ open, onClose, booking }) => {
   const isDarkMode = theme.palette.mode === 'dark';
   const billing = useBilling();
   const fmt = useCurrency();
+  // Must stay above the `!booking` guard — hooks cannot be called conditionally.
+  const idCardImage = useBookingIdCard(
+    booking?._id || booking?.id,
+    Boolean(booking?.idCardImage || booking?.idCardUrl),
+  );
 
   if (!booking) return null;
 
@@ -97,7 +132,6 @@ const BookingDetailsDialog = ({ open, onClose, booking }) => {
   const guest = booking.guestInfo || booking;
   const nights =
     checkInDate && checkOutDate ? differenceInCalendarDays(checkOutDate, checkInDate) : null;
-  const idCardImage = booking.idCardImage || booking.idCardUrl;
   // Bookings store adults/children, not numGuests/guestsCount — derive a summary
   // from those (falling back to the legacy fields just in case).
   const adults = Number(booking.adults) || 0;
