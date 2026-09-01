@@ -3,30 +3,19 @@ import { FormControlLabel, Switch, Typography } from '@mui/material';
 import { motion, AnimatePresence } from 'framer-motion';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { Link, useLocation } from 'react-router-dom';
+import { NAV_ROUTES } from '../../config/routes';
 import {
-  Dashboard,
-  Hotel,
-  Person,
-  BookOnline,
-  CleaningServices,
 } from '@mui/icons-material';
-import CelebrationIcon from '@mui/icons-material/Celebration';
 import { Drawer, IconButton } from '@mui/material';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import SettingsIcon from '@mui/icons-material/Settings';
-import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
-import RestaurantIcon from '@mui/icons-material/Restaurant';
-import PointOfSaleIcon from '@mui/icons-material/PointOfSale';
-import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import LogoutButton from '../../pages/Auth/LogoutButton';
 import AccountSettingsButton from '../AccountSettingsButton';
 import { useSettings } from '../../contexts/SettingsContext';
 import { usePermissions } from '../../contexts/PermissionContext';
-import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import LocationOnIcon from '@mui/icons-material/LocationOn';
 import StarRoundedIcon from '@mui/icons-material/StarRounded';
-import CloudSyncIcon from '@mui/icons-material/CloudSync';
 import { useAuth } from '../../contexts/AuthContext';
 
 // Link with motion props (whileHover / whileTap) for the animated sub-tabs.
@@ -159,28 +148,17 @@ const Sidebar = ({ open: propOpen, toggleSidebar: propToggleSidebar, mobile }) =
     };
   }, [autoHide, isOpen, toggleSidebar]);
 
-  const menuItems = [
-    { title: 'Dashboard', path: '/dashboard', icon: <Dashboard />, color: 'from-blue-400 to-blue-600', permission: 'view_dashboard' },
-    { title: 'Bookings', path: '/bookings', icon: <BookOnline />, color: 'from-green-400 to-green-600', permission: 'manage_bookings',
-      subItems: [
-        { title: 'Active Bookings', path: '/bookings' },
-        { title: 'Checked Out', path: '/bookings/checked-out' },
-      ],
-    },
-    { title: 'Reservations', path: '/reservations', icon: <CalendarMonthIcon />, color: 'from-blue-400 to-blue-600', permission: 'manage_reservations' },
-    { title: 'Rooms', path: '/rooms', icon: <Hotel />, color: 'from-purple-400 to-purple-600', permission: 'manage_rooms' },
-    { title: 'Guests', path: '/guests', icon: <Person />, color: 'from-yellow-400 to-yellow-600', permission: 'manage_guests' },
-    { title: 'Accounting', path: '/accounting', icon: <AccountBalanceWalletIcon />, color: 'from-emerald-400 to-emerald-600', permission: 'manage_accounting' },
-    // Staff management is reached through Settings → Staff, so it has no nav row
-    // of its own here. The /staffs route still exists for direct links.
-    // Attendance and payroll share one workspace, so either side's permission opens it.
-    { title: 'Staff & Payroll', path: '/workforce', icon: <AccessTimeIcon />, color: 'from-cyan-400 to-cyan-600', permissions: ['manage_attendance', 'manage_payroll', 'view_payroll'] },
-    { title: 'Housekeeping', path: '/housekeeping', icon: <CleaningServices />, color: 'from-pink-400 to-pink-600', permission: 'manage_housekeeping' },
-    { title: 'Restaurant', path: '/restaurant', icon: <RestaurantIcon />, color: 'from-red-400 to-red-600', permission: 'manage_restaurant' },
-    { title: 'POS', path: '/pos', icon: <PointOfSaleIcon />, color: 'from-green-400 to-green-600', permission: 'manage_pos' },
-    { title: 'Banquet Hall Booking', path: '/banquet-hall', icon: <CelebrationIcon />, color: 'from-indigo-400 to-indigo-600', permission: 'manage_events' },
-    { title: 'Channel Manager', path: '/channels', icon: <CloudSyncIcon />, color: 'from-teal-400 to-teal-600', permission: 'manage_channels' },
-  ];
+  // Nav rows come from the single route table (config/routes.js), which also
+  // drives the router and the landing-page choice. Adding a page there makes it
+  // appear here automatically — these used to be three hand-synced lists.
+  const menuItems = NAV_ROUTES.map(({ path, permissions, nav }) => ({
+    path,
+    permissions,
+    title: nav.title,
+    color: nav.color,
+    icon: <nav.icon />,
+    ...(nav.subItems ? { subItems: nav.subItems } : {}),
+  }));
 
   const isActive = (path) => {
     // For dashboard path
@@ -348,12 +326,9 @@ const Sidebar = ({ open: propOpen, toggleSidebar: propToggleSidebar, mobile }) =
         return true;
       }
       
-      // Check specific permission for the menu item — `permissions` lists
-      // alternatives (any one grants access), `permission` is a single string.
-      if (item.permissions) {
-        return hasAnyPermission(item.permissions);
-      }
-      return hasPermission(item.permission);
+      // Every entry carries a `permissions` array; any one of them grants
+      // access, matching ProtectedRoute's `.some()` on the same list.
+      return hasAnyPermission(item.permissions);
     });
   };
   const allowedMenuItems = getAllowedMenuItems();

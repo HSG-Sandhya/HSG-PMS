@@ -12,6 +12,7 @@ import PersonIcon from '@mui/icons-material/Person';
 import PersonAddAlt1Icon from '@mui/icons-material/PersonAddAlt1';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import AutorenewIcon from '@mui/icons-material/Autorenew';
+import LockOpenIcon from '@mui/icons-material/LockOpen';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import VpnKeyIcon from '@mui/icons-material/VpnKey';
@@ -140,6 +141,19 @@ const UsersManager = ({ onNotify }) => {
       load();
     } catch (e) {
       onNotify?.(e.response?.data?.message || 'Action failed', 'error');
+    }
+  };
+
+  // Clear a login lockout. An account locks after too many failed password
+  // attempts and there is no self-service way out, so this is the only route
+  // back in short of waiting for the timer.
+  const unlock = async (u) => {
+    try {
+      const { data } = await api.userManagement.unlockUser(idOf(u));
+      onNotify?.(data?.message || 'Account unlocked', 'success');
+      load();
+    } catch (e) {
+      onNotify?.(e.response?.data?.message || 'Could not unlock account', 'error');
     }
   };
 
@@ -326,11 +340,18 @@ const UsersManager = ({ onNotify }) => {
                     <TableCell><Chip size="small" label={roleName(u.role)} sx={{ height: 22, bgcolor: 'rgba(var(--app-primary-rgb),0.12)', color: 'var(--app-primary)', fontWeight: 700 }} /></TableCell>
                     <TableCell>{perms.length}</TableCell>
                     <TableCell>
-                      <Chip size="small" label={active ? 'Active' : 'Disabled'}
-                        sx={{ height: 22, fontWeight: 700, color: '#fff', bgcolor: active ? '#10B981' : '#9CA3AF' }} />
+                      <Chip size="small" label={!active ? 'Disabled' : u.isLocked ? 'Locked' : 'Active'}
+                        sx={{ height: 22, fontWeight: 700, color: '#fff', bgcolor: !active ? '#9CA3AF' : u.isLocked ? '#F59E0B' : '#10B981' }} />
                     </TableCell>
                     <TableCell align="right">
                       <Tooltip title="Edit role"><IconButton size="small" onClick={() => openEdit(u)} sx={{ color: 'var(--app-primary)' }}><EditIcon fontSize="small" /></IconButton></Tooltip>
+                      {u.isLocked && (
+                        <Tooltip title="Locked out by failed sign-ins — clear the lock">
+                          <IconButton size="small" onClick={() => unlock(u)} sx={{ color: '#F59E0B' }}>
+                            <LockOpenIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
                       {!u.isSystemAdmin && (
                         <Tooltip title={active ? 'Deactivate' : 'Activate'}>
                           <IconButton size="small" onClick={() => toggleActive(u)} sx={{ color: active ? '#ef4444' : '#10B981' }}>

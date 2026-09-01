@@ -164,8 +164,10 @@ const RoleDialog = ({ open, onClose, onSuccess, editingRole, availablePermission
 
   const loadInitialData = async () => {
     try {
+      // /settings/departments was a server-side stub that always returned an
+      // empty array; it has been removed. The real register is /api/departments.
       const [deptsRes, permissionsRes] = await Promise.all([
-        api.get('/settings/departments'),
+        api.get('/departments'),
         api.get('/admin/roles/permissions')
       ]);
       

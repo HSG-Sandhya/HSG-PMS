@@ -1,28 +1,9 @@
 import { createContext, useContext, useState, useEffect } from 'react';
+import { LANDING_ROUTES } from '../config/routes';
 import apiService from '../api';
 import { useAuth } from './AuthContext';
 
 const PermissionContext = createContext();
-
-// Gated pages in sidebar order, with the permissions that open each one. Used to
-// pick where a user lands when they can't see the page they asked for. Keep in
-// step with the routes in App.js and the menu in components/layout/Sidebar.js.
-const LANDING_ROUTES = [
-  ['/dashboard', ['view_dashboard']],
-  ['/bookings', ['manage_bookings']],
-  ['/reservations', ['manage_reservations']],
-  ['/rooms', ['manage_rooms']],
-  ['/guests', ['manage_guests']],
-  ['/accounting', ['manage_accounting']],
-  ['/staffs', ['manage_staff', 'view_staff', 'create_staff']],
-  ['/workforce', ['manage_attendance', 'manage_payroll', 'view_payroll']],
-  ['/housekeeping', ['manage_housekeeping']],
-  ['/restaurant', ['manage_restaurant']],
-  ['/pos', ['manage_pos']],
-  ['/banquet-hall', ['manage_events']],
-  ['/channels', ['manage_channels']],
-  ['/settings', ['manage_settings']],
-];
 
 export const usePermissions = () => {
   const context = useContext(PermissionContext);
@@ -33,7 +14,7 @@ export const usePermissions = () => {
 };
 
 export const PermissionProvider = ({ children }) => {
-  const { token, isAuthenticated } = useAuth();
+  const { isAuthenticated } = useAuth();
   const [currentUser, setCurrentUser] = useState(null);
   const [userRole, setUserRole] = useState(null);
   const [userPermissions, setUserPermissions] = useState([]);
@@ -41,7 +22,7 @@ export const PermissionProvider = ({ children }) => {
 
   useEffect(() => {
     const fetchProfile = async () => {
-      if (!isAuthenticated || !token) {
+      if (!isAuthenticated) {
         setCurrentUser(null);
         setUserRole(null);
         setUserPermissions([]);
@@ -59,8 +40,8 @@ export const PermissionProvider = ({ children }) => {
           // Extract role name properly
           let roleName = profile.role?.name || profile.roleName || 'user';
           
-          // Special handling for admin users to normalize role
-          if (profile.isSystemAdmin || roleName?.toLowerCase().includes('admin')) {
+          // Display label only — the real check is isAdmin() below.
+          if (profile.isSystemAdmin) {
             roleName = 'admin';
           }
           
@@ -91,20 +72,25 @@ export const PermissionProvider = ({ children }) => {
     };
 
     fetchProfile();
-  }, [isAuthenticated, token]);
+  }, [isAuthenticated]);
 
   // Permission helper functions
   // Matches the server's rule in middleware/staffAuthority.js and
   // controllers/adminStaffController.js: the admin guards grant access by role
-  // NAME, so any admin-named role is an administrator. An exact 'admin' match
-  // was wrong — the real roles are "Super Admin" and "System Administrator",
-  // so the UI hid admin-only controls from the very accounts that hold them
-  // while the server allowed the calls.
-  const isAdmin = () => {
-    const name = userRole?.toLowerCase() || '';
-    return name.includes('admin') || name.includes('system') || userPermissions.includes('*');
-  };
-  
+  // Administrator status comes from the immutable `isSystemAdmin` flag or an
+  // explicit admin grant — never from the role's display name. A substring
+  // match on the name ('admin' || 'system') promoted anything a hotel called
+  // "System Auditor" or "Assistant Administrator" to full access, and isAdmin()
+  // bypasses every permission check in ProtectedRoute.
+  //
+  // Equivalent on current data: "Super Admin" is the only role holding these
+  // permissions and was also the only substring match.
+  const isAdmin = () =>
+    Boolean(currentUser?.isSystemAdmin) ||
+    userPermissions.includes('admin_access') ||
+    userPermissions.includes('system_administration') ||
+    userPermissions.includes('*');
+
   const isManager = () => {
     return userRole?.toLowerCase() === 'manager' || isAdmin();
   };
@@ -147,8 +133,8 @@ export const PermissionProvider = ({ children }) => {
   // without this it would be redirected from /dashboard back to /dashboard.
   const landingPath = () => {
     if (isAdmin()) { return '/dashboard'; }
-    const found = LANDING_ROUTES.find(([, perms]) => hasAnyPermission(perms));
-    return found ? found[0] : null;
+    const found = LANDING_ROUTES.find((r) => hasAnyPermission(r.permissions));
+    return found ? found.path : null;
   };
   
   const hasAnyRole = (roles) => {
