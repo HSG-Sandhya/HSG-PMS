@@ -1,70 +1,70 @@
-# Getting Started with Create React App
+# Admin PMS (client)
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+The staff-facing single-page app for Hotel Sandhya Grand: bookings, rooms,
+guests, housekeeping, restaurant/POS, banquet, accounting, payroll and settings.
 
-## Available Scripts
+Built with Create React App (`react-scripts` 5), React 19, MUI 9 and React
+Router 7. In production it is a static bundle served by the Node API at
+`admin.sandhyagrand.in`, so the app and the API share one origin.
 
-In the project directory, you can run:
+## Running it
 
-### `npm start`
+```bash
+npm install
+npm start        # http://localhost:3001  (NOT :3000 — see package.json)
+npm run build    # production bundle into build/
+npx eslint src/  # lint
+```
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+The dev server runs on **3001** because the public website occupies 3000.
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+## Talking to the API
 
-### `npm test`
+`REACT_APP_API_URL` overrides the API base; leave it unset and requests go to
+`/api` on the current origin, which is what production wants. The CRA dev proxy
+forwards `/api` to `http://localhost:5002`.
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+Every request goes through `src/api/axiosInstance.js`, which sets
+`withCredentials` so the session cookie is sent, and which owns the 401 handling
+that clears local state and redirects to `/login`.
 
-### `npm run build`
+## Authentication
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+The session is an **HttpOnly cookie** issued by the server. The JWT is not in
+`localStorage` and JavaScript cannot read it, so:
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+- `src/services/authService.js` is the only place that logs in, refreshes,
+  fetches the session or logs out.
+- `src/services/authStorage.js` is the only definition of what the browser keeps
+  — a cached user profile for first paint, never proof of authentication.
+- "Am I signed in?" is answered by asking the server (`fetchSession`), because
+  nothing local can see the credential.
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+## Routes and permissions
 
-### `npm run eject`
+`src/config/routes.js` is the single source of truth. Each entry carries its
+path, the permissions that open it (any one grants access), the lazily-loaded
+component, and optional sidebar metadata. The router, the sidebar and the
+landing-page choice are all derived from it — add a page there, not in three
+places.
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+The server is authoritative. Everything here is UX: it decides what the UI
+offers, never what the API allows.
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+## PWA
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+`public/service-worker.js` is cache-first for hashed static assets and never
+caches API, Socket.IO or upload traffic. Registration failures are logged rather
+than swallowed, so a broken install is visible. Icons come from
+`icon-192.png` / `icon-512.png` via `public/manifest.json`.
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+## Tests
 
-## Learn More
+The client has no test suite yet. Lint and a successful `npm run build` are the
+current gate, both enforced by CI (`.github/workflows/ci.yml`). Server-side
+regression and smoke tests live in `server/test/`.
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+## Deployment
 
-To learn React, check out the [React documentation](https://reactjs.org/).
-
-### Code Splitting
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+Built here and rsynced to the VPS as static files; the Node API serves them.
+See `deploy/DEPLOY.md`.

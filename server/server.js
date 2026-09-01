@@ -97,7 +97,9 @@ const startServer = async () => {
   // module import (before connectDB runs). Kept non-fatal: a payment-config
   // problem must not stop an otherwise-healthy server from serving traffic.
   // Reads the base hotel's Settings doc, so run it in the base tenant context.
-  // (Per-tenant payment credentials are a follow-up — see MULTI_TENANT.md.)
+  // Per-tenant credentials ARE supported (paymentService caches a Razorpay
+  // client per tenant slug); this warms the base hotel's config at boot so the
+  // first booking of the day doesn't pay for the lookup.
   try {
     await runWithTenant({ tenant: BASE_TENANT, conn: getBaseConnection() }, () =>
       paymentService.initializeRazorpay()

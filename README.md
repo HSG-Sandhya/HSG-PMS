@@ -1,12 +1,45 @@
 # PMS-HSG
 
-**PMS-HSG** is a hotel management monorepo for the Hotel Sandhya Grand property. It includes a backend API, an admin dashboard client, and a public website front-end.
+**PMS-HSG** is a hotel management monorepo for the Hotel Sandhya Grand property:
+a backend API, an admin dashboard, a public website, and a separate multi-tenant
+control plane for running more than one hotel on the same codebase.
 
 ## Repository Structure
 
-- `server/` - Node.js / Express API server
-- `client/` - Admin dashboard React application
-- `website/` - Public-facing React website
+| Path        | What it is | Runs as |
+|-------------|-----------|---------|
+| `server/`   | Node/Express API. Also serves the built admin SPA. | PM2 app `sandhya-api`, port 5002 |
+| `client/`   | Admin dashboard (React 19 + MUI 9, CRA). | Static bundle served by `server/` |
+| `website/`  | Public marketing site + booking enquiry + in-room service menu. | Static bundle behind nginx |
+| `platform/` | **Control plane.** Creates, suspends and reconfigures hotels; owns the tenant registry and operator accounts. Imports no hotel schemas. | PM2 app `sandhya-platform`, port 5100 — **optional** |
+| `deploy/`   | Production runbook, PM2 config, nginx vhosts, env templates. | — |
+
+### How the pieces relate
+
+```
+                       platform/  (control plane, optional)
+                            |
+                            |  writes the tenant registry (pms_control DB)
+                            v
+  website/  ──/api──>  server/  ──> MongoDB: one database per hotel
+  client/   ──/api──>     ^
+                          |
+              resolves the hotel from the request host
+```
+
+A **single-hotel deployment does not run `platform/` at all** — `server/` falls
+back to the base database when no tenant is configured, and behaves exactly as
+it did before multi-tenancy existed. Read `server/MULTI_TENANT.md` before
+touching anything under `server/db/`, and `deploy/DEPLOY.md` section 11 before
+standing the control plane up.
+
+### Where the deeper documentation lives
+
+- `server/MULTI_TENANT.md` — database-per-hotel, host→tenant resolution, and the
+  verified reasons the API runs as a single process.
+- `platform/README.md` — control-plane setup and the operator console.
+- `client/README.md` — admin app: auth model, route/permission config, PWA.
+- `deploy/DEPLOY.md` — the production runbook.
 
 ## Key Features
 
