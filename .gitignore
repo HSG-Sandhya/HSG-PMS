@@ -12,6 +12,15 @@ node_modules/
 **/.env
 **/.env.*
 
+# ...but template files carry no secrets and MUST be committed: platform/README
+# and deploy/DEPLOY.md both tell you to `cp .env.example .env`, which silently
+# fails on a fresh clone if these are ignored. Negations must come AFTER the
+# patterns above, or git ignores them.
+!.env.example
+!**/.env.example
+!*.env.example
+!**/*.env.example
+
 # ===========================
 # Build Output
 # ===========================

@@ -146,6 +146,49 @@ tenant's config); their 4 call sites in `websiteController.js` now `await`. HMAC
 verification uses the paying hotel's own secret — a forged `order_demo_*` id in a
 live hotel is still fully HMAC-checked, never auto-verified.
 
+## Why the API runs as ONE process
+
+`deploy/ecosystem.config.cjs` pins `instances: 1`. That is not caution — several
+pieces of state live in process memory, and a second worker breaks them. The
+list below is verified against the code, not assumed.
+
+**Correctness blockers — a second worker breaks user-visible behaviour:**
+
+| What | Where | What breaks with 2+ workers |
+|---|---|---|
+| Socket.IO in-memory adapter | `config/socket.js` (no adapter set) | Rooms split per worker. A checkout emitted on worker A never reaches a housekeeping client connected to worker B. |
+| OTP codes | `services/otpService.js` (`Map`) | Send lands on A, verify hits B → "invalid code". Registration and first-run setup OTP stop working. |
+| Logout / session revocation | `utils/tokenRevocation.js` (`Map`) | Logout binds only on the worker that served it; every other worker honours the token until it expires (up to 30 days). |
+| Scheduled jobs | `utils/jwtRotation.js`, `services/holdExpiry.js` (`setInterval`) | Each worker runs its own timer. Hold expiry fires N times; JWT rotation racing itself is worse. |
+| Rate limits | `express-rate-limit` default MemoryStore (API and platform) | Counters are per-worker, so every effective limit multiplies by the worker count — including the login lockout. |
+
+**Degraded but correct — these only lose efficiency:**
+
+- `middleware/cache.js` — per-worker response cache; fewer hits, same answers.
+- `middleware/resolveTenant.js` — per-worker host→tenant cache, TTL-bounded.
+- `services/paymentService.js` — per-worker Razorpay client cache.
+
+**Separately, and often confused with the above:** uploads live on the VPS disk
+(`server/uploads/`). That is fine for many workers on ONE box — they share a
+filesystem — but it blocks a second *machine*, where a file written on host A
+simply does not exist on host B. Multi-process and multi-host are different
+thresholds; only the second one forces object storage.
+
+### What each step actually requires
+
+1. **More workers on one box** → Redis Socket.IO adapter (`@socket.io/redis-adapter`),
+   a shared store for OTP/revocation/rate-limits (Redis), and a job lock so only
+   one worker runs each scheduler. Uploads can stay on disk.
+2. **More than one box** → all of the above, plus object storage (S3/R2) for
+   uploads, plus a load balancer with sticky sessions or the Redis adapter doing
+   the work.
+
+Until then, scale **vertically** (a bigger VPS) and move Atlas off the shared
+tier first — that is the limit you will actually hit with a handful of hotels,
+not CPU.
+
+---
+
 ## Not yet done (Phase 2e+ — nice-to-have before scaling)
 
 - **Uploads** — `/uploads` is shared on disk; namespace files per tenant (or move

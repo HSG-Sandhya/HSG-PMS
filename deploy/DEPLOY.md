@@ -53,6 +53,13 @@ the VPS public IP:
 | A    | `www`   | `<VPS_PUBLIC_IP>`|
 | A    | `admin` | `<VPS_PUBLIC_IP>`|
 
+Add a fourth record **only if you are running the multi-hotel control plane**
+(section 11 — a single-hotel deployment does not need it):
+
+| Type | Name       | Value            |
+|------|------------|------------------|
+| A    | `platform` | `<VPS_PUBLIC_IP>`|
+
 Verify before requesting certificates:
 
 ```bash
@@ -306,6 +313,91 @@ Static rebuilds need no restart. `pm2 reload` is zero-downtime for the API.
 
 ---
 
+## 11. Control plane (multi-hotel only — optional)
+
+`platform/` is a **separate service**: its own process, port, database and
+deploy. The hotel API does not import it and does not need it running. Skip this
+entire section unless you are hosting more than one hotel.
+
+> **This is the most privileged surface you will deploy.** A session on the
+> control plane can create, suspend and reconfigure *every* hotel. The vhost
+> below ships with an IP allowlist enabled for that reason — the login form is
+> the second line of defence, not the first.
+
+```bash
+# 1. Install (production deps only)
+cd /var/www/sandhyagrand/platform && npm ci --omit=dev
+
+# 2. Environment
+cp /var/www/sandhyagrand/deploy/env/platform.env.production.example .env
+nano .env       # fill MONGODB_URI, JWT_SECRET (same as the API), PLATFORM_SETUP_KEY
+chmod 600 .env
+
+# 3. Start under PM2 (the ecosystem file defines "sandhya-platform")
+cd /var/www/sandhyagrand
+pm2 start deploy/ecosystem.config.cjs --only sandhya-platform
+pm2 save
+
+# 4. Confirm it is up and bound to loopback only
+curl -s http://127.0.0.1:5100/health     # → {"status":"ok","service":"pms-platform"}
+```
+
+**nginx + TLS**
+
+```bash
+sudo cp deploy/nginx/platform.sandhyagrand.in.conf /etc/nginx/sites-available/
+sudo ln -s /etc/nginx/sites-available/platform.sandhyagrand.in.conf /etc/nginx/sites-enabled/
+
+# EDIT FIRST: the vhost denies everyone by default. Add your office/VPN IPs to
+# the allow list, or you will lock yourself out of the console.
+sudo nano /etc/nginx/sites-available/platform.sandhyagrand.in.conf
+
+sudo nginx -t && sudo systemctl reload nginx
+sudo certbot --nginx -d platform.sandhyagrand.in
+```
+
+**Create the first operator (once)**
+
+`PLATFORM_SETUP_KEY` must be set, and `/setup` self-closes the moment one admin
+exists. Generate the key with `openssl rand -hex 32`, then:
+
+```bash
+curl -X POST https://platform.sandhyagrand.in/api/platform/setup \
+  -H 'Content-Type: application/json' \
+  -H 'x-setup-key: <PLATFORM_SETUP_KEY>' \
+  -d '{"username":"operator","password":"<long-password>","fullName":"Ops"}'
+```
+
+Then **remove `PLATFORM_SETUP_KEY` from `platform/.env`** and `pm2 reload
+sandhya-platform`. It has no further use and is a standing risk.
+
+**Backups.** The control plane's data is the tenant registry and the operator
+accounts, in the `CONTROL_DB_NAME` database (default `pms_control`) — a
+*different database* from any hotel's. Back it up explicitly; a per-hotel dump
+will not contain it:
+
+```bash
+mongodump --uri "$MONGODB_URI" --db pms_control --out /var/backups/pms-control/$(date +%F)
+```
+
+**Monitoring.** `GET /health` on port 5100 returns `{"status":"ok"}`. Point your
+uptime check at `https://platform.sandhyagrand.in/health` — but note the vhost's
+IP allowlist will block an external monitor unless you allow its addresses, so
+prefer a check that runs on the VPS itself:
+
+```bash
+pm2 status sandhya-platform
+pm2 logs sandhya-platform --lines 50
+```
+
+**Redeploying** (add to section 10 when the platform changes):
+
+```bash
+( cd platform && npm ci --omit=dev ) && pm2 reload sandhya-platform
+```
+
+---
+
 ## Gotchas checklist
 
 - [ ] **Atlas IP allowlist** includes the VPS IP, or the API can't connect (health = `degraded`).
@@ -318,3 +410,8 @@ Static rebuilds need no restart. `pm2 reload` is zero-downtime for the API.
       it is not in git and not on Atlas.
 - [ ] If nginx errors with "duplicate map $connection_upgrade", remove the map block from
       `admin.sandhyagrand.in.conf` (your nginx.conf already defines it).
+- [ ] **Control plane (if deployed):** the nginx vhost denies all by default — add your own
+      IPs before wondering why the console 403s. Keep `sandhya-platform` at one instance
+      (its rate limiter counts in process memory). Back up the `pms_control` database
+      separately from the hotel databases. Delete `PLATFORM_SETUP_KEY` once the first
+      operator exists.

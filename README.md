@@ -32,7 +32,7 @@
 - JWT authentication
 - Swagger/OpenAPI
 - Multer file uploads
-- Winston logging
+- Structured console logging (level-filtered; PM2 captures stdout/stderr to /var/log/sandhya/)
 
 ### Client
 
