@@ -1,5 +1,6 @@
 import "./config/env.js";
 import express from "express";
+import { randomUUID } from "crypto";
 import cors from "cors";
 import helmet from "helmet";
 import compression from "compression";
@@ -54,9 +55,19 @@ app.use(
   })
 );
 
-// Errors.
-app.use((err, _req, res, _next) => {
-  res.status(500).json({ success: false, message: err.message || "Server error" });
+// Errors. The control plane's exceptions name the database and the tenant
+// registry, so the message is logged rather than returned; the caller gets a
+// correlation id to quote.
+app.use((err, req, res, _next) => {
+  const correlationId = randomUUID().slice(0, 8);
+  console.error(
+    `[error ${correlationId}] ${req.method} ${req.originalUrl} — ${err.message}\n${err.stack || ""}`
+  );
+  res.status(500).json({
+    success: false,
+    message: IS_PRODUCTION ? "Server error" : err.message || "Server error",
+    correlationId,
+  });
 });
 
 export default app;

@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import logger from '../config/logger.js';
 import { MAX_UPLOAD_SIZE } from './uploadMemory.js';
 
@@ -64,11 +65,37 @@ export const errorHandler = (err, req, res, next) => {
 
   // Use err.status, err.statusCode, or default to 500
   const statusCode = err.status || err.statusCode || error.statusCode || 500;
-  
+
+  // A 5xx means something internal broke, and its message tends to name the
+  // database, the driver or a third-party SDK. Clients get a correlation id
+  // instead; the real message goes to the log under that same id, so a guest
+  // saying "I saw error a1b2c3d4" is enough to find the exact line.
+  //
+  // 4xx messages are written for the caller ("Check-in date is required") and
+  // are returned as-is.
+  const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+  const isServerFault = statusCode >= 500;
+  const correlationId = isServerFault ? randomUUID().slice(0, 8) : null;
+
+  if (isServerFault) {
+    logger.error('Unhandled error', {
+      correlationId,
+      message: err.message,
+      name: err.name,
+      method: req.method,
+      url: req.originalUrl,
+      stack: err.stack,
+    });
+  }
+
   res.status(statusCode).json({
     success: false,
-    error: error.message || 'Internal Server Error',
-    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
+    error:
+      isServerFault && IS_PRODUCTION
+        ? 'Something went wrong on our side. Please try again.'
+        : error.message || 'Internal Server Error',
+    ...(correlationId && { correlationId }),
+    ...(!IS_PRODUCTION && isServerFault && { stack: err.stack }),
   });
 };
 

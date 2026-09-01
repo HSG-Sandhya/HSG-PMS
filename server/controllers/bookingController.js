@@ -341,32 +341,6 @@ export const getBookings = async (req, res) => {
 };
 
 // Get booking by ID
-export const getBookingById = async (req, res) => {
-  try {
-    const booking = await Booking.findById(req.params.id)
-      .populate('roomId');
-
-    if (!booking) {
-      return res.status(404).json({ 
-        success: false,
-        message: 'Booking not found' 
-      });
-    }
-
-    res.json({
-      success: true,
-      data: booking,
-      message: 'Booking fetched successfully'
-    });
-  } catch (error) {
-    console.error('Error fetching booking:', error);
-    res.status(500).json({ 
-      success: false,
-      message: 'Failed to fetch booking',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
-    });
-  }
-};
 
 // Update booking
 export const updateBooking = async (req, res) => {
@@ -535,46 +509,6 @@ export const updateBooking = async (req, res) => {
 };
 
 // Delete booking
-export const deleteBooking = async (req, res) => {
-  try {
-    const booking = await Booking.findById(req.params.id);
-    if (!booking) {
-      return res.status(404).json({
-        success: false,
-        message: 'Booking not found'
-      });
-    }
-
-    // Free the room unless another confirmed booking still holds it
-    if (booking.roomId) {
-      const otherActive = await Booking.findOne({
-        _id: { $ne: booking._id },
-        roomId: booking.roomId,
-        bookingStatus: 'Confirmed'
-      });
-      if (!otherActive) {
-        await Room.findByIdAndUpdate(booking.roomId, { status: 'available', isAvailable: true });
-      }
-    }
-
-    await Booking.findByIdAndDelete(req.params.id);
-
-    // Drop the linked accounting income entry.
-    await removeEntriesBySource('room_booking', req.params.id);
-
-    res.json({
-      success: true,
-      message: 'Booking deleted successfully'
-    });
-  } catch (error) {
-    console.error('Error deleting booking:', error);
-    res.status(500).json({ 
-      success: false,
-      message: 'Failed to delete booking',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
-    });
-  }
-};
 
 // Check in guest
 export const checkInGuest = async (req, res) => {

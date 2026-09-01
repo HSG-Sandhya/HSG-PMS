@@ -18,7 +18,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ID_CARD_DIR = path.join(__dirname, '../uploads/id-cards');
 fs.mkdirSync(ID_CARD_DIR, { recursive: true }); // ensure the folder exists
-import { createBooking, getBookings, getBookingById, updateBooking, deleteBooking, checkInGuest, getCheckedOutBookings, generateMissingInvoiceNumbers, createGroupBooking, createCompanyBooking, getGroupBookings, assignRoom, updateGroupStatus, addRoomToGroup, transferRoom } from '../controllers/bookingController.js';
+import { createBooking, getBookings, updateBooking, checkInGuest, getCheckedOutBookings, generateMissingInvoiceNumbers, createGroupBooking, createCompanyBooking, getGroupBookings, assignRoom, updateGroupStatus, addRoomToGroup, transferRoom } from '../controllers/bookingController.js';
 import { objectIdParam } from '../middleware/validateObjectId.js';
 import { verifyUploadedImages } from '../middleware/verifyUploadedImages.js';
 import { getBanquetBlockedRoomIds } from '../controllers/roomController.js';
@@ -147,7 +147,7 @@ router.get('/range', isAuthenticated, async (req, res) => {
     res.json(bookings);
   } catch (error) {
     console.error('Error fetching bookings by date range:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    res.status(500).json({ message: 'Server error' });
   }
 });
 
@@ -255,7 +255,7 @@ router.get('/:id', isAuthenticated, async (req, res) => {
     res.json(booking);
   } catch (error) {
     console.error('Error fetching booking:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    res.status(500).json({ message: 'Server error' });
   }
 });
 
@@ -284,7 +284,7 @@ router.delete('/:id', isAuthenticated, requireManage('manage_bookings'), async (
     });
   } catch (error) {
     console.error('Error deleting booking:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    res.status(500).json({ message: 'Server error' });
   }
 });
 
