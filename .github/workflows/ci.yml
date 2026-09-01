@@ -1,0 +1,105 @@
+name: CI
+
+# A gate for the class of defect this codebase has actually produced: a
+# `require()` left inside an ES module, an Express-5 route pattern that throws
+# while the router is built, a deleted export something still imports. All of
+# those crash at boot or on first request, and all are caught by importing the
+# modules — which is what the smoke tests do.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  server:
+    name: Server — tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          # Match the VPS (node -v there is 22.x). Do not let CI pass on a
+          # version production does not run.
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - run: npm ci
+        working-directory: server
+      - run: npm test
+        working-directory: server
+        env:
+          # The smoke test imports app.js, which reads config but never connects.
+          NODE_ENV: test
+          JWT_SECRET: ci-placeholder-secret-not-used-for-signing
+
+  platform:
+    name: Control plane — tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: platform/package-lock.json
+      - run: npm ci
+        working-directory: platform
+      - run: npm test
+        working-directory: platform
+        env:
+          NODE_ENV: test
+          JWT_SECRET: ci-placeholder-secret-not-used-for-signing
+
+  client:
+    name: Admin client — lint + build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+      - run: npm ci
+        working-directory: client
+      - run: npx eslint src/
+        working-directory: client
+      - name: Build
+        run: npm run build
+        working-directory: client
+        env:
+          # Warnings must not fail the build, but a compile error must.
+          CI: false
+
+  website:
+    name: Public website — build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+      - run: npm ci
+        working-directory: website
+      - run: npm run build
+        working-directory: website
+        env:
+          CI: false
+
+  audit:
+    name: Dependency audit (advisory)
+    runs-on: ubuntu-latest
+    # Advisory only: a new upstream advisory should not block a hotel's deploy,
+    # but it should be visible. Flip to a hard gate once the backlog is clear.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - run: npm audit --omit=dev --audit-level=high
+        working-directory: server
+      - run: npm audit --omit=dev --audit-level=high
+        working-directory: platform
