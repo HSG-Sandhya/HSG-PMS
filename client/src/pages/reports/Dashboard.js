@@ -10,7 +10,6 @@ import { useSettings } from '../../contexts/SettingsContext';
 import { currencySym, liveBilling } from '../../utils/billing';
 import { useAuth } from '../../contexts/AuthContext';
 import { usePermissions } from '../../contexts/PermissionContext';
-import { _PermissionSection, _AdminDashboardCard, _RoleBasedGreeting } from '../../components/permissions/PermissionComponents';
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
 import {

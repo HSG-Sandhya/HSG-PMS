@@ -3,7 +3,7 @@ import axios from 'axios';
 import api from '../../api';
 import { formatIdentityByType, identityPlaceholder, identityError, identityLiveError } from '../../components/forms/bookingForm/idFormatters';
 import {
-  Grid, _Paper, Typography, Box, CircularProgress,
+  Grid, Typography, Box, CircularProgress,
   Button, Dialog, DialogContent,
   DialogActions, TextField, MenuItem, IconButton,
   Snackbar, Alert, InputAdornment,

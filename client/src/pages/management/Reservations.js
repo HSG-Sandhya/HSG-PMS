@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { 
   Box, 
   Typography, 
-  _Paper, 
   Grid, 
   CircularProgress,
   Tooltip,
