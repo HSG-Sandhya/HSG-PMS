@@ -13,7 +13,7 @@ on:
 
 jobs:
   server:
-    name: Server — tests
+    name: Server — lint + tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -25,6 +25,12 @@ jobs:
           cache: npm
           cache-dependency-path: server/package-lock.json
       - run: npm ci
+        working-directory: server
+      # `npm run lint` used to execute the smoke test rather than a linter, so it
+      # reported success without ever reading the source. It found two real bugs
+      # the moment it became a real lint: an undefined `mongoose` (a runtime
+      # ReferenceError) and a duplicate object key.
+      - run: npm run lint
         working-directory: server
       - run: npm test
         working-directory: server

@@ -126,9 +126,10 @@ export const updateBooking = async (req, res) => {
           status: { $nin: ['Cancelled'] },
           $or: [
             {
-              endDate: { $exists: true },
+              // Both conditions must live under ONE key — a second `endDate`
+              // property silently replaced the `$exists` guard.
+              endDate: { $exists: true, $gte: start },
               eventDate: { $lte: end },
-              endDate: { $gte: start },
             },
             {
               endDate: { $exists: false },
