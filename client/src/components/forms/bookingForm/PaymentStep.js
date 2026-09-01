@@ -259,7 +259,7 @@ const PaymentStep = ({
                 helperText={idType === 'Aadhaar Card' ? aadharError : ''}
                 placeholder={
                   idType === 'Aadhaar Card' ? 'XXXX-XXXX-XXXX' :
-                    idType === 'Passport' ? 'AA1234567BB' :
+                    idType === 'Passport' ? 'AB1234567' :
                       idType === 'Driving License' ? 'AA12 12345678901' :
                         idType === 'Voter ID' ? 'ABC1234567' :
                           idType === 'PAN Card' ? 'ABCDE1234F' :
@@ -268,14 +268,14 @@ const PaymentStep = ({
                 slotProps={{
                   htmlInput: {
                     maxLength:
-                      idType === 'Aadhaar Card' ? 14 : // 12 digits + 2 hyphens
+                      idType === 'Aadhaar Card' ? 14 : // 12 digits + 2 spaces (formatAadhaar)
                         idType === 'Passport' ? 11 : // 2 alphabets + 7 digits + 2 optional alphabets
                           idType === 'Driving License' ? 16 : // 2 alphabets + 2 digits + space + 11 digits
                             idType === 'Voter ID' ? 10 : // 3 alphabets + 7 digits
                               idType === 'PAN Card' ? 10 : // 5 alphabets + 4 digits + 1 alphabet
                                 undefined,
                     pattern:
-                      idType === 'Aadhaar Card' ? '[0-9\\-]*' :
+                      idType === 'Aadhaar Card' ? '[0-9\\s]*' :
                         idType === 'Passport' ? '[A-Z0-9]*' :
                           idType === 'Driving License' ? '[A-Z0-9\\s]*' :
                             idType === 'Voter ID' ? '[A-Z0-9]*' :

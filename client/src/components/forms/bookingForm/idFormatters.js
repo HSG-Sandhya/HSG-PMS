@@ -90,44 +90,54 @@ export const formatPanCard = (raw) => applyLayout(raw, [
 // Dispatch to the right formatter for an identity-type value. Accepts both the
 // Guest model's enum (Aadhar/Passport/DrivingLicense/VoterID) and the booking
 // form's human labels (Aadhaar Card / Driving License / Voter ID).
+// ── Type normalisation ───────────────────────────────────────────────────────
+// The app uses three spellings for the same thing depending on where you look:
+// 'Aadhar' / 'Aadhaar' / 'Aadhaar Card', 'DrivingLicense' / 'Driving License',
+// 'VoterID' / 'Voter ID', 'PAN' / 'PAN Card'. Every lookup below used to carry
+// its own alias list, so a type that one map knew and another did not would
+// silently format correctly while never being validated — which is exactly how
+// PAN ended up with a working formatter and no validation at all.
+//
+// Normalise once, key everything on the canonical value.
+export const normalizeIdentityType = (type) => {
+  const t = String(type ?? '').toLowerCase().replace(/[\s._-]/g, '');
+  if (t.startsWith('aadha')) return 'Aadhaar';
+  if (t.startsWith('passport')) return 'Passport';
+  if (t.startsWith('driving') || t === 'dl') return 'DrivingLicense';
+  if (t.startsWith('voter') || t === 'epic') return 'VoterID';
+  if (t.startsWith('pan')) return 'PAN';
+  return '';
+};
+
 export const formatIdentityByType = (type, raw) => {
-  switch (type) {
-    case 'Aadhar':
-    case 'Aadhaar':
-    case 'Aadhaar Card':
-      return formatAadhaar(raw);
-    case 'Passport':
-      return formatPassport(raw);
-    case 'DrivingLicense':
-    case 'Driving License':
-      return formatDrivingLicense(raw);
-    case 'VoterID':
-    case 'Voter ID':
-      return formatVoterId(raw);
-    case 'PAN':
-    case 'PAN Card':
-      return formatPanCard(raw);
-    default:
-      return String(raw ?? '');
+  switch (normalizeIdentityType(type)) {
+    case 'Aadhaar':        return formatAadhaar(raw);
+    case 'Passport':       return formatPassport(raw);
+    case 'DrivingLicense': return formatDrivingLicense(raw);
+    case 'VoterID':        return formatVoterId(raw);
+    case 'PAN':            return formatPanCard(raw);
+    default:               return String(raw ?? '');
   }
 };
 
 // A short "what this ID looks like" hint for the field's helper text.
 export const identityHint = (type) => ({
-  Aadhar: '12 digits · 1234 5678 9012',
-  Passport: '2 letters + 7 digits · e.g. AB1234567',
+  Aadhaar: '12 digits · 1234 5678 9012',
+  Passport: '2 letters + 7 digits, optional 1–2 trailing letters · e.g. AB1234567',
   DrivingLicense: '2 letters + 2 digits + number · e.g. BR14 20230001234',
   VoterID: '3 letters + 7 digits · e.g. ABC1234567',
-}[type] || '');
+  PAN: '5 letters + 4 digits + 1 letter · e.g. ABCDE1234F',
+}[normalizeIdentityType(type)] || '');
 
 // An example of the number's layout, shown as grey placeholder text inside the
 // input so the expected format is visible before the user types.
 export const identityPlaceholder = (type) => ({
-  Aadhar: '1234 5678 9012',
+  Aadhaar: '1234 5678 9012',
   Passport: 'AB1234567',
   DrivingLicense: 'BR14 20230001234',
   VoterID: 'ABC1234567',
-}[type] || '');
+  PAN: 'ABCDE1234F',
+}[normalizeIdentityType(type)] || '');
 
 // ── Validation ───────────────────────────────────────────────────────────────
 
@@ -161,19 +171,18 @@ export const isValidAadhaar = (value) => {
 export const identityError = (type, value) => {
   const v = String(value || '').trim();
   if (!v) return '';
-  switch (type) {
-    case 'Aadhar':
+  switch (normalizeIdentityType(type)) {
     case 'Aadhaar':
-    case 'Aadhaar Card':
       return isValidAadhaar(v) ? '' : 'Enter a valid 12-digit Aadhaar number';
     case 'Passport':
+      // 2 letters + 7 digits, with up to 2 optional trailing letters.
       return /^[A-Z]{2}[0-9]{7}[A-Z]{0,2}$/.test(v) ? '' : 'Passport must be 2 letters + 7 digits';
     case 'DrivingLicense':
-    case 'Driving License':
       return /^[A-Z]{2}[0-9]{2}\s?[0-9]{7,11}$/.test(v) ? '' : 'Enter a valid driving licence (e.g. BR14 20230001234)';
     case 'VoterID':
-    case 'Voter ID':
       return /^[A-Z]{3}[0-9]{7}$/.test(v) ? '' : 'Voter ID must be 3 letters + 7 digits';
+    case 'PAN':
+      return /^[A-Z]{5}[0-9]{4}[A-Z]$/.test(v) ? '' : 'PAN must be 5 letters + 4 digits + 1 letter (e.g. ABCDE1234F)';
     default:
       return '';
   }
@@ -183,14 +192,11 @@ export const identityError = (type, value) => {
 // separators the formatters insert. Used only to hold the error back while the
 // number is still being typed.
 const MIN_IDENTITY_LENGTH = {
-  Aadhar: 14,           // 12 digits + 2 spaces
-  Aadhaar: 14,
-  'Aadhaar Card': 14,
+  Aadhaar: 14,          // 12 digits + 2 spaces
   Passport: 9,          // 2 letters + 7 digits
   DrivingLicense: 12,   // 2 letters + 2 digits + space + 7 digits
-  'Driving License': 12,
   VoterID: 10,          // 3 letters + 7 digits
-  'Voter ID': 10,
+  PAN: 10,              // 5 letters + 4 digits + 1 letter, no separators
 };
 
 // Same as `identityError`, but silent until the value is long enough to judge —
@@ -198,6 +204,6 @@ const MIN_IDENTITY_LENGTH = {
 // for the field's live helper text and `identityError` when submitting.
 export const identityLiveError = (type, value) => {
   const v = String(value || '').trim();
-  if (v.length < (MIN_IDENTITY_LENGTH[type] ?? 0)) return '';
+  if (v.length < (MIN_IDENTITY_LENGTH[normalizeIdentityType(type)] ?? 0)) return '';
   return identityError(type, v);
 };
