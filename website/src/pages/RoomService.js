@@ -77,8 +77,9 @@ const RoomService = () => {
         items: cart.map((i) => ({ itemId: i._id, name: i.name, price: i.price, quantity: i.quantity })),
         totalAmount: subtotal,
         specialInstructions,
-        customerName: roomData.guest.name,
-        customerPhone: roomData.guest.phone,
+        // Name and phone are NOT sent: the server reads them from the booking
+        // it resolves for this room, and the endpoint no longer publishes the
+        // guest's contact details to anyone who can type a room number.
       };
       const { data } = await axios.post(`/api/website/room-service/${roomNumber}/order`, orderData);
       if (data.success) {

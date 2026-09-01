@@ -171,10 +171,24 @@ export const getAvailability = async (req, res) => {
     // Cheapest categories first; this drives the website availability card.
     const byCategory = Array.from(map.values()).sort((a, b) => a.price - b.price);
 
+    // Public DTO, not the Mongoose documents. A Room carries operational fields
+    // — maintenanceHistory, lastCleaned, housekeeping status — that have no
+    // business on an anonymous endpoint, and returning the whole document means
+    // any field added to the schema later is published by default.
+    const publicRoom = (r) => ({
+      id: r._id,
+      type: r.type,
+      capacity: r.capacity,
+      price: r.pricePerNight,
+      amenities: r.amenities,
+      description: r.description,
+      image: (r.images && r.images[0]) || null,
+    });
+
     res.json({
       available: trulyAvailable.length > 0,
-      rooms: trulyAvailable,        // back-compat: array of free room docs
-      count: trulyAvailable.length, // back-compat: total free rooms
+      rooms: trulyAvailable.map(publicRoom),
+      count: trulyAvailable.length,
       byCategory,
     });
   } catch (error) {
@@ -776,17 +790,20 @@ export const getRoomServiceContext = async (req, res) => {
       .sort({ 'category.displayOrder': 1, name: 1 });
     const categories = await Category.find({ isActive: true }).sort({ displayOrder: 1, name: 1 });
 
+    // This endpoint is reachable by anyone who can type a room number, so it
+    // returns the minimum the in-room menu actually renders: a first name to
+    // greet the guest and the stay dates. It previously returned the guest's
+    // full name, phone number, email and booking number — enumerable by walking
+    // room numbers. The order endpoint reads phone/name from the booking
+    // server-side, so nothing needs them here.
     res.json({
       room: { roomNumber: room.roomNumber, type: room.type, floor: room.floor },
       guest: {
-        name: booking.guestName,
-        phone: booking.phone,
-        email: booking.email,
+        name: String(booking.guestName || '').trim().split(/\s+/)[0] || 'Guest',
       },
       booking: {
         checkIn: booking.checkIn,
         checkOut: booking.checkOut,
-        bookingNumber: booking.bookingNumber,
       },
       menuItems,
       categories,
