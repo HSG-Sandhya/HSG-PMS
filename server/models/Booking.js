@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { balanceOf } from '../utils/money.js';
 import { registerModel } from "../db/modelRegistry.js";
 import { BILLING_DEFAULTS } from "../config/operationalDefaults.js";
 
@@ -304,7 +305,7 @@ bookingSchema.index({ checkIn: 1, checkOut: 1 });
 
 // Auto-update remaining amount
 bookingSchema.pre("save", function () {
-  this.remainingAmount = Math.max(0, this.totalAmount - this.paidAmount);
+  this.remainingAmount = balanceOf(this.totalAmount, this.paidAmount);
 });
 
 export default registerModel("Booking", bookingSchema);

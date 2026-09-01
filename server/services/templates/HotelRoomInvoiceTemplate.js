@@ -1,4 +1,5 @@
 import BaseInvoiceTemplate from './BaseInvoiceTemplate.js';
+import { balanceOf } from '../../utils/money.js';
 import RestaurantCalculationUtils from './RestaurantCalculationUtils.js';
 
 /**
@@ -706,7 +707,7 @@ class HotelRoomInvoiceTemplate extends BaseInvoiceTemplate {
     // queries. The charge is the rupee figure the front desk typed at checkout
     // (GST-inclusive, like every other line here), so nothing is added on top.
     const lateFeeTotal = Math.max(0, Number(booking.lateCheckoutFee) || 0);
-    const roomTotal = Math.max(0, totalAmount - lateFeeTotal); // incl. GST
+    const roomTotal = balanceOf(totalAmount, lateFeeTotal); // incl. GST, paise-normalised
     const roomBase = (roomTotal * 100) / 105;
 
     // Show the agreed tariff (a rate bargained at checkout, else the room's list

@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { balanceOf } from '../utils/money.js';
 
 import { registerModel } from "../db/modelRegistry.js";
 const banquetBookingSchema = new mongoose.Schema({
@@ -449,7 +450,7 @@ banquetBookingSchema.pre('save', function() {
   }
 
   // Calculate remaining amount
-  this.remainingAmount = Math.max(0, this.totalAmount - this.advanceAmount);
+  this.remainingAmount = balanceOf(this.totalAmount, this.advanceAmount);
   
   // Update payment status based on amounts
   if (this.advanceAmount === 0) {

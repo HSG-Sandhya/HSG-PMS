@@ -1,4 +1,5 @@
 import Booking from '../models/Booking.js';
+import { balanceOf } from '../utils/money.js';
 import Room from '../models/Room.js';
 import Guest from '../models/Guest.js';
 import Company from '../models/Company.js';
@@ -1332,7 +1333,7 @@ export const addRoomToGroup = async (req, res) => {
     // Keep the master's roll-up totals in sync.
     master.groupRoomCount = (master.groupRoomCount || 0) + 1;
     master.groupTotalAmount = (master.groupTotalAmount || 0) + total;
-    master.remainingAmount = Math.max(0, (master.groupTotalAmount || 0) - (master.paidAmount || 0));
+    master.remainingAmount = balanceOf(master.groupTotalAmount || 0, master.paidAmount || 0);
     await master.save();
 
     const updated = await Booking.find({ groupId })

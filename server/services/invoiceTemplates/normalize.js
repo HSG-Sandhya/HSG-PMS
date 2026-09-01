@@ -1,3 +1,5 @@
+import { balanceOf } from '../../utils/money.js';
+
 const GST_RATE = 0.05; // 5% (2.5 CGST + 2.5 SGST) — base inclusive (hotel/restaurant)
 
 // Banquet services are taxed at 18% (9% CGST + 9% SGST). Catering is priced
@@ -358,7 +360,7 @@ const computeTotals = (items, booking, isBanquet = false) => {
     const netTotal = gross - discount;
     const grandTotal = netTotal > 0 ? Math.ceil(netTotal / BANQUET_ROUNDING_STEP) * BANQUET_ROUNDING_STEP : 0;
     const roundOff = grandTotal - netTotal;
-    const balance = Math.max(0, grandTotal - paid);
+    const balance = balanceOf(grandTotal, paid);
     // Split the tax into equal CGST/SGST halves as whole rupees that still add
     // back to the full GST (avoids a stray ₹x.5 when the total is odd).
     const cgst = Math.round(gst / 2);
@@ -385,7 +387,7 @@ const computeTotals = (items, booking, isBanquet = false) => {
   const taxAmount = grandTotal - taxable;
   const cgst = taxAmount / 2;
   const sgst = taxAmount / 2;
-  const balance = Math.max(0, grandTotal - paid);
+  const balance = balanceOf(grandTotal, paid);
 
   return {
     subtotal: Math.round(taxable * 100) / 100,
