@@ -2,6 +2,7 @@ import "./config/env.js";
 import http from "http";
 import app from "./app.js";
 import connectDB, { closeDB } from "./config/db.js";
+import { primeRevocations } from "./utils/tokenRevocation.js";
 import logger from "./config/logger.js";
 import { rotateOnStart, scheduleJWTRotation } from "./utils/jwtRotation.js";
 import { initSocket, closeSocket } from "./config/socket.js";
@@ -47,6 +48,11 @@ const startServer = async () => {
   // scripts, and the base (single-tenant) fallback all have models ready — and
   // so cross-model populate() can resolve refs by name on the base database.
   ensureModels(getBaseConnection());
+
+  // Reload logout/force-logout watermarks so revoked sessions stay revoked
+  // across a restart. Must run after ensureModels (it queries User) and is
+  // non-fatal — see primeRevocations for the fail-open rationale.
+  await primeRevocations((await import("./models/User.js")).default);
 
   await rotateOnStart();
 

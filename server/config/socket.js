@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import logger from './logger.js';
 import { getCurrentTenant } from '../db/tenantContext.js';
 import { resolveTenantForHost } from '../middleware/resolveTenant.js';
+import { AUTH_COOKIE } from '../utils/authCookie.js';
 
 // ── Module singleton ────────────────────────────────────────────────────────
 let io = null;
@@ -52,8 +53,25 @@ export const initSocket = (httpServer) => {
   // from the connection's host), or a hotel-A token could subscribe to hotel-B's
   // live events. The JWT secret is shared across hotels, so this check is what
   // enforces isolation.
+  // The session credential is an HttpOnly cookie the browser attaches to the
+  // handshake (client sets withCredentials; CORS above allows credentials), so
+  // it is read from the cookie header. `auth.token` remains supported for API
+  // clients and for sessions issued before the cookie rollout.
+  const tokenFromHandshake = (socket) => {
+    const raw = socket.handshake.headers?.cookie;
+    if (typeof raw === 'string') {
+      for (const part of raw.split(';')) {
+        const [k, ...rest] = part.trim().split('=');
+        if (k === AUTH_COOKIE && rest.length) {
+          return decodeURIComponent(rest.join('='));
+        }
+      }
+    }
+    return socket.handshake.auth?.token || socket.handshake.query?.token || null;
+  };
+
   io.use(async (socket, next) => {
-    const token = socket.handshake.auth?.token || socket.handshake.query?.token;
+    const token = tokenFromHandshake(socket);
     if (!token || !process.env.JWT_SECRET) {
       return next(new Error('unauthorized'));
     }

@@ -1,8 +1,10 @@
 import jwt from 'jsonwebtoken';
-import crypto from 'crypto';
 import User from '../models/User.js';
+import { revokeUserTokens, revokeAllTokens } from '../utils/tokenRevocation.js';
+import { setAuthCookie, clearAuthCookie } from '../utils/authCookie.js';
 import Role from '../models/Role.js';
 import Department from '../models/Department.js';
+import Settings from '../models/Settings.js';
 import logger from '../config/logger.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { logActivity } from '../utils/activityLogger.js';
@@ -10,6 +12,27 @@ import { sendOtp, verifyOtp, isVerified, clearOtp } from '../services/otpService
 import { getCurrentTenant } from '../db/tenantContext.js';
 
 // Login user
+// Account-lockout policy. `security.maxLoginAttempts` and `security.lockoutDuration`
+// have existed in the Settings schema (and its admin UI) all along, but nothing
+// read them: loginAttempts/lockUntil/isLocked() were never touched at sign-in,
+// so the configured policy did nothing. Read per attempt — sign-ins are rare,
+// and a security control should take effect the moment it is changed.
+const LOCK_DEFAULTS = { maxAttempts: 5, lockMinutes: 30 };
+
+const getLockPolicy = async () => {
+  try {
+    const doc = await Settings.findOne({}, { 'security.maxLoginAttempts': 1, 'security.lockoutDuration': 1 }).lean();
+    const sec = doc?.security || {};
+    return {
+      maxAttempts: Number(sec.maxLoginAttempts) > 0 ? Number(sec.maxLoginAttempts) : LOCK_DEFAULTS.maxAttempts,
+      lockMinutes: Number(sec.lockoutDuration) > 0 ? Number(sec.lockoutDuration) : LOCK_DEFAULTS.lockMinutes,
+    };
+  } catch {
+    // Never let a settings read failure block sign-in entirely.
+    return LOCK_DEFAULTS;
+  }
+};
+
 export const login = asyncHandler(async (req, res) => {
   const { username, email, password } = req.body;
 
@@ -66,23 +89,59 @@ export const login = asyncHandler(async (req, res) => {
     });
   }
 
-  // Compare password
-  const isPasswordValid = await user.comparePassword(password);
-  if (!isPasswordValid) {
-    logger.warn('Login failed: Invalid password', {
+  const lockPolicy = await getLockPolicy();
+
+  // Refuse a locked account BEFORE testing the password, so a lockout actually
+  // stops guessing rather than merely recording it.
+  if (user.isLocked()) {
+    const minutesLeft = Math.max(1, Math.ceil(user.lockRemainingMs() / 60000));
+    logger.warn('Login blocked: account locked', {
       userId: user._id,
       username: user.username,
+      lockUntil: user.lockUntil,
       ip: req.ip
     });
-    return res.status(401).json({
+    return res.status(423).json({
       success: false,
-      message: 'Invalid credentials'
+      locked: true,
+      message: `Account locked after too many failed attempts. Try again in ${minutesLeft} minute${minutesLeft === 1 ? '' : 's'}.`
     });
   }
 
-  // Update last login
+  // Compare password
+  const isPasswordValid = await user.comparePassword(password);
+  if (!isPasswordValid) {
+    const { attempts, locked } = await user.incLoginAttempts(lockPolicy.maxAttempts, lockPolicy.lockMinutes);
+    logger.warn('Login failed: Invalid password', {
+      userId: user._id,
+      username: user.username,
+      attempts,
+      locked,
+      ip: req.ip
+    });
+    if (locked) {
+      return res.status(423).json({
+        success: false,
+        locked: true,
+        message: `Account locked after ${attempts} failed attempts. Try again in ${lockPolicy.lockMinutes} minutes.`
+      });
+    }
+    return res.status(401).json({
+      success: false,
+      message: 'Invalid credentials',
+      attemptsRemaining: Math.max(0, lockPolicy.maxAttempts - attempts)
+    });
+  }
+
+  // Update last login. save() writes only dirty paths, so it cannot clobber the
+  // counter that resetLoginAttempts clears below.
   user.lastLogin = new Date();
   await user.save();
+
+  // A good password clears the slate.
+  if (user.loginAttempts > 0 || user.lockUntil) {
+    await user.resetLoginAttempts();
+  }
 
   // Generate token
   if (!process.env.JWT_SECRET) {
@@ -131,6 +190,11 @@ export const login = asyncHandler(async (req, res) => {
     lastLogin: user.lastLogin
   };
 
+  // Primary credential from here on: an HttpOnly cookie the page's JavaScript
+  // cannot read. The token stays in the body for the transition (and for API
+  // clients), but the browser SPA no longer stores it.
+  setAuthCookie(res, token);
+
   logger.info('Login successful', {
     userId: user._id,
     username: user.username,
@@ -158,11 +222,25 @@ export const login = asyncHandler(async (req, res) => {
 
 // Logout user
 export const logout = asyncHandler(async (req, res) => {
+  // Deleting the browser's copy of a JWT does not invalidate it — anyone who
+  // copied the token could keep using it for the rest of its 30-day life. Stamp
+  // a revocation watermark so every token issued to this user before now is
+  // refused from here on.
+  const userId = req.user?.id || req.user?.userId || req.user?._id;
+  if (userId) {
+    await revokeUserTokens(User, userId);
+  }
+
+  clearAuthCookie(res);
+
   logger.info('User logout', {
-    userId: req.user?.id,
+    userId,
+    sessionsRevoked: Boolean(userId),
     ip: req.ip
   });
 
+  // Always 200: a logout with a missing or unreadable token has still achieved
+  // what the caller wanted, and must never strand them on a failing screen.
   res.json({
     success: true,
     message: 'Logged out successfully'
@@ -372,40 +450,10 @@ export const getProfile = asyncHandler(async (req, res) => {
   });
 });
 
-// Refresh token endpoint
-export const refreshToken = asyncHandler(async (req, res) => {
-  logger.info('Token refresh attempt', {
-    ip: req.ip,
-    userAgent: req.get('User-Agent')
-  });
-
-  // Generate a new JWT secret for this session (optional enhanced security)
-  const currentSecret = process.env.JWT_SECRET;
-  
-  // Create a new token with extended expiration
-  const newTokenPayload = {
-    id: crypto.randomUUID(), // Temporary ID for anonymous refresh
-    sessionId: crypto.randomBytes(16).toString('hex'),
-    type: 'refresh',
-    tenant: getCurrentTenant().slug, // keep the token bound to its hotel
-    iat: Math.floor(Date.now() / 1000),
-    exp: Math.floor(Date.now() / 1000) + (24 * 60 * 60) // 24 hours
-  };
-
-  const newToken = jwt.sign(newTokenPayload, currentSecret);
-
-  logger.info('New token generated', {
-    sessionId: newTokenPayload.sessionId,
-    ip: req.ip
-  });
-
-  res.json({
-    success: true,
-    token: newToken,
-    message: 'Token refreshed successfully',
-    expiresIn: '24h'
-  });
-});
+// The anonymous 'refreshToken' controller was removed with its route: it minted
+// a signed JWT for any caller with no credentials and no user lookup. Session
+// renewal is handled by POST /api/auth/refresh-token in routes/authRoutes.js,
+// which requires and re-validates the caller's existing token.
 
 // Force logout all sessions (clears all tokens)
 export const forceLogoutAll = asyncHandler(async (req, res) => {
@@ -414,14 +462,23 @@ export const forceLogoutAll = asyncHandler(async (req, res) => {
     userAgent: req.get('User-Agent')
   });
 
-  // In a production environment, you might want to:
-  // 1. Invalidate all refresh tokens in database
-  // 2. Add current tokens to a blacklist
-  // 3. Rotate the JWT secret
-  
+  // Previously this only returned a success message: the name and the response
+  // both claimed something the code never did. It now stamps a revocation
+  // watermark on every user, so all tokens issued before this moment — the
+  // caller's own included — stop working immediately.
+  const { at, users } = await revokeAllTokens(User);
+
+  logger.warn('All sessions force-revoked', {
+    by: req.user?.username || req.user?.id,
+    users,
+    at,
+    ip: req.ip
+  });
+
   res.json({
     success: true,
-    message: 'All sessions invalidated. Please login again.'
+    message: `All sessions invalidated for ${users} user(s). Please login again.`,
+    revokedAt: at
   });
 });
 

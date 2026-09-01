@@ -1,8 +1,11 @@
 import express from 'express';
 import jwt from 'jsonwebtoken';
 const router = express.Router();
-import { login, logout, getProfile, refreshToken, forceLogoutAll, changeOwnPassword, changeOwnUsername, getSetupStatus, bootstrapAdmin, requestSetupOtp, verifySetupOtp } from '../controllers/authController.js';
-import { authenticateToken } from '../middleware/auth.js';
+import { login, logout, getProfile, forceLogoutAll, changeOwnPassword, changeOwnUsername, getSetupStatus, bootstrapAdmin, requestSetupOtp, verifySetupOtp } from '../controllers/authController.js';
+import { authenticateToken, optionalAuth } from '../middleware/auth.js';
+import { requireManage } from '../middleware/requireManage.js';
+import { getCurrentTenant } from '../db/tenantContext.js';
+import { setAuthCookie } from '../utils/authCookie.js';
 
 /**
  * @openapi
@@ -28,7 +31,7 @@ import { authenticateToken } from '../middleware/auth.js';
  */
 // Public routes
 router.post('/login', login);
-router.post('/logout', logout);
+router.post('/logout', optionalAuth, logout);
 
 // First-run setup (public, but self-closing once any user exists).
 router.get('/setup-status', getSetupStatus);
@@ -43,92 +46,31 @@ router.get('/profile', authenticateToken, getProfile);
 router.put('/change-password', authenticateToken, changeOwnPassword);
 router.put('/change-username', authenticateToken, changeOwnUsername);
 
-// Token validation endpoint
-router.get('/validate', authenticateToken, (req, res) => {
+// REMOVED: '/validate' and '/verify'. Two token-introspection endpoints that
+// duplicated each other and were called by nothing — not the admin client, the
+// website, or anything under deploy/. '/verify' was additionally broken: it ran
+// `const jwt = require('jsonwebtoken')` inside an ES module, so it threw
+// ReferenceError on every call and reported a perfectly good token as invalid.
+// A caller who needs to check a token can use any authenticated route, or
+// /auth/profile.
+
+// Token refresh endpoint.
+//
+// Guarded by authenticateToken rather than a local jwt.verify. The JWT secret is
+// shared by every hotel, so a signature check alone does NOT establish which
+// tenant a token belongs to: presented against another hotel's host, a validly
+// signed token would previously be exchanged for a token stamped with THAT
+// host's tenant slug — a cross-tenant upgrade, bounded only by whether the
+// user's _id happened to exist in the other hotel's database (which it would
+// if that database was ever seeded from this one).
+//
+// authenticateToken enforces the tenant claim (tokenMatchesCurrentTenant) plus
+// the ObjectId-shaped subject check, so renewal can only ever occur on the
+// hotel the token was issued for.
+router.post('/refresh-token', authenticateToken, async (req, res) => {
   try {
-    // If we reach here, the token is valid (middleware passed)
-    res.json({
-      success: true,
-      valid: true,
-      user: {
-        id: req.user.id,
-        username: req.user.username,
-        email: req.user.email,
-        role: req.user.role
-      },
-      message: 'Token is valid'
-    });
-  } catch (error) {
-    res.status(401).json({
-      success: false,
-      valid: false,
-      message: 'Token validation failed',
-      error: error.message
-    });
-  }
-});
+    const decoded = req.user;
 
-// Token verification endpoint (alias for validate) - Optional auth for testing
-router.get('/verify', (req, res) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-  
-  if (!token) {
-    return res.json({
-      success: true,
-      valid: false,
-      message: 'No token provided - authentication optional'
-    });
-  }
-
-  try {
-    const jwt = require('jsonwebtoken');
-    if (!process.env.JWT_SECRET) {
-      return res.json({
-        success: false,
-        valid: false,
-        message: 'JWT_SECRET not configured'
-      });
-    }
-    const verified = jwt.verify(token, process.env.JWT_SECRET);
-    
-    res.json({
-      success: true,
-      valid: true,
-      user: {
-        id: verified.id,
-        username: verified.username,
-        email: verified.email,
-        role: verified.role
-      },
-      message: 'Token is valid'
-    });
-  } catch (error) {
-    res.json({
-      success: true,
-      valid: false,
-      message: 'Invalid token but endpoint accessible',
-      error: error.message
-    });
-  }
-});
-
-// Token refresh endpoint
-router.post('/refresh-token', async (req, res) => {
-  try {
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1];
-    
-    if (!token) {
-      return res.status(401).json({
-        success: false,
-        message: 'No token provided'
-      });
-    }
-
-    // Verify the current token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    
     // Get fresh user data from database
     const User = (await import('../models/User.js')).default;
     const user = await User.findById(decoded.id)
@@ -157,13 +99,22 @@ router.post('/refresh-token', async (req, res) => {
       permissions: [...new Set([
         ...(user.role?.permissions || []),
         ...(user.permissions || []),
-      ])]
+      ])],
+      // Required: without it tenantSlugOfToken() falls back to "base", so on
+      // any hotel other than the original the refreshed token would be rejected
+      // by authenticateToken on the very next request. Safe to read from the
+      // host because authenticateToken has already established that the
+      // incoming token's tenant matches it.
+      tenant: getCurrentTenant().slug,
     };
 
+    // Must match login's default (authController.js). These had drifted to
+    // '24h' here vs '30d' there, and JWT_EXPIRES_IN is unset, so every refresh
+    // silently cut a 30-day session down to one day.
     const newToken = jwt.sign(
       tokenPayload,
       process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
+      { expiresIn: process.env.JWT_EXPIRES_IN || '30d' }
     );
 
     // Prepare user response
@@ -181,6 +132,8 @@ router.post('/refresh-token', async (req, res) => {
       permissions: user.permissions
     };
 
+    setAuthCookie(res, newToken);
+
     res.json({
       success: true,
       token: newToken,
@@ -189,18 +142,33 @@ router.post('/refresh-token', async (req, res) => {
     });
 
   } catch (error) {
+    // Verification already happened in authenticateToken, so a failure here is
+    // a server-side fault (typically the DB lookup). It must NOT be reported as
+    // 401: the client interceptor treats any 401 as a dead session and force-
+    // logs the user out, so a transient database blip would end every session.
     console.error('Token refresh error:', error);
-    res.status(401).json({
+    res.status(500).json({
       success: false,
-      message: 'Invalid token'
+      message: 'Could not refresh session. Please try again.'
     });
   }
 });
 
-// Enhanced token refresh endpoint (public)
-router.post('/refresh-token-new', refreshToken);
+// REMOVED: '/refresh-token-new'. It was public and signed a valid JWT for any
+// anonymous caller — no credentials, no user lookup, a random UUID as the
+// subject. Nothing called it. It was survivable only because authenticateToken
+// happens to reject a non-ObjectId `id`; that is an incidental guard, not a
+// designed one. Token issuance belongs to /login and /refresh-token alone.
 
 // Force logout all sessions
-router.post('/force-logout-all', forceLogoutAll);
+// Ends every session for every user, the caller's included. This was PUBLIC
+// while it was a no-op; now that it actually revokes, an unauthenticated caller
+// could have logged out the entire hotel at will.
+router.post(
+  '/force-logout-all',
+  authenticateToken,
+  requireManage(['system_administration', 'admin_access']),
+  forceLogoutAll,
+);
 
 export default router;

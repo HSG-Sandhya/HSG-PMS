@@ -2,12 +2,19 @@ import User from '../models/User.js';
 import jwt from 'jsonwebtoken';
 import logger from '../config/logger.js';
 import { tokenMatchesCurrentTenant } from '../db/tenantContext.js';
+import { isTokenRevoked } from '../utils/tokenRevocation.js';
+import { tokenFromCookie } from '../utils/authCookie.js';
+import { isAdminActor } from '../utils/isAdminActor.js';
 
 const JWT_ALGORITHMS = process.env.JWT_ALGORITHMS
   ? process.env.JWT_ALGORITHMS.split(",").map((a) => a.trim()).filter(Boolean)
   : ["HS256"];
 
 const getTokenFromRequest = (req) => {
+  // HttpOnly session cookie first; Authorization header still honoured.
+  const cookieToken = tokenFromCookie(req);
+  if (cookieToken) return cookieToken;
+
   const authHeader = req.header('Authorization');
   if (typeof authHeader === "string" && authHeader.startsWith("Bearer ")) {
     const token = authHeader.slice(7).trim();
@@ -111,6 +118,21 @@ const authenticateToken = async (req, res, next) => {
       return res.status(403).json({
         success: false,
         message: 'Access denied. Account is temporarily locked.'
+      });
+    }
+
+    // Sessions ended by logout / force-logout-all. This middleware is a second,
+    // independent implementation of authenticateToken (used by settingsRoutes),
+    // so the revocation check in middleware/auth.js does NOT cover it — without
+    // this, a logged-out token still worked against every settings endpoint.
+    // The user document is already loaded here, so the watermark is read
+    // straight from it: authoritative even if the in-memory list failed to
+    // prime at boot.
+    const cutoff = user.tokenValidFrom ? Math.floor(new Date(user.tokenValidFrom).getTime() / 1000) : null;
+    if (isTokenRevoked(decoded) || (cutoff && (typeof decoded.iat !== 'number' || decoded.iat < cutoff))) {
+      return res.status(401).json({
+        success: false,
+        message: 'Session ended. Please login again.'
       });
     }
 
@@ -455,11 +477,10 @@ const requireAdmin = async (req, res, next) => {
     // `role.name` is only present when req.user is a hydrated User document.
     // Stateless auth (middleware/auth.js) puts the role id in `role` and the
     // name in `roleName` — read both, or a genuine admin role gets a 403 here.
-    const roleName = (user.role?.name || user.roleName || "").toLowerCase();
-    const isAdmin = user.isSystemAdmin ||
-                   roleName.includes('admin') ||
-                   roleName.includes('system') ||
-                   user.legacyRole === 'admin';
+    // Decided by isSystemAdmin + explicit admin grants, never by the role's
+    // display name — see utils/isAdminActor.js. `legacyRole` is kept for the
+    // pre-RBAC accounts that still carry it.
+    const isAdmin = isAdminActor(user) || user.legacyRole === 'admin';
 
     if (!isAdmin) {
       return res.status(403).json({

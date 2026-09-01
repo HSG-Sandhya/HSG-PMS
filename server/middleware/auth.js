@@ -1,12 +1,21 @@
 import jwt from 'jsonwebtoken';
 import logger from '../config/logger.js';
 import { tokenMatchesCurrentTenant, tenantSlugOfToken } from '../db/tenantContext.js';
+import { isTokenRevoked } from '../utils/tokenRevocation.js';
+import { tokenFromCookie } from '../utils/authCookie.js';
+import { isAdminActor } from '../utils/isAdminActor.js';
 
 const JWT_ALGORITHMS = process.env.JWT_ALGORITHMS
   ? process.env.JWT_ALGORITHMS.split(",").map((a) => a.trim()).filter(Boolean)
   : ["HS256"];
 
 const getTokenFromRequest = (req) => {
+  // Preferred: the HttpOnly session cookie, which JavaScript cannot read.
+  const cookieToken = tokenFromCookie(req);
+  if (cookieToken) return cookieToken;
+
+  // Still accepted: the Authorization header. Sessions issued before the cookie
+  // rollout keep working, as do scripts and API clients.
   const authHeader = req.headers.authorization;
   if (typeof authHeader === "string" && authHeader.startsWith("Bearer ")) {
     const token = authHeader.slice(7).trim();
@@ -76,6 +85,20 @@ const authenticateToken = (req, res, next) => {
       });
     }
 
+    // Sessions ended by logout / force-logout-all. The signature is still
+    // valid — that is the point: a stateless JWT stays cryptographically sound
+    // after logout, so the cut-off recorded at revocation is what stops it.
+    if (isTokenRevoked(decoded)) {
+      logger.warn('Authentication failed: token revoked (logged out)', {
+        userId: decoded.id || decoded.userId,
+        ip: req.ip,
+      });
+      return res.status(401).json({
+        success: false,
+        message: 'Session ended. Please login again.'
+      });
+    }
+
     req.user = decoded;
     next();
   } catch (error) {
@@ -118,7 +141,8 @@ const optionalAuth = (req, res, next) => {
       algorithms: JWT_ALGORITHMS,
     });
     // Ignore a token issued for a different hotel — treat as anonymous.
-    req.user = tokenMatchesCurrentTenant(verified) ? verified : null;
+    const usable = tokenMatchesCurrentTenant(verified) && !isTokenRevoked(verified);
+    req.user = usable ? verified : null;
   } catch (error) {
     req.user = null;
   }
@@ -135,13 +159,11 @@ const requireAdmin = (req, res, next) => {
     });
   }
 
-  // Check if user has admin role, system admin flag, or manage_staff permission
-  const isAdmin = req.user.roleName === 'admin' || 
-                  req.user.roleName === 'Admin' ||
-                  req.user.roleName === 'System Administrator' || 
-                  req.user.isSystemAdmin === true;
-                  
-  const hasManageStaffPermission = req.user.permissions && 
+  // Administrator status by grant, not by the role's display name — a role
+  // could be renamed (or created) to match a hard-coded string.
+  const isAdmin = isAdminActor(req.user);
+
+  const hasManageStaffPermission = req.user.permissions &&
                                    req.user.permissions.includes('manage_staff');
   
   if (isAdmin || hasManageStaffPermission) {

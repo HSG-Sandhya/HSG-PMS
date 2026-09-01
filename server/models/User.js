@@ -118,6 +118,12 @@ const userSchema = new mongoose.Schema({
   loginAttempts: { type: Number, default: 0 },
   lockUntil: Date,
 
+  // Revocation watermark. Any JWT issued before this instant is refused by
+  // authenticateToken, which is what makes logout actually end a session:
+  // a stateless JWT cannot be withdrawn, so the server records the cut-off
+  // instead. Unset on a normal account that has never logged out.
+  tokenValidFrom: Date,
+
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" }
 }, { timestamps: true });
 
@@ -186,12 +192,69 @@ userSchema.methods.isLocked = function () {
   return !!(this.lockUntil && this.lockUntil > Date.now());
 };
 
+/** Milliseconds until an active lock expires (0 when not locked). */
+userSchema.methods.lockRemainingMs = function () {
+  return this.isLocked() ? this.lockUntil.getTime() - Date.now() : 0;
+};
+
+/**
+ * Count a failed sign-in and lock the account once `maxAttempts` is reached.
+ *
+ * The counter is incremented with $inc rather than read-modify-write so that
+ * parallel guesses cannot both read the same value and overwrite each other —
+ * which is exactly the shape of traffic a brute-force attempt produces.
+ */
+userSchema.methods.incLoginAttempts = async function (maxAttempts, lockMinutes) {
+  // A lock that has already expired starts a fresh count rather than resuming
+  // the old one, otherwise one more failure would immediately re-lock.
+  if (this.lockUntil && this.lockUntil <= Date.now()) {
+    await this.constructor.updateOne(
+      { _id: this._id },
+      { $set: { loginAttempts: 1 }, $unset: { lockUntil: 1 } },
+    );
+    return { attempts: 1, locked: false };
+  }
+
+  const updated = await this.constructor.findOneAndUpdate(
+    { _id: this._id },
+    { $inc: { loginAttempts: 1 } },
+    { new: true, projection: { loginAttempts: 1 } },
+  );
+  const attempts = updated?.loginAttempts ?? 1;
+
+  if (attempts >= maxAttempts) {
+    const lockUntil = new Date(Date.now() + lockMinutes * 60 * 1000);
+    await this.constructor.updateOne({ _id: this._id }, { $set: { lockUntil } });
+    return { attempts, locked: true, lockUntil };
+  }
+  return { attempts, locked: false };
+};
+
+/** Clear the failure counter and any lock after a successful sign-in. */
+userSchema.methods.resetLoginAttempts = function () {
+  return this.constructor.updateOne(
+    { _id: this._id },
+    { $set: { loginAttempts: 0 }, $unset: { lockUntil: 1 } },
+  );
+};
+
 // Hide sensitive fields in JSON
 userSchema.methods.toJSON = function () {
   const obj = this.toObject();
+  const locked = !!(this.lockUntil && this.lockUntil > Date.now());
+
   delete obj.password;
   delete obj.loginAttempts;
   delete obj.lockUntil;
+  delete obj.tokenValidFrom;
+
+  // Surface the lock as a derived flag. The raw counter and timestamp stay
+  // hidden, but an administrator has to be able to SEE that an account is
+  // locked out — otherwise the only symptom is a staff member who cannot sign
+  // in and no way to tell why.
+  obj.isLocked = locked;
+  if (locked) obj.lockedUntil = this.lockUntil;
+
   return obj;
 };
 
