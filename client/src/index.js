@@ -37,6 +37,12 @@ root.render(
 // traffic, so live data stays current — see public/service-worker.js.
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/service-worker.js').catch(() => {});
+    navigator.serviceWorker.register('/service-worker.js').catch((err) => {
+      // A swallowed failure here means the PWA silently stops updating and
+      // nobody finds out. Surface it: loudly in development, and as a console
+      // error in production so it appears in a browser report or any future
+      // front-end monitoring.
+      console.error('Service worker registration failed:', err?.message || err);
+    });
   });
 }

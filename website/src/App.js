@@ -1,4 +1,5 @@
 import React from 'react';
+import { isExtensionNoise } from './utils/extensionNoise';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import Navbar from './components/Navbar';
@@ -27,7 +28,7 @@ class ErrorBoundary extends React.Component {
 
   static getDerivedStateFromError(error) {
     // Handle browser extension related errors
-    if (error.message && error.message.includes('message channel closed')) {
+    if (isExtensionNoise(error?.message)) {
       console.warn('Browser extension error caught by boundary:', error.message);
       return { hasError: false }; // Don't show error UI for these
     }
@@ -36,7 +37,7 @@ class ErrorBoundary extends React.Component {
 
   componentDidCatch(error, errorInfo) {
     // Log errors but don't show error UI for browser extension issues
-    if (error.message && error.message.includes('message channel closed')) {
+    if (isExtensionNoise(error?.message)) {
       console.warn('Browser extension error:', error.message);
       return;
     }

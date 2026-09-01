@@ -1,4 +1,5 @@
 import React from 'react';
+import { isExtensionNoise } from './utils/extensionNoise';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { ToastContainer } from 'react-toastify';
@@ -21,8 +22,7 @@ axios.defaults.baseURL = process.env.REACT_APP_API_URL || '';
 // Global error handler for browser extension related errors
 const handleGlobalError = (event) => {
   // Ignore message channel closed errors (browser extension related)
-  if (event.error && event.error.message && 
-      event.error.message.includes('message channel closed')) {
+  if (isExtensionNoise(event.error?.message)) {
     event.preventDefault();
     console.warn('Browser extension communication error ignored:', event.error.message);
     return;
@@ -42,8 +42,7 @@ const handleGlobalError = (event) => {
 // Add global error handlers
 window.addEventListener('error', handleGlobalError);
 window.addEventListener('unhandledrejection', (event) => {
-  if (event.reason && event.reason.message && 
-      event.reason.message.includes('message channel closed')) {
+  if (isExtensionNoise(event.reason?.message)) {
     event.preventDefault();
     console.warn('Unhandled promise rejection (browser extension):', event.reason.message);
     return;
@@ -74,18 +73,15 @@ try {
     </React.StrictMode>
   );
 } catch (error) {
-  // Handle any render errors gracefully
-  if (error.message && error.message.includes('message channel closed')) {
-    console.warn('Render error (browser extension):', error.message);
-    // Try to render a simple fallback
-    root.render(
-      <div style={{ padding: '20px', textAlign: 'center' }}>
-        <h1>Hotel Sandhya Grand</h1>
-        <p>Please refresh the page if you see this message.</p>
-        <button onClick={() => window.location.reload()}>Refresh Page</button>
-      </div>
-    );
-  } else {
-    console.error('Render error:', error);
-  }
+  // A render failure is OUR bug, never extension noise — an extension cannot
+  // stop React mounting. It is always logged as an error; the placeholder is
+  // only so the visitor sees something other than a blank page.
+  console.error('Render failed:', error);
+  root.render(
+    <div style={{ padding: '20px', textAlign: 'center' }}>
+      <h1>Hotel Sandhya Grand</h1>
+      <p>Please refresh the page if you see this message.</p>
+      <button onClick={() => window.location.reload()}>Refresh Page</button>
+    </div>
+  );
 } 
