@@ -97,27 +97,17 @@ export const createRole = asyncHandler(async (req, res) => {
     createdBy: req.user.id
   };
 
-  // Auto-configure admin roles
-  if (name.toLowerCase().includes('admin')) {
-    roleData.hierarchy = 10;
-    roleData.settings = {
-      canManageStaff: true,
-      canViewReports: true,
-      canManageBookings: true,
-      canCreateUsers: true,
-      canAssignRoles: true,
-      canManageSettings: true,
-      canAccessSettings: true,
-      canManageRoles: true,
-      canViewAllStaff: true,
-      canEditStaffProfiles: true,
-      canDeactivateStaff: true,
-      maxApprovalAmount: 999999
-    };
-    roleData.accessLevel.departments = 'all';
-    roleData.accessLevel.rooms = 'all';
-    roleData.accessLevel.reports = 'all';
-  }
+  // NO name-based auto-configuration.
+  //
+  // This used to promote any role whose NAME contained "admin" to hierarchy 10
+  // with every settings flag on and `accessLevel: all`. It silently overwrote
+  // what the administrator had actually chosen in the form — naming a junior
+  // role "Assistant Administrator" handed it the top of the hierarchy — and a
+  // typed display label is not a security decision.
+  //
+  // The client already submits `hierarchy`, `settings` and `accessLevel`
+  // explicitly, so the form IS the explicit choice; anything omitted falls back
+  // to the model's safe defaults (hierarchy 1, access "limited").
 
   // Create new role
   const role = new Role(roleData);

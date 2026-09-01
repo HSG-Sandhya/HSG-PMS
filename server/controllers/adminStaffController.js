@@ -4,6 +4,7 @@ import Department from '../models/Department.js';
 import bcrypt from 'bcryptjs';
 import logger from '../config/logger.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
+import { isAdminActor as isAdminByGrant } from '../utils/isAdminActor.js';
 
 /**
  * Staff management controller.
@@ -17,13 +18,7 @@ import { asyncHandler } from '../middleware/errorHandler.js';
 // Whether the caller is an administrator (as opposed to a manager who merely
 // holds staff permissions). Mirrors the naming rule in middleware/staffAuthority.js:
 // the admin guards grant access by role NAME, so an admin-named role is admin.
-const isAdminActor = (req) => {
-  const u = req.user;
-  if (!u) return false;
-  if (u.isSystemAdmin) return true;
-  const name = (u.role?.name || u.roleName || '').toLowerCase();
-  return name.includes('admin') || name.includes('system');
-};
+const isAdminActor = (req) => isAdminByGrant(req?.user);
 
 // Mint a login username that doesn't collide with an existing one.
 const generateUniqueUsername = async (role, firstName, lastName) => {

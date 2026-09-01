@@ -1,6 +1,7 @@
 import User from '../models/User.js';
 import Role from '../models/Role.js';
 import { loadAuthUser } from './requireManage.js';
+import { isAdminActor, isAdminRole } from '../utils/isAdminActor.js';
 
 /**
  * Privilege ceiling for staff management.
@@ -18,11 +19,8 @@ import { loadAuthUser } from './requireManage.js';
  * Must run AFTER authentication and after requireManage (which caches the
  * caller's document on `req.authUser`).
  */
-const isAdminLike = (roleName = '') => {
-  const n = roleName.toLowerCase();
-  return n.includes('admin') || n.includes('system');
-};
-
+// Kept as a name-shaped signature for the call sites below, but the decision
+// now comes from grants rather than the label — see utils/isAdminActor.js.
 const forbid = (res, message) => res.status(403).json({ success: false, message });
 
 export const enforceStaffAuthority = async (req, res, next) => {
@@ -41,7 +39,7 @@ export const enforceStaffAuthority = async (req, res, next) => {
       return res.status(401).json({ success: false, message: 'Invalid or inactive account.' });
     }
     req.authUser = actor;
-    if (actor.isSystemAdmin || isAdminLike(actor.role?.name)) return next();
+    if (isAdminActor(actor)) return next();
 
     const actorLevel = actor.role?.hierarchy || 1;
 
@@ -50,11 +48,11 @@ export const enforceStaffAuthority = async (req, res, next) => {
     if (targetId) {
       const target = await User.findById(targetId)
         .select('isSystemAdmin role')
-        .populate('role', 'name hierarchy');
+        .populate('role', 'name hierarchy permissions');
       if (!target) {
         return res.status(404).json({ success: false, message: 'Staff member not found' });
       }
-      if (target.isSystemAdmin || isAdminLike(target.role?.name)) {
+      if (target.isSystemAdmin || isAdminRole(target.role)) {
         return forbid(res, 'Access denied. Only an administrator can manage administrator accounts.');
       }
       if ((target.role?.hierarchy || 1) > actorLevel) {
@@ -64,16 +62,15 @@ export const enforceStaffAuthority = async (req, res, next) => {
 
     // 2. The role being granted must not outrank the caller either — otherwise
     //    the caller could promote anyone (including themselves) past their own
-    //    level. An admin-named role is always off limits, whatever its level:
-    //    the admin guards grant access by role name, so handing one out is a
-    //    full escalation.
+    //    level. A role carrying admin grants is always off limits, whatever its
+    //    level — handing one out is a full escalation.
     const requestedRoleId = req.body?.roleId || req.body?.role;
     if (requestedRoleId) {
-      const role = await Role.findById(requestedRoleId).select('name hierarchy');
+      const role = await Role.findById(requestedRoleId).select('name hierarchy permissions');
       if (!role) {
         return res.status(400).json({ success: false, message: 'Invalid role specified' });
       }
-      if (isAdminLike(role.name) || (role.hierarchy || 1) > actorLevel) {
+      if (isAdminRole(role) || (role.hierarchy || 1) > actorLevel) {
         return forbid(res, `Access denied. You cannot assign the "${role.name}" role — it ranks above your own.`);
       }
     }

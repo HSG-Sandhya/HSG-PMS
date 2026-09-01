@@ -43,7 +43,9 @@ export const getAllUsers = async (req, res) => {
     const users = await User.find(query)
       .populate('role', 'name hierarchy permissions')
       .populate('department', 'name color')
-      .select('-password -loginAttempts -lockUntil')
+      // lockUntil stays selected so toJSON can derive `isLocked`; the raw
+      // timestamp is stripped from the response there, not here.
+      .select('-password -loginAttempts')
       .sort({ createdAt: -1 });
 
     // Use toPublic method if available, otherwise return as is
@@ -594,6 +596,53 @@ export const deactivateUser = async (req, res) => {
 };
 
 // Activate user
+/**
+ * Clear an account lockout (PUT /users/:id/unlock).
+ *
+ * The login lockout has no self-service escape: a locked account simply cannot
+ * sign in until the timer elapses. Without this, locking out the only admin
+ * account meant editing the database by hand, and staff locked out mid-shift
+ * had to wait it out.
+ */
+export const unlockUser = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id).select('username lockUntil loginAttempts');
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    const wasLocked = !!(user.lockUntil && user.lockUntil > Date.now());
+    const failedAttempts = user.loginAttempts || 0;
+
+    await User.updateOne(
+      { _id: user._id },
+      { $set: { loginAttempts: 0 }, $unset: { lockUntil: 1 } },
+    );
+
+    await logActivity(req, {
+      action: 'user.unlock',
+      category: 'security',
+      severity: 'warning',
+      audit: true,
+      resource: 'User',
+      resourceId: user._id,
+      description: `Cleared account lockout for ${user.username} (was locked: ${wasLocked}, failed attempts: ${failedAttempts})`,
+    });
+
+    res.json({
+      success: true,
+      message: wasLocked
+        ? `Account unlocked for ${user.username}.`
+        : `No active lock on ${user.username}; failed-attempt counter cleared.`,
+      wasLocked,
+      failedAttemptsCleared: failedAttempts,
+    });
+  } catch (error) {
+    console.error('Error unlocking user:', error);
+    res.status(500).json({ success: false, message: 'Failed to unlock account' });
+  }
+};
+
 export const activateUser = async (req, res) => {
   try {
     const userId = req.params.id;

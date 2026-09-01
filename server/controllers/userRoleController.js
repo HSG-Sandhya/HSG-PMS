@@ -219,18 +219,9 @@ export const createRole = async (req, res) => {
       createdBy: req.user?.id
     };
 
-    // Create admin role with all permissions
-    if (name.toLowerCase().includes('admin')) {
-      roleData.hierarchy = 10;
-      roleData.settings.canManageStaff = true;
-      roleData.settings.canViewReports = true;
-      roleData.settings.canManageBookings = true;
-      roleData.settings.canCreateUsers = true;
-      roleData.settings.canAssignRoles = true;
-      roleData.accessLevel.departments = 'all';
-      roleData.accessLevel.rooms = 'all';
-      roleData.accessLevel.reports = 'all';
-    }
+    // No name-based escalation — see the note in adminRoleController.create.
+    // hierarchy/settings/accessLevel come from the caller, or from the model's
+    // safe defaults.
 
     // Create new role
     const role = new Role(roleData);

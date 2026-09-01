@@ -9,6 +9,7 @@ import PDFDocument from "pdfkit";
 import { syncPayrollExpense } from "../services/accountingSync.js";
 import { getOps } from "../config/operationalConfig.js";
 import { loadAuthUser } from "../middleware/requireManage.js";
+import { isAdminActor } from '../utils/isAdminActor.js';
 import {
   num,
   periodLabel,
@@ -100,19 +101,16 @@ const canManagePayroll = async (req) => {
 // pass for exactly the roles this is meant to stop. Grant-based checks can come
 // back once those roles are re-scoped.
 //
-// `isAdminLike` mirrors middleware/staffAuthority.js so "Super Admin" and
-// "System Administrator" resolve the same way across the app.
-const isAdminLike = (roleName = '') => {
-  const n = String(roleName).toLowerCase();
-  return n.includes('admin') || n.includes('system');
-};
-
+// Administrator status comes from utils/isAdminActor.js (isSystemAdmin or an
+// explicit admin grant), shared with staffAuthority.js and the permission
+// middleware so every surface answers the question identically.
 const canApprovePayroll = async (req) => {
   const user = req?.user;
   if (!user) return false;
 
   if (user.isSystemAdmin === true || user.isSystemAdmin === 'true') return true;
-  if (isAdminLike(user.roleName || user.role?.name)) return true;
+  // Approving payroll releases money — decided by grants, not by role label.
+  if (isAdminActor(user)) return true;
   if (String(user.roleName || user.role?.name || '').toLowerCase() === 'owner') return true;
 
   // The token only carries the role held when it was issued, so confirm against
@@ -125,7 +123,7 @@ const canApprovePayroll = async (req) => {
 
     if (dbUser.isSystemAdmin) return true;
     const dbRole = dbUser.role?.name || '';
-    return isAdminLike(dbRole) || dbRole.toLowerCase() === 'owner';
+    return isAdminActor(dbUser) || dbRole.toLowerCase() === 'owner';
   } catch {
     return false;
   }
