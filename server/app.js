@@ -10,6 +10,7 @@ import { existsSync, mkdirSync } from "fs";
 import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
+import cookieParser from "cookie-parser";
 import compression from "compression";
 import timeout from "connect-timeout";
 
@@ -201,6 +202,9 @@ app.use(
   })
 );
 
+// Session cookie (HttpOnly) — must be parsed before any auth middleware runs.
+app.use(cookieParser());
+
 // ── Body parsing ──────────────────────────────────────────────────────────────
 
 const BODY_LIMIT = process.env.BODY_LIMIT || "2mb";
@@ -219,6 +223,13 @@ app.use(haltOnTimedout);
 // ── Upload directories ────────────────────────────────────────────────────────
 
 const UPLOAD_SUBDIRS = ["id-cards", "logos", "backgrounds", "menu-items", "aadhar"];
+
+// Only these are safe to serve anonymously over /uploads. Everything else under
+// the upload root — notably "id-cards" and "aadhar", which hold guest and staff
+// identity documents — is reachable only through /api/private-files, which
+// authenticates the caller and checks the owning record. This is a denylist by
+// omission on purpose: a new subdirectory is private until it is listed here.
+const PUBLIC_UPLOAD_SUBDIRS = new Set(["logos", "backgrounds", "menu-items"]);
 const UPLOAD_BASE_DIR = process.env.UPLOAD_DIR || "uploads";
 
 const initUploadDirs = () => {
@@ -264,8 +275,18 @@ const MISSING_IMAGE_PLACEHOLDER = Buffer.from(
   "base64"
 );
 
+// Reject anything outside the public subdirectories before static serving can
+// see it. Runs first so no CORS header is ever attached to a private document.
+const gateUploads = (req, res, next) => {
+  const [subdir] = req.path.replace(/^\/+/, "").split("/");
+  if (PUBLIC_UPLOAD_SUBDIRS.has(subdir)) return next();
+  res.set("Cache-Control", "no-store");
+  return res.status(404).type("txt").send("Not found");
+};
+
 app.use(
   "/uploads",
+  gateUploads,
   (_req, res, next) => {
     res.set({
       "Access-Control-Allow-Origin": "*",
@@ -300,6 +321,8 @@ import authRoutes from "./routes/authRoutes.js";
 import dashboardRoutes from "./routes/dashboardRoutes.js";
 import settingsRoutes from "./routes/settingsRoutes.js";
 import websiteRoutes from "./routes/websiteRoutes.js";
+import paymentRoutes from "./routes/paymentRoutes.js";
+import privateFileRoutes from "./routes/privateFileRoutes.js";
 
 // User & staff management
 import userRoutes from "./routes/userRoutes.js";
@@ -401,6 +424,8 @@ const apiRoutes = [
   ["/api/payroll", payrollRoutes],
   ["/api/staff-transactions", staffTransactionRoutes],
   ["/api/staff-recharges", staffRechargeRoutes],
+  ["/api/payments", paymentRoutes],
+  ["/api/private-files", privateFileRoutes],
 
   // Reporting
   ["/api/exports", exportRoutes],
