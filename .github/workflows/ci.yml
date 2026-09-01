@@ -96,10 +96,20 @@ jobs:
           cache-dependency-path: website/package-lock.json
       - run: npm ci
         working-directory: website
-      - run: npm run build
+      # MUST bake in the API host. The public site is served from
+      # sandhyagrand.in while the API lives on admin.sandhyagrand.in, so a plain
+      # `npm run build` produces a bundle that calls /api on its own origin —
+      # where nginx serves the SPA shell, so every API call silently returns
+      # index.html with a 200. See deploy/DEPLOY.md.
+      - name: Build (API host baked in)
+        run: npm run build:prod
         working-directory: website
         env:
           CI: false
+      - name: Fail if the API host is missing from the bundle
+        working-directory: website
+        run: |
+          grep -q "admin.sandhyagrand.in" build/static/js/main.*.js             || { echo "::error::website bundle has no API host baked in"; exit 1; }
 
   audit:
     name: Dependency audit (advisory)
