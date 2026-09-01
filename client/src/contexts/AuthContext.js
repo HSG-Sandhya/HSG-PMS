@@ -1,16 +1,14 @@
 import { createContext, useState, useContext, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import api from '../api';
-import {
-  isTokenValid,
-  autoCleanupOnAppStart,
-  clearAllAuthData,
-  forceTokenRefresh,
-} from '../utils/authDebug';
+import authService from '../services/authService';
 
 const AuthContext = createContext();
 
 export const useAuth = () => useContext(AuthContext);
+
+// Display label for the header/menu only. Authorisation is decided by
+// PermissionContext.isAdmin() and by the server — never by this string.
+const roleOf = (user) => (user?.isSystemAdmin ? 'admin' : user?.role?.name || 'user');
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -22,58 +20,46 @@ export const AuthProvider = ({ children }) => {
 
   const navigate = useNavigate();
 
-  // 🔹 Initialize auth state from localStorage with auto-cleanup
+  // 🔹 Establish the session on startup.
+  //
+  // The credential is an HttpOnly cookie, so the client cannot inspect it — the
+  // only way to know whether we are signed in is to ask. A cached profile is
+  // painted immediately to avoid a flash of the login screen, then confirmed
+  // (or discarded) by the server's answer.
   useEffect(() => {
     const initializeAuth = async () => {
       try {
-        // First, run auto-cleanup to clear stale data
-        const wasCleared = autoCleanupOnAppStart();
-        
-        if (wasCleared) {
-          setLoading(false);
-          return;
+        const cached = authService.getCachedUser();
+        if (cached) {
+          setUser(cached);
+          setRole(roleOf(cached));
         }
-        
-        const storedToken = localStorage.getItem('token');
-        const storedUser = localStorage.getItem('user');
-        
-        if (storedToken && storedUser) {
-          // Use utility function to validate token
-          if (!isTokenValid(storedToken)) {
-            // Try to refresh token first
-            const newToken = await forceTokenRefresh();
-            if (!newToken) {
-              setToken(storedToken);
-            } else {
-              setToken(newToken);
-            }
-          } else {
-            setToken(storedToken);
-          }
-          
-          const userData = JSON.parse(storedUser);
-          
-          setUser(userData);
+
+        const confirmed = await authService.fetchSession();
+        if (confirmed) {
+          setUser(confirmed);
+          setRole(roleOf(confirmed));
           setIsAuthenticated(true);
-          
-          // Set role with special handling for admin users
-          let userRole = userData.role?.name || 'user';
-          if (userData.isSystemAdmin || userRole?.toLowerCase().includes('admin')) {
-            userRole = 'admin';
-          }
-          setRole(userRole);
-          
+          // Roll the session forward so permission changes are picked up and
+          // the cookie's life is extended on an active user.
+          authService.refresh();
+        } else {
+          // No valid session — never leave the optimistic paint authenticated.
+          authService.clear();
+          setUser(null);
+          setRole(null);
+          setIsAuthenticated(false);
         }
       } catch (error) {
-        // Auth initialization error
-        // Clear corrupted data
-        clearAllAuthData();
-        localStorage.removeItem('user');
+        authService.clear();
+        setUser(null);
+        setRole(null);
+        setIsAuthenticated(false);
       } finally {
         setLoading(false);
       }
     };
-    
+
     // Listen for token invalidation events from API interceptor
     const handleTokenInvalid = () => {
       // Token invalidated, clearing auth state
@@ -105,34 +91,13 @@ export const AuthProvider = ({ children }) => {
   const login = async (credentials) => {
     setLoading(true);
     setError(null);
-    
     try {
-      const res = await api.post('/auth/login', credentials);
-      
-      if (res.data.success && res.data.token) {
-        const { token, user } = res.data;
-
-        localStorage.setItem('token', token);
-        localStorage.setItem('user', JSON.stringify(user));
-
-        setToken(token);
-        setUser(user);
-        setIsAuthenticated(true);
-        
-        // Set role with special handling for admin users
-        let userRole = user.role?.name || 'user';
-        if (user.isSystemAdmin || userRole?.toLowerCase().includes('admin')) {
-          userRole = 'admin';
-        }
-        setRole(userRole);
-
-        navigate('/dashboard');
-        return { success: true };
-      } else {
-        setError('Invalid login response');
-        setIsAuthenticated(false);
-        return { success: false, error: 'Invalid login response' };
-      }
+      const loggedIn = await authService.login(credentials);
+      setUser(loggedIn);
+      setRole(roleOf(loggedIn));
+      setIsAuthenticated(true);
+      navigate('/dashboard');
+      return { success: true };
     } catch (err) {
       const errorMessage = err.response?.data?.message || err.message || 'Login failed';
       setError(errorMessage);
@@ -145,16 +110,7 @@ export const AuthProvider = ({ children }) => {
 
   // 🔹 Logout
   const logout = async () => {
-    // Notify server so the session token can be invalidated, but don't block
-    // local cleanup if the network call fails (e.g. offline, expired token).
-    try {
-      await api.post('/auth/logout');
-    } catch (_err) {
-      // Ignore — local cleanup must still happen.
-    }
-
-    clearAllAuthData();
-
+    await authService.logout();   // revokes server-side, clears the cookie
     setUser(null);
     setToken(null);
     setIsAuthenticated(false);

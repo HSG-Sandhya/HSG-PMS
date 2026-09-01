@@ -1,29 +1,27 @@
 import { useEffect } from 'react';
-import { autoCleanupOnAppStart } from '../../utils/authDebug';
+import authService from '../../services/authService';
 
 /**
- * AutoCacheManager — drops expired tokens on app start, on tab focus, and
- * every 5 minutes. Valid tokens are left alone so persistent login keeps working.
+ * Re-confirms the session when the tab comes back to the foreground.
+ *
+ * This used to sweep expired JWTs out of localStorage on a timer. There is no
+ * client-side token to expire any more — the credential is an HttpOnly cookie —
+ * so the useful remnant is refreshing the cached profile after the tab has been
+ * idle, which also picks up permission changes made while it was away.
  */
 const AutoCacheManager = ({ children }) => {
   useEffect(() => {
-    // Initial sweep: only removes the token if it's expired.
-    autoCleanupOnAppStart();
-
-    const interval = setInterval(autoCleanupOnAppStart, 5 * 60 * 1000);
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') autoCleanupOnAppStart();
+    const refresh = () => {
+      if (document.visibilityState === 'visible' && authService.getCachedUser()) {
+        authService.fetchSession();
+      }
     };
-    const handleFocus = () => autoCleanupOnAppStart();
 
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('focus', handleFocus);
-
+    document.addEventListener('visibilitychange', refresh);
+    window.addEventListener('focus', refresh);
     return () => {
-      clearInterval(interval);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', refresh);
+      window.removeEventListener('focus', refresh);
     };
   }, []);
 

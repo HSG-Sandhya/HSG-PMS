@@ -1,4 +1,5 @@
 import { createContext, useState, useContext, useEffect, useCallback } from 'react';
+import authService from '../services/authService';
 import api from '../api';
 import { useAuth } from './AuthContext';
 
@@ -15,7 +16,10 @@ export const HousekeepingProvider = ({ children }) => {
   const fetchHousekeepingTasks = async () => {
     // Housekeeping is an authenticated endpoint — don't poll it while logged
     // out (e.g. on the login page), or it floods the console with 401s.
-    if (!localStorage.getItem('token')) {
+    // The session cookie is HttpOnly, so "signed in" is inferred from the
+    // cached profile. It only suppresses pointless polling on the login page;
+    // the server is still the authority on every request.
+    if (!authService.getCachedUser()) {
       setLoading(false);
       return;
     }

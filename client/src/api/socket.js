@@ -17,16 +17,17 @@ const SOCKET_URL =
 let socket = null;
 
 /**
- * Connect (or reuse) the authenticated staff socket. The server rejects the
- * handshake without a valid JWT, so a token is required.
+ * Connect (or reuse) the authenticated staff socket.
+ *
+ * No token is passed: the session is an HttpOnly cookie, which the browser
+ * attaches to the handshake because of `withCredentials` below. The server
+ * reads it there and still rejects an unauthenticated handshake.
  */
-export const connectSocket = (token) => {
-  if (!token) return null;
-  if (socket && socket.auth?.token === token) return socket;
-  if (socket) { socket.disconnect(); socket = null; }
+export const connectSocket = () => {
+  if (socket) return socket;
 
   socket = io(SOCKET_URL, {
-    auth: { token },
+    withCredentials: true,
     transports: ['websocket', 'polling'],
     reconnection: true,
     reconnectionAttempts: Infinity,

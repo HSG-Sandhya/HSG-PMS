@@ -202,7 +202,7 @@ const ActionFeedback = ({ feedback }) => (
 
 /* ───────────────────────── main component ───────────────────────── */
 const BookingNotifications = () => {
-  const { isAuthenticated, token } = useAuth();
+  const { isAuthenticated } = useAuth();
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
 
@@ -343,8 +343,8 @@ const BookingNotifications = () => {
   const fetchRef = useRef(fetchPendingBookings);
   fetchRef.current = fetchPendingBookings;
   useEffect(() => {
-    if (!isAuthenticated || !token) return undefined;
-    const socket = connectSocket(token);
+    if (!isAuthenticated) return undefined;
+    const socket = connectSocket();
     if (!socket) return undefined;
     const onNew = (payload) => {
       // Claim the id right away so the polling fallback doesn't double-alarm.
@@ -357,7 +357,7 @@ const BookingNotifications = () => {
     };
     socket.on('booking:new-website', onNew);
     return () => socket.off('booking:new-website', onNew);
-  }, [isAuthenticated, token, raiseAlarm]);
+  }, [isAuthenticated, raiseAlarm]);
 
   // Nothing left to answer → stop making noise.
   useEffect(() => {

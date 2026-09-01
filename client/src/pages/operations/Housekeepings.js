@@ -195,13 +195,13 @@ const Housekeepings = () => {
     if (!task) { showSnackbar('Task not found', 'error'); return; }
     setTasks(prev => prev.map(t => (t._id === taskId ? { ...t, status: 'Completed' } : t)));
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`/api/housekeeping/${taskId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ status: 'Completed', completedAt: new Date().toISOString() }),
+      // Goes through the shared axios instance so the session cookie is sent
+      // (withCredentials). The old raw fetch read a Bearer token out of
+      // localStorage, which no longer exists.
+      await api.put(`/housekeeping/${taskId}`, {
+        status: 'Completed',
+        completedAt: new Date().toISOString(),
       });
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       showSnackbar('Task marked as completed', 'success');
       // The server flips the room back to "available" on completion — refetch
       // rooms too so the Room Status Board leaves "Cleaning" and shows Clean.

@@ -1,4 +1,6 @@
 import axios from 'axios';
+import axiosInstance from './axiosInstance';
+import { clearAuthStorage } from '../services/authStorage';
 
 // Store active request cancellation tokens by component ID
 const activeRequests = new Map();
@@ -61,108 +63,6 @@ const wrapApiMethod = (apiMethod) => {
   };
 };
 
-const axiosInstance = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || '/api',
-  // 2s was too aggressive — any payload with images (settings, room photos)
-  // would consistently time out and the caller falls back to defaults.
-  timeout: 20000,
-  headers: { 'Content-Type': 'application/json' },
-  withCredentials: true,
-});
-
-axiosInstance.interceptors.request.use(
-  config => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers['Authorization'] = `Bearer ${token}`;
-    }
-    return config;
-  },
-  error => {
-    return Promise.reject(error);
-  },
-);
-
-axiosInstance.interceptors.response.use(
-  response => {
-    // Wrap successful responses in a resolved promise to ensure consistent handling
-    return Promise.resolve(response);
-  },
-  error => {
-    // Don't log cancelled requests as errors since they're intentional
-    if (axios.isCancel(error)) {
-      return Promise.reject(new Error('Request was cancelled'));
-    }
-    
-    // Handle message channel closed errors (browser extension related)
-    if (error.message && error.message.includes('message channel closed')) {
-      return Promise.reject(new Error('Browser communication error'));
-    }
-    
-    // Auto-clear stale auth when the token references a non-existent user (404
-    // on /auth/profile) or when the server rejects the token (any 401, or a 403
-    // whose message names a bad token).
-    const status = error.response?.status;
-    const serverMessage = error.response?.data?.message;
-    const requestUrl = typeof error.config?.url === 'string' ? error.config.url : '';
-
-    const isProfileMiss =
-      status === 404 &&
-      serverMessage === 'User not found' &&
-      requestUrl.includes('/auth/profile');
-
-    // Any 401 means the token was missing/invalid/expired — authenticateToken is
-    // the only source of 401s on the API. The lone exception is a failed
-    // /auth/login (wrong credentials), which the login form surfaces itself. A
-    // 403 only counts when its message names a bad token; a plain permission
-    // denial must NOT log the user out.
-    const isBadTokenResponse =
-      (status === 401 && !requestUrl.includes('/auth/login')) ||
-      (status === 403 &&
-        [
-          'Invalid token',
-          'Access denied. Invalid token.',
-          'Token expired. Please login again.',
-        ].includes(serverMessage));
-
-    if (isProfileMiss || isBadTokenResponse) {
-      // Wipe the full auth set, not just token/user, so no stale session
-      // fragment can revive a dead login on the next load.
-      ['token', 'user', 'refreshToken', 'app_session', 'auth_timestamp', 'tempAuth'].forEach(
-        (key) => localStorage.removeItem(key),
-      );
-      window.dispatchEvent(new CustomEvent('auth-token-invalid'));
-
-      if (
-        window.location.pathname !== '/login' &&
-        !window.location.pathname.startsWith('/website')
-      ) {
-        setTimeout(() => {
-          window.location.href = '/login';
-        }, 500);
-      }
-    }
-    
-    // Handle aborted requests and timeout errors more gracefully
-    if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
-      return Promise.reject(new Error('Request timed out. Please try again.'));
-    }
-    
-    // Handle network errors that might cause message channel closed errors
-    if (error.message.includes('Network Error')) {
-      return Promise.reject(new Error('Network error. Please check your connection and try again.'));
-    }
-    
-    // Handle component unmounting during requests
-    if (error.message.includes('unmounted component')) {
-      return Promise.reject(new Error('Operation cancelled'));
-    }
-    
-    // Wrap all rejections in a controlled promise to prevent uncaught exceptions
-    return Promise.reject(error);
-  },
-);
-
 // Create a version of the API service that uses the wrapper for all methods
 const api = {
   // Basic HTTP methods
@@ -199,6 +99,8 @@ const api = {
       return axiosInstance.put('/auth/change-username', { currentPassword, newUsername });
     },
 
+    // Prefer authService.refresh() — it swallows failures so a renewal blip
+    // cannot trip the interceptor's 401 logout.
     refreshToken: () => {
       return axiosInstance.post('/auth/refresh-token');
     },
@@ -216,9 +118,8 @@ const api = {
       } catch (_error) {
         // Error calling logout endpoint
       } finally {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        localStorage.removeItem('marriageSettings');
+        // One definition of what auth state is — see services/authStorage.js.
+        clearAuthStorage();
       }
       return { success: true };
     },
@@ -536,11 +437,10 @@ const api = {
     // No auth — hotel identity (name/tagline/logo) for the branded login screen.
     getPublicBranding: () => axiosInstance.get('/settings/public/branding'),
     updateSection: (section, data) => axiosInstance.put(`/settings/section/${section}`, data),
-    // Authentication
-    login: (credentials) => axiosInstance.post('/auth/login', credentials),
-    logout: () => axiosInstance.post('/auth/logout'),
-    getProfile: () => axiosInstance.get('/auth/profile'),
-    refreshToken: () => axiosInstance.post('/auth/refresh-token'),
+    // Auth methods that were duplicated into this settings group (login,
+    // logout, getProfile, refreshToken) have been removed — nothing called
+    // them, and a second refreshToken definition is how the implementations
+    // drifted apart in the first place. Use api.auth.* instead.
     updateAll: (data) => axiosInstance.put('/settings', data),
     reset: () => axiosInstance.post('/settings/reset'),
     
@@ -568,7 +468,6 @@ const api = {
     createManualBackup: () => axiosInstance.post('/settings/backup/manual'),
     getBackupHistory: () => axiosInstance.get('/settings/backup/history'),
     downloadBackup: (filename) => axiosInstance.get(`/settings/backup/download/${filename}`, { responseType: 'blob' }),
-    restoreBackup: (filename) => axiosInstance.post(`/settings/backup/restore/${filename}`),
     deleteBackup: (filename) => axiosInstance.delete(`/settings/backup/${filename}`),
     getStorageStats: () => axiosInstance.get('/settings/backup/storage-stats'),
     
@@ -576,12 +475,8 @@ const api = {
     updateSecurityPolicy: (policy) => axiosInstance.put('/settings/security/policy', policy),
     testSecuritySettings: () => axiosInstance.post('/settings/security/test'),
     
-    // Integration Management
-    testIntegrationConnection: (service, config) => axiosInstance.post('/settings/integrations/test-connection', { service, config }),
-    updateEmailService: (config) => axiosInstance.put('/settings/integrations/email', config),
-    updateSmsService: (config) => axiosInstance.put('/settings/integrations/sms', config),
-    updateChannelManager: (config) => axiosInstance.put('/settings/integrations/channel-manager', config),
-    updateAnalytics: (config) => axiosInstance.put('/settings/integrations/analytics', config),
+    // Integration Management endpoints were server-side stubs that returned
+    // "updated" without writing anything. Removed with those routes.
     
     // Theme Management
     applyTheme: (themeData) => axiosInstance.post('/settings/theme/apply', themeData),
@@ -589,15 +484,9 @@ const api = {
     
     // Staff Management
     getShiftTemplates: () => axiosInstance.get('/settings/staff/shift-templates'),
-    createRole: (roleData) => axiosInstance.post('/settings/staff/roles', roleData),
-    updateRole: (id, roleData) => axiosInstance.put(`/settings/staff/roles/${id}`, roleData),
-    deleteRole: (id) => axiosInstance.delete(`/settings/staff/roles/${id}`),
-    getAllRoles: () => axiosInstance.get('/settings/staff/roles'),
-    
-    createDepartment: (deptData) => axiosInstance.post('/settings/staff/departments', deptData),
-    updateDepartment: (id, deptData) => axiosInstance.put(`/settings/staff/departments/${id}`, deptData),
-    deleteDepartment: (id) => axiosInstance.delete(`/settings/staff/departments/${id}`),
-    getAllDepartments: () => axiosInstance.get('/settings/staff/departments'),
+    // Legacy role/department wrappers removed: their server routes were stubs
+    // that reported success without touching the database. Real role and
+    // department management lives under /api/admin/roles and /api/departments.
     
     // Room Categories Management
     getRoomCategories: () => axiosInstance.get('/settings/room-categories'),
@@ -615,44 +504,17 @@ const api = {
     getCurrencies: () => axiosInstance.get('/settings/static/currencies'),
     getTimezones: () => axiosInstance.get('/settings/static/timezones'),
     
-    // Legacy Support (for backward compatibility)
-    getMarriageSettings: async () => {
-      try {
-        const response = await axiosInstance.get('/settings/section/banquet');
-        return response;
-      } catch (error) {
-        const savedSettings = localStorage.getItem('marriageSettings');
-        return savedSettings ? { data: JSON.parse(savedSettings) } : { data: {} };
-      }
-    },
-    
-    updateMarriageSettings: async (settingsData) => {
-      try {
-        return await axiosInstance.put('/settings/section/banquet', settingsData);
-      } catch (error) {
-        localStorage.setItem('marriageSettings', JSON.stringify(settingsData));
-        return { data: settingsData };
-      }
-    },
-    
-    getBanquetHallBookingSettings: async () => {
-      try {
-        const response = await axiosInstance.get('/settings/section/banquet');
-        return response;
-      } catch (error) {
-        const savedSettings = localStorage.getItem('banquetHallBookingSettings');
-        return savedSettings ? { data: JSON.parse(savedSettings) } : { data: {} };
-      }
-    },
-    
-    updateBanquetHallBookingSettings: async (settingsData) => {
-      try {
-        return await axiosInstance.put('/settings/section/banquet', settingsData);
-      } catch (error) {
-        localStorage.setItem('banquetHallBookingSettings', JSON.stringify(settingsData));
-        return { data: settingsData };
-      }
-    }
+    // REMOVED: getMarriageSettings / updateMarriageSettings /
+    // getBanquetHallBookingSettings / updateBanquetHallBookingSettings.
+    //
+    // Each wrapped a call to /settings/section/banquet in a try/catch that, on
+    // failure, wrote the payload to localStorage and RETURNED IT AS IF SAVED.
+    // The UI would show "saved" while the database was untouched, and the next
+    // reader on any other device saw the old value — the worst kind of failure
+    // for administrative settings, because it is silent and looks like success.
+    //
+    // Nothing called them. Banquet settings go through the normal
+    // /settings/section/banquet path, where a failure surfaces as an error.
   },
   staff: {
     getAll: () => axiosInstance.get('/staff'),
@@ -686,6 +548,7 @@ const api = {
     changePassword: (id, passwordData) => axiosInstance.put(`/user-management/users/${id}/password`, passwordData),
     deactivateUser: (id) => axiosInstance.put(`/user-management/users/${id}/deactivate`),
     activateUser: (id) => axiosInstance.put(`/user-management/users/${id}/activate`),
+    unlockUser: (id) => axiosInstance.put(`/user-management/users/${id}/unlock`),
     deleteUser: (id) => axiosInstance.delete(`/user-management/users/${id}`),
     getUsersByDepartment: (departmentId) => axiosInstance.get(`/user-management/users/department/${departmentId}`),
     getUsersByRole: (roleId) => axiosInstance.get(`/user-management/users/role/${roleId}`),
@@ -730,18 +593,11 @@ const api = {
     createManual: () => axiosInstance.post('/settings/backup/manual'),
     getAll: () => axiosInstance.get('/settings/backup'),
     getStorageStats: () => axiosInstance.get('/settings/backup/storage-stats'),
-    restore: (filename) => axiosInstance.post(`/settings/backup/restore/${filename}`),
     download: (filename) => axiosInstance.get(`/settings/backup/download/${filename}`, { responseType: 'blob' }),
     delete: (filename) => axiosInstance.delete(`/settings/backup/${filename}`),
-    upload: (backupFile) => {
-      const formData = new FormData();
-      formData.append('backup', backupFile);
-      return axiosInstance.post('/settings/backup/upload', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-    },
+    // restore/upload removed: both server handlers were stubs. `restore` in
+    // particular answered "Backup restored" without restoring anything, which
+    // is the worst possible lie to tell during a recovery.
   },
   // Bank-account register — now surfaced inside the Accounting module's
   // "Bank Accounts" tab. Transaction/report endpoints were retired in favour
@@ -967,6 +823,18 @@ const api = {
     
     // Get monthly stats
     getMonthlyStats: (year, month) => axiosInstance.get(`/staff-recharges/recharges/stats/${year}/${month}`),
+  },
+
+  // Identity documents. These are streamed from an authenticated endpoint
+  // (they used to be public files under /uploads), so they must be fetched as
+  // a blob through this instance — a plain <img src> sends no Authorization
+  // header. Callers should revoke the object URL when done.
+  privateFiles: {
+    bookingIdCard: (bookingId, side = 'front') =>
+      axiosInstance.get(`/private-files/booking/${bookingId}/id-card/${side}`, { responseType: 'blob' }),
+
+    staffAadhaar: (staffId, side = 'front') =>
+      axiosInstance.get(`/private-files/staff/${staffId}/aadhaar/${side}`, { responseType: 'blob' }),
   },
 
   // Guest Print Forms
