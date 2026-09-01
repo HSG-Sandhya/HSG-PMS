@@ -16,76 +16,76 @@ export const formatAadhaar = (raw) => {
   return value;
 };
 
-// Passport: 2 alphabets + 7 digits + optional 1-2 alphabets (max 11 chars).
-export const formatPassport = (raw) => {
-  const value = String(raw).toUpperCase();
-  let formatted = '';
-  for (let i = 0; i < value.length && formatted.length < 11; i++) {
-    const char = value[i];
-    if (i < 2) {
-      if (/[A-Z]/.test(char)) { formatted += char; }
-    } else if (i < 9) {
-      if (/[0-9]/.test(char)) { formatted += char; }
-    } else if (/[A-Z]/.test(char)) {
-      formatted += char;
+// Every layout below is expressed as an ordered list of slots: either a run of
+// characters of one class (`re` + `len`), or a literal separator (`lit`) that
+// the formatter inserts itself. `applyLayout` walks the raw input one character
+// at a time and decides which slot a character belongs to from HOW MUCH HAS
+// BEEN ACCEPTED so far — never from the character's index in the raw string.
+// (Indexing the raw string desynchronises the moment a character is skipped or
+// a separator is auto-inserted, which is what made the driving-licence field
+// stop accepting input once its space had been added.)
+const applyLayout = (raw, slots) => {
+  const value = String(raw ?? '').toUpperCase();
+  let out = '';
+  let slot = 0;      // slot the next character goes into
+  let filled = 0;    // characters already accepted into that slot
+
+  for (const char of value) {
+    // Skip past full slots, collecting the separators we would have to write
+    // before this character. They are only committed if the character is kept,
+    // so a rejected keystroke never leaves a stray separator behind.
+    let next = slot;
+    let taken = filled;
+    let pending = '';
+    while (next < slots.length && (slots[next].lit !== undefined || taken >= slots[next].len)) {
+      if (slots[next].lit !== undefined) { pending += slots[next].lit; }
+      next += 1;
+      taken = 0;
+    }
+    if (next >= slots.length) { break; }   // layout is full — ignore the rest
+
+    if (slots[next].re.test(char)) {
+      out += pending + char;
+      slot = next;
+      filled = taken + 1;
+    } else if (pending.includes(char)) {
+      // The user typed the separator themselves — honour it, don't drop it.
+      out += pending;
+      slot = next;
+      filled = taken;
     }
   }
-  return formatted;
+  return out;
 };
 
-// Driving licence: 2 alphabets + 2 digits + space + up to 11 digits.
-export const formatDrivingLicense = (raw) => {
-  const value = String(raw).toUpperCase();
-  let formatted = '';
-  let spaceAdded = false;
-  for (let i = 0; i < value.length && formatted.length < 15; i++) {
-    const char = value[i];
-    if (i < 2) {
-      if (/[A-Z]/.test(char)) { formatted += char; }
-    } else if (i < 4) {
-      if (/[0-9]/.test(char)) { formatted += char; }
-    } else if (i === 4 && !spaceAdded) {
-      formatted += ' ';
-      spaceAdded = true;
-      if (/[0-9]/.test(char)) { formatted += char; }
-    } else if (i > 4 || (i === 4 && spaceAdded)) {
-      if (/[0-9]/.test(char)) { formatted += char; }
-    }
-  }
-  return formatted;
-};
+// Passport: 2 alphabets + 7 digits + optional 1-2 alphabets (max 11 chars).
+export const formatPassport = (raw) => applyLayout(raw, [
+  { re: /[A-Z]/, len: 2 },
+  { re: /[0-9]/, len: 7 },
+  { re: /[A-Z]/, len: 2 },
+]);
+
+// Driving licence: 2 alphabets (state) + 2 digits (RTO) + space + up to 11
+// digits (4-digit year + 7-digit serial), e.g. "UK07 20230001234" — 16 chars.
+export const formatDrivingLicense = (raw) => applyLayout(raw, [
+  { re: /[A-Z]/, len: 2 },
+  { re: /[0-9]/, len: 2 },
+  { lit: ' ' },
+  { re: /[0-9]/, len: 11 },
+]);
 
 // Voter ID: 3 alphabets + 7 digits.
-export const formatVoterId = (raw) => {
-  const value = String(raw).toUpperCase();
-  let formatted = '';
-  for (let i = 0; i < value.length && formatted.length < 10; i++) {
-    const char = value[i];
-    if (i < 3) {
-      if (/[A-Z]/.test(char)) { formatted += char; }
-    } else if (/[0-9]/.test(char)) {
-      formatted += char;
-    }
-  }
-  return formatted;
-};
+export const formatVoterId = (raw) => applyLayout(raw, [
+  { re: /[A-Z]/, len: 3 },
+  { re: /[0-9]/, len: 7 },
+]);
 
 // PAN: 5 alphabets + 4 digits + 1 alphabet.
-export const formatPanCard = (raw) => {
-  const value = String(raw).toUpperCase();
-  let formatted = '';
-  for (let i = 0; i < value.length && formatted.length < 10; i++) {
-    const char = value[i];
-    if (i < 5) {
-      if (/[A-Z]/.test(char)) { formatted += char; }
-    } else if (i < 9) {
-      if (/[0-9]/.test(char)) { formatted += char; }
-    } else if (/[A-Z]/.test(char)) {
-      formatted += char;
-    }
-  }
-  return formatted;
-};
+export const formatPanCard = (raw) => applyLayout(raw, [
+  { re: /[A-Z]/, len: 5 },
+  { re: /[0-9]/, len: 4 },
+  { re: /[A-Z]/, len: 1 },
+]);
 
 // Dispatch to the right formatter for an identity-type value. Accepts both the
 // Guest model's enum (Aadhar/Passport/DrivingLicense/VoterID) and the booking
@@ -177,4 +177,27 @@ export const identityError = (type, value) => {
     default:
       return '';
   }
+};
+
+// Shortest value that could possibly be valid for each type, counting the
+// separators the formatters insert. Used only to hold the error back while the
+// number is still being typed.
+const MIN_IDENTITY_LENGTH = {
+  Aadhar: 14,           // 12 digits + 2 spaces
+  Aadhaar: 14,
+  'Aadhaar Card': 14,
+  Passport: 9,          // 2 letters + 7 digits
+  DrivingLicense: 12,   // 2 letters + 2 digits + space + 7 digits
+  'Driving License': 12,
+  VoterID: 10,          // 3 letters + 7 digits
+  'Voter ID': 10,
+};
+
+// Same as `identityError`, but silent until the value is long enough to judge —
+// so a half-typed number isn't flagged red on the very first keystroke. Use this
+// for the field's live helper text and `identityError` when submitting.
+export const identityLiveError = (type, value) => {
+  const v = String(value || '').trim();
+  if (v.length < (MIN_IDENTITY_LENGTH[type] ?? 0)) return '';
+  return identityError(type, v);
 };

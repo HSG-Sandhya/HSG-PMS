@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import api from '../../api';
-import { formatIdentityByType, identityPlaceholder, identityError } from '../../components/forms/bookingForm/idFormatters';
+import { formatIdentityByType, identityPlaceholder, identityError, identityLiveError } from '../../components/forms/bookingForm/idFormatters';
 import {
   Grid, _Paper, Typography, Box, CircularProgress,
   Button, Dialog, DialogContent,
@@ -834,8 +834,8 @@ const Guests = ({ onSelectGuest }) => {
                         ...formData,
                         identityNumber: formatIdentityByType(formData.identityType, e.target.value),
                       })}
-                      error={!!identityError(formData.identityType, formData.identityNumber)}
-                      helperText={identityError(formData.identityType, formData.identityNumber)}
+                      error={!!identityLiveError(formData.identityType, formData.identityNumber)}
+                      helperText={identityLiveError(formData.identityType, formData.identityNumber)}
                     />
                   </Grid>
                 </Grid>

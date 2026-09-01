@@ -270,7 +270,7 @@ const PaymentStep = ({
                     maxLength:
                       idType === 'Aadhaar Card' ? 14 : // 12 digits + 2 hyphens
                         idType === 'Passport' ? 11 : // 2 alphabets + 7 digits + 2 optional alphabets
-                          idType === 'Driving License' ? 15 : // 2 alphabets + 2 digits + space + 11 digits
+                          idType === 'Driving License' ? 16 : // 2 alphabets + 2 digits + space + 11 digits
                             idType === 'Voter ID' ? 10 : // 3 alphabets + 7 digits
                               idType === 'PAN Card' ? 10 : // 5 alphabets + 4 digits + 1 alphabet
                                 undefined,
