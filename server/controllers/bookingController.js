@@ -6,6 +6,11 @@ import Company from '../models/Company.js';
 import Housekeeping from '../models/Housekeeping.js';
 import mongoose from 'mongoose';
 import { getBanquetBlockedRoomIds } from './roomController.js';
+import {
+  getInventorySnapshot,
+  freeCountByType,
+  canReserve,
+} from '../services/inventory.js';
 import { calculateNights } from '../utils/dateHelpers.js';
 import { emitHousekeepingTask } from '../config/socket.js';
 import { sendBookingNotification } from '../services/notificationService.js';
@@ -168,6 +173,27 @@ export const createBooking = async (req, res) => {
           success: false,
           message: `This room is already booked for overlapping dates (${clash.invoiceNumber || clash.customerId || clash.guestName || 'existing booking'}). Turn on "Allow overbooking" in Operations settings to override.`,
         });
+      }
+
+      // The clash check above only sees bookings that NAME this room. Category
+      // holds (website reservations, group blocks) name no room, so a category
+      // could be fully spoken for while every individual room still looks free
+      // — and taking one here would leave a hold that cannot be fulfilled.
+      const room = await Room.findById(bookingData.roomId).select('type').lean();
+      if (room?.type) {
+        const capacity = await canReserve(Room, {
+          roomType: room.type,
+          count: 1,
+          checkIn: bookingData.checkIn,
+          checkOut: bookingData.checkOut,
+          statuses: ACTIVE_HOLD_STATUSES,
+        });
+        if (!capacity.ok) {
+          return res.status(409).json({
+            success: false,
+            message: `All "${room.type}" rooms are already reserved for these dates, including category holds that have no room assigned yet. Assign this guest to an existing reservation, or turn on "Allow overbooking" in Operations settings to override.`,
+          });
+        }
       }
     }
 

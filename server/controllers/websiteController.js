@@ -14,7 +14,7 @@ import { syncRoomBookingIncome } from '../services/accountingSync.js';
 import { emitNewWebsiteBooking } from '../config/socket.js';
 import { getBilling, posGst } from '../config/operationalConfig.js';
 import { getBanquetBlockedRoomIds } from './roomController.js';
-import { getInventorySnapshot, availabilityByType } from '../services/inventory.js';
+import { getInventorySnapshot, availabilityByType, canReserve } from '../services/inventory.js';
 
 // ── Public restaurant ─────────────────────────────────────────────────────────
 
@@ -291,6 +291,26 @@ export const createRoomBooking = async (req, res) => {
       return res.status(400).json({
         message: 'Guest information, a room category, and check-in/check-out dates are required',
       });
+    }
+
+    // Enforce what /availability reports. Showing the right number is not the
+    // same as enforcing it: without this, a stale page, a retry, a race between
+    // two guests, or a direct API call could still reserve a sold-out category.
+    if (bookingData.roomType) {
+      const capacity = await canReserve(Room, {
+        roomType: bookingData.roomType,
+        count: bookingData.roomCount,
+        checkIn: bookingData.checkIn,
+        checkOut: bookingData.checkOut,
+      });
+      if (!capacity.ok) {
+        return res.status(409).json({
+          message: capacity.available === 0
+            ? `No "${bookingData.roomType}" rooms are available for these dates.`
+            : `Only ${capacity.available} "${bookingData.roomType}" room(s) available for these dates (you asked for ${capacity.requested}).`,
+          available: capacity.available,
+        });
+      }
     }
 
     // An "online" booking is only trusted as Paid after we verify the payment

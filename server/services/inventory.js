@@ -145,3 +145,22 @@ export const freeCountByType = (rooms, snapshot) => {
   for (const [type, cat] of availabilityByType(rooms, snapshot)) out[type] = cat.available;
   return out;
 };
+
+/**
+ * Can `count` rooms of `type` still be sold for this range?
+ *
+ * The availability ENDPOINTS were fixed to subtract category holds, but the
+ * booking endpoints did not consult them — so a sold-out category still
+ * accepted new reservations from a stale page, a retry, a race between two
+ * simultaneous guests, or a direct API call. Displaying the right number is not
+ * the same as enforcing it.
+ *
+ * @returns {{ ok: boolean, available: number, requested: number }}
+ */
+export const canReserve = async (Room, { roomType, count = 1, checkIn, checkOut, statuses }) => {
+  const requested = Math.max(1, Number(count) || 1);
+  const rooms = await Room.find({ status: { $ne: 'maintenance' } }).lean();
+  const snapshot = await getInventorySnapshot(checkIn, checkOut, statuses ? { statuses } : {});
+  const available = availabilityByType(rooms, snapshot).get(roomType || 'Room')?.available ?? 0;
+  return { ok: available >= requested, available, requested };
+};
