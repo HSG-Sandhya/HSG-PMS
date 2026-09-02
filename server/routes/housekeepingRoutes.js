@@ -1,3 +1,4 @@
+import { requirePermission } from '../middleware/requireManage.js';
 import express from 'express';
 import { objectIdParam } from '../middleware/validateObjectId.js';
 import {
@@ -23,11 +24,11 @@ router.param('roomId', objectIdParam('room ID'));
 // them (read and mutate).
 router.use(authenticateToken);
 
-router.get('/', getAllTasks);
-router.get('/tasks', getAllTasks);
-router.get('/reports', getReports);
-router.get('/room/:roomId', getTasksByRoom);
-router.get('/:id', getTaskById);
+router.get('/', requirePermission(['view_housekeeping_tasks', 'manage_housekeeping']), getAllTasks);
+router.get('/tasks', requirePermission(['view_housekeeping_tasks', 'manage_housekeeping']), getAllTasks);
+router.get('/reports', requirePermission(['view_housekeeping_tasks', 'manage_housekeeping']), getReports);
+router.get('/room/:roomId', requirePermission(['view_housekeeping_tasks', 'manage_housekeeping']), getTasksByRoom);
+router.get('/:id', requirePermission(['view_housekeeping_tasks', 'manage_housekeeping']), getTaskById);
 router.post('/', createTask);
 router.put('/:id', updateTask);
 router.delete('/:id', deleteTask);

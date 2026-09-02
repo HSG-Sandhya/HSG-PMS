@@ -1,3 +1,4 @@
+import { requirePermission } from '../middleware/requireManage.js';
 import express from 'express';
 import { objectIdParam } from '../middleware/validateObjectId.js';
 import GuestPrintService from '../services/guestPrintService.js';
@@ -13,7 +14,7 @@ router.param('bookingId', objectIdParam('booking ID'));
  * @desc Generate guest print form HTML
  * @access Private
  */
-router.get('/:bookingId', requireAuth, async (req, res) => {
+router.get('/:bookingId', requireAuth, requirePermission(['view_guests', 'manage_guests']), async (req, res) => {
   try {
     const { bookingId } = req.params;
     const { guestSignature, authorizedSignature, additionalNotes } = req.query;
@@ -81,7 +82,7 @@ router.post('/:bookingId', requireAuth, async (req, res) => {
  * @desc Get guest data for form generation
  * @access Private
  */
-router.get('/data/:bookingId', requireAuth, async (req, res) => {
+router.get('/data/:bookingId', requireAuth, requirePermission(['view_guests', 'manage_guests']), async (req, res) => {
   try {
     const { bookingId } = req.params;
     

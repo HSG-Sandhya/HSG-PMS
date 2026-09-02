@@ -1,3 +1,4 @@
+import { limitStaffDetail } from '../services/staffVisibility.js';
 import Staff from '../models/Staff.js';
 import Settings from '../models/Settings.js';
 
@@ -17,7 +18,10 @@ export const getAllStaff = async (req, res) => {
     if (status) filter.status = status;
 
     const staff = await Staff.find(filter).sort({ createdAt: -1 });
-    res.json({ success: true, data: staff, count: staff.length, message: 'Staff retrieved successfully' });
+    // A picker needs a name; it does not need salary, date of birth, home
+    // address, emergency contact or an Aadhaar number and its scan URLs.
+    const data = await limitStaffDetail(req, staff);
+    res.json({ success: true, data, count: staff.length, message: 'Staff retrieved successfully' });
   } catch (error) {
     console.error('Error fetching staff:', error);
     res.status(500).json({ success: false, message: error.message || 'Failed to fetch staff' });
@@ -36,7 +40,7 @@ export const searchStaff = async (req, res) => {
         { role: { $regex: query, $options: 'i' } },
       ],
     });
-    res.json({ success: true, data: staff, message: 'Staff search completed' });
+    res.json({ success: true, data: await limitStaffDetail(req, staff), message: 'Staff search completed' });
   } catch (error) {
     console.error('Error searching staff:', error);
     res.status(500).json({ success: false, message: error.message || 'Failed to search staff' });
@@ -60,7 +64,7 @@ export const getStaffByRole = async (req, res) => {
   try {
     const { role } = req.params;
     const staff = await Staff.find({ role, status: 'Active' });
-    res.json({ success: true, data: staff, message: `Staff with role ${role} retrieved successfully` });
+    res.json({ success: true, data: await limitStaffDetail(req, staff), message: `Staff with role ${role} retrieved successfully` });
   } catch (error) {
     console.error('Error getting staff by role:', error);
     res.status(500).json({ success: false, message: error.message || 'Failed to get staff by role' });
@@ -71,7 +75,7 @@ export const getStaffByDepartment = async (req, res) => {
   try {
     const { department } = req.params;
     const staff = await Staff.find({ department, status: 'Active' });
-    res.json({ success: true, data: staff, message: `Staff in ${department} department retrieved successfully` });
+    res.json({ success: true, data: await limitStaffDetail(req, staff), message: `Staff in ${department} department retrieved successfully` });
   } catch (error) {
     console.error('Error getting staff by department:', error);
     res.status(500).json({ success: false, message: error.message || 'Failed to get staff by department' });
@@ -149,7 +153,7 @@ export const getStaffById = async (req, res) => {
   try {
     const staff = await Staff.findById(req.params.id);
     if (!staff) return res.status(404).json({ success: false, message: 'Staff not found' });
-    res.json({ success: true, data: staff, message: 'Staff member retrieved successfully' });
+    res.json({ success: true, data: await limitStaffDetail(req, staff), message: 'Staff member retrieved successfully' });
   } catch (error) {
     console.error('Error fetching staff member:', error);
     res.status(500).json({ success: false, message: error.message || 'Failed to fetch staff member' });

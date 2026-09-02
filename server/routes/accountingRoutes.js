@@ -9,7 +9,7 @@ import {
   getReports,
 } from '../controllers/accountingController.js';
 
-import { requireManage } from '../middleware/requireManage.js';
+import { requireManage, requirePermission } from '../middleware/requireManage.js';
 const router = express.Router();
 
 router.use(authenticateToken);
@@ -18,10 +18,10 @@ router.use(authenticateToken);
 router.param('id', objectIdParam('entry ID'));
 
 // Consolidated reports (cash book, ledger, GST, P&L, balance sheet)
-router.get('/reports', getReports);
+router.get('/reports', requirePermission(['view_financial_reports', 'manage_accounting']), getReports);
 
 // Income & expense entries
-router.get('/entries', getEntries);
+router.get('/entries', requirePermission(['view_financial_reports', 'manage_accounting']), getEntries);
 router.post('/entries', requireManage('manage_accounting'), createEntry);
 router.put('/entries/:id', requireManage('manage_accounting'), updateEntry);
 router.delete('/entries/:id', requireManage('manage_accounting'), deleteEntry);

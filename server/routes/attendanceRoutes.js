@@ -15,11 +15,11 @@ import {
 } from "../controllers/attendanceController.js";
 import { requireAuth } from "../middleware/auth.js";
 
-import { requireManage } from '../middleware/requireManage.js';
+import { requireManage, requirePermission } from '../middleware/requireManage.js';
 const router = express.Router();
 
 // Test endpoint to verify routes are working (no auth required)
-router.get('/health', (req, res) => {
+router.get('/health', requirePermission(['view_attendance', 'manage_attendance']), (req, res) => {
   res.json({ success: true, message: 'Attendance routes are working' });
 });
 
@@ -96,28 +96,29 @@ const bulkAttendanceValidation = [
 // @route   GET /api/attendance
 // @desc    Get all attendance records with filtering
 // @access  Private (Admin/System Admin only)
-router.get('/', getAllAttendance);
+router.get('/', requirePermission(['view_attendance', 'manage_attendance']), getAllAttendance);
 
 // @route   GET /api/attendance/daily
 // @desc    Get daily attendance for all staff
 // @access  Private (Admin/System Admin only)
-router.get('/daily', getDailyAttendance);
+router.get('/daily', requirePermission(['view_attendance', 'manage_attendance']), getDailyAttendance);
 
 // @route   GET /api/attendance/eligible-staff
 // @desc    Get list of staff eligible for attendance (excluding admin/system admin)
 // @access  Private (Admin/System Admin only)
-router.get('/eligible-staff', getEligibleStaffForAttendance);
+router.get('/eligible-staff', requirePermission(['view_attendance', 'manage_attendance']), getEligibleStaffForAttendance);
 
 // @route   GET /api/attendance/stats
 // @desc    Get attendance statistics
 // @access  Private (Admin/System Admin only)
-router.get('/stats', getAttendanceStats);
+router.get('/stats', requirePermission(['view_attendance', 'manage_attendance']), getAttendanceStats);
 
 // @route   GET /api/attendance/staff/:staffId
 // @desc    Get attendance history for specific staff
 // @access  Private (Admin/System Admin only)
 router.get(
   '/staff/:staffId',
+  requirePermission(['view_attendance', 'manage_attendance']),
   param('staffId').custom((v) => mongoose.Types.ObjectId.isValid(v)).withMessage('Invalid staff ID'),
   getStaffAttendance,
 );

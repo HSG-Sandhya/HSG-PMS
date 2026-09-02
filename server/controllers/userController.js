@@ -1,3 +1,4 @@
+import { callerMaySeeStaffDetail as callerMaySeeStaffDetailShared } from '../services/staffVisibility.js';
 import User from '../models/User.js';
 import Role from '../models/Role.js';
 import Department from '../models/Department.js';
@@ -14,20 +15,13 @@ import {
   HTTP_STATUS
 } from '../utils/index.js';
 import { logActivity } from '../utils/activityLogger.js';
-import { callerHasAnyPermission } from '../middleware/requireManage.js';
 
 // Who may see a staff member's full record (contact details, login username,
 // salary, address) as opposed to just their name for an assignment picker.
 // Payroll and attendance grants count: those screens legitimately show pay and
 // contact data for the staff they cover.
-const STAFF_DETAIL_PERMISSIONS = [
-  'manage_staff', 'view_staff', 'create_staff', 'edit_staff', 'deactivate_staff',
-  'manage_attendance', 'view_attendance',
-  'manage_payroll', 'view_payroll',
-];
-
-const callerMaySeeStaffDetail = (req) =>
-  callerHasAnyPermission(req, STAFF_DETAIL_PERMISSIONS);
+// Shared with staffController so the two rosters cannot drift apart.
+const callerMaySeeStaffDetail = callerMaySeeStaffDetailShared;
 
 // Get all users with optional filtering
 export const getAllUsers = async (req, res) => {
@@ -107,9 +101,26 @@ export const getUserById = async (req, res) => {
 
     const responseData = typeof user.toPublic === 'function' ? user.toPublic() : user.toJSON();
 
+    // Same rule as the roster: without staff-view rights a caller gets the
+    // picker fields, not a colleague's contact details and address. Fetching a
+    // single record by id was the way around the reduced list.
+    const data = (await callerMaySeeStaffDetail(req)) || String(req.user?.id || req.user?._id) === String(user._id)
+      ? responseData
+      : {
+          _id: responseData._id,
+          id: responseData.id ?? responseData._id,
+          firstName: responseData.firstName,
+          lastName: responseData.lastName,
+          fullName: responseData.fullName ?? `${responseData.firstName || ''} ${responseData.lastName || ''}`.trim(),
+          isActive: responseData.isActive,
+          role: responseData.role ? { _id: responseData.role._id, name: responseData.role.name, hierarchy: responseData.role.hierarchy } : null,
+          department: responseData.department ? { _id: responseData.department._id, name: responseData.department.name, color: responseData.department.color } : null,
+          profile: { employeeId: responseData.profile?.employeeId },
+        };
+
     res.json({
       success: true,
-      data: responseData,
+      data,
       message: 'User fetched successfully'
     });
   } catch (error) {

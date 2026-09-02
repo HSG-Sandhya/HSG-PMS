@@ -13,7 +13,7 @@ import {
 } from "../controllers/payrollController.js";
 import { requireAuth } from "../middleware/auth.js";
 
-import { requireManage } from '../middleware/requireManage.js';
+import { requireManage, requirePermission } from '../middleware/requireManage.js';
 const router = express.Router();
 
 // Malformed :id -> 400 instead of a Mongoose CastError 500.
@@ -87,17 +87,17 @@ const markAsPaidValidation = [
 // @route   GET /api/payroll
 // @desc    Get all payroll records with filtering
 // @access  Private (Admin/System Admin only)
-router.get('/', getAllPayrolls);
+router.get('/', requirePermission(['view_payroll', 'manage_payroll']), getAllPayrolls);
 
 // @route   GET /api/payroll/summary
 // @desc    Get payroll summary statistics
 // @access  Private (Admin/System Admin only)
-router.get('/summary', getPayrollSummary);
+router.get('/summary', requirePermission(['view_payroll', 'manage_payroll']), getPayrollSummary);
 
 // @route   GET /api/payroll/live
 // @desc    Live-computed payroll for every eligible staff member (month/year)
 // @access  Private (Admin/System Admin only)
-router.get('/live', getLivePayroll);
+router.get('/live', requirePermission(['view_payroll', 'manage_payroll']), getLivePayroll);
 
 // @route   POST /api/payroll/generate
 // @desc    Generate payroll for staff
@@ -113,7 +113,7 @@ router.post('/generate-month', requireManage('manage_payroll'), generateMonthVal
 // @route   GET /api/payroll/:id/pdf
 // @desc    Generate and download payroll PDF
 // @access  Private (Admin/System Admin only)
-router.get('/:id/pdf', generatePayrollPDF);
+router.get('/:id/pdf', requirePermission(['view_payroll', 'manage_payroll']), generatePayrollPDF);
 
 // @route   PUT /api/payroll/:id/approve
 // @desc    Approve payroll

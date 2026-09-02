@@ -1,7 +1,7 @@
 import User from '../models/User.js';
 
 /**
- * Least-privilege guard for write routes. Requires the authenticated user to
+ * Least-privilege guard. Requires the authenticated user to
  * hold a given permission (e.g. 'manage_rooms'), or ANY ONE of several
  * (e.g. ['manage_staff', 'edit_staff'] — the granular grant OR the umbrella one).
  * Works regardless of which auth middleware ran first:
@@ -92,5 +92,23 @@ export const callerHasAnyPermission = async (req, permissions) => {
 export const loadAuthUser = (decoded) =>
   User.findById(decoded.id || decoded.userId || decoded._id)
     .populate('role', 'name permissions hierarchy');
+
+/**
+ * The same guard, named for reads.
+ *
+ * Authorization was applied almost exclusively to mutations: reading every
+ * guest, every staff record (salary, date of birth, home address, emergency
+ * contact, Aadhaar number and its scan URLs), the accounting ledger or the
+ * banking transactions needed nothing but a valid login. The UI hid those pages
+ * from staff who lacked the permission, but the UI is not the security
+ * boundary — a logged-in account could call the endpoint directly.
+ *
+ * `requireManage` reads oddly on a GET, so read routes use this alias. Same
+ * implementation, same semantics: hold ANY ONE of the listed permissions. The
+ * convention is to pass both the view and the manage grant —
+ * `requirePermission(['view_guests', 'manage_guests'])` — so a role that can
+ * edit a thing can always read it.
+ */
+export const requirePermission = requireManage;
 
 export default requireManage;

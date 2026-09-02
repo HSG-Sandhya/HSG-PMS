@@ -42,7 +42,7 @@ import {
   convertQuotation,
 } from '../controllers/quotationController.js';
 
-import { requireManage } from '../middleware/requireManage.js';
+import { requireManage, requirePermission } from '../middleware/requireManage.js';
 const router = express.Router();
 
 router.use(authenticateToken);
@@ -50,37 +50,37 @@ router.use(authenticateToken);
 // Malformed :id -> 400 instead of a Mongoose CastError 500.
 router.param('id', objectIdParam('ID'));
 
-router.get('/halls', getAllHalls);
+router.get('/halls', requirePermission(['view_events', 'manage_events']), getAllHalls);
 router.post('/halls', requireManage('manage_events'), createHall);
 
 // Event packages (reusable bundles)
-router.get('/packages', getAllPackages);
+router.get('/packages', requirePermission(['view_events', 'manage_events']), getAllPackages);
 router.post('/packages', requireManage('manage_events'), createPackage);
 router.put('/packages/:id', requireManage('manage_events'), updatePackage);
 router.delete('/packages/:id', requireManage('manage_events'), deletePackage);
 
 // Catering packages (reusable per-plate menu bundles)
-router.get('/catering-packages', getAllCateringPackages);
+router.get('/catering-packages', requirePermission(['view_events', 'manage_events']), getAllCateringPackages);
 router.post('/catering-packages', requireManage('manage_events'), createCateringPackage);
 router.put('/catering-packages/:id', requireManage('manage_events'), updateCateringPackage);
 router.delete('/catering-packages/:id', requireManage('manage_events'), deleteCateringPackage);
 
 // Decoration packages (reusable flat-price décor bundles)
-router.get('/decoration-packages', getAllDecorationPackages);
+router.get('/decoration-packages', requirePermission(['view_events', 'manage_events']), getAllDecorationPackages);
 router.post('/decoration-packages', requireManage('manage_events'), createDecorationPackage);
 router.put('/decoration-packages/:id', requireManage('manage_events'), updateDecorationPackage);
 router.delete('/decoration-packages/:id', requireManage('manage_events'), deleteDecorationPackage);
 
 // Utensil / cookware inventory (rented to self-cooking guests; live stock)
-router.get('/utensil-items', getAllUtensilItems);
+router.get('/utensil-items', requirePermission(['view_events', 'manage_events']), getAllUtensilItems);
 router.post('/utensil-items', requireManage('manage_events'), createUtensilItem);
 router.put('/utensil-items/:id', requireManage('manage_events'), updateUtensilItem);
 router.delete('/utensil-items/:id', requireManage('manage_events'), deleteUtensilItem);
 
 // Sales quotations (standalone proposals, converted into bookings on acceptance)
-router.get('/quotations', getAllQuotations);
+router.get('/quotations', requirePermission(['view_events', 'manage_events']), getAllQuotations);
 router.post('/quotations', requireManage('manage_events'), createQuotation);
-router.get('/quotations/:id', getQuotationById);
+router.get('/quotations/:id', requirePermission(['view_events', 'manage_events']), getQuotationById);
 router.put('/quotations/:id', requireManage('manage_events'), updateQuotation);
 router.delete('/quotations/:id', requireManage('manage_events'), deleteQuotation);
 router.post('/quotations/:id/duplicate', requireManage('manage_events'), duplicateQuotation);
@@ -88,10 +88,10 @@ router.post('/quotations/:id/print', printQuotation);
 router.post('/quotations/:id/convert', requireManage('manage_events'), convertQuotation);
 
 // Event calendar — bookings within a given month
-router.get('/calendar/:year/:month', getMonthEvents);
+router.get('/calendar/:year/:month', requirePermission(['view_events', 'manage_events']), getMonthEvents);
 
-router.get('/bookings', getAllBookings);
-router.get('/bookings/:id', getBookingById);
+router.get('/bookings', requirePermission(['view_events', 'manage_events']), getAllBookings);
+router.get('/bookings/:id', requirePermission(['view_events', 'manage_events']), getBookingById);
 router.post('/bookings', requireManage('manage_events'), createBooking);
 router.put('/bookings/:id', requireManage('manage_events'), updateBooking);
 router.delete('/bookings/:id', requireManage('manage_events'), deleteBooking);
@@ -100,6 +100,6 @@ router.delete('/bookings/:id', requireManage('manage_events'), deleteBooking);
 router.post('/bookings/:id/payments', requireManage('manage_events'), addBookingPayment);
 router.delete('/bookings/:id/payments/:paymentId', requireManage('manage_events'), deleteBookingPayment);
 
-router.get('/reports', getReports);
+router.get('/reports', requirePermission(['view_events', 'manage_events']), getReports);
 
 export default router;

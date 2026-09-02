@@ -17,7 +17,7 @@ import {
   getAvailableRooms,
 } from '../controllers/roomController.js';
 
-import { requireManage } from '../middleware/requireManage.js';
+import { requireManage, requirePermission } from '../middleware/requireManage.js';
 import { objectIdParam } from '../middleware/validateObjectId.js';
 const router = express.Router();
 
@@ -26,14 +26,14 @@ router.use(authenticateToken);
 // Malformed :id -> 400 instead of a Mongoose CastError 500.
 router.param('id', objectIdParam('room ID'));
 
-router.get('/available', getAvailableRooms);
-router.get('/stats/overview', getRoomStats);
-router.get('/status/:status', getRoomsByStatus);
-router.get('/type/:type', getRoomsByType);
+router.get('/available', requirePermission(['view_rooms', 'manage_rooms']), getAvailableRooms);
+router.get('/stats/overview', requirePermission(['view_rooms', 'manage_rooms']), getRoomStats);
+router.get('/status/:status', requirePermission(['view_rooms', 'manage_rooms']), getRoomsByStatus);
+router.get('/type/:type', requirePermission(['view_rooms', 'manage_rooms']), getRoomsByType);
 router.patch('/bulk/status', requireManage('manage_rooms'), bulkUpdateRoomStatus);
 
-router.get('/', getAllRooms);
-router.get('/:id', getRoomById);
+router.get('/', requirePermission(['view_rooms', 'manage_rooms']), getAllRooms);
+router.get('/:id', requirePermission(['view_rooms', 'manage_rooms']), getRoomById);
 router.post('/', requireManage('manage_rooms'), createRoom);
 router.put('/:id', requireManage('manage_rooms'), updateRoom);
 router.put('/:id/status', requireManage('manage_rooms'), updateRoomStatus);

@@ -1,6 +1,6 @@
 import express from 'express';
 import { authenticateToken } from '../middleware/auth.js';
-import { requireManage } from '../middleware/requireManage.js';
+import { requireManage, requirePermission } from '../middleware/requireManage.js';
 import {
   exportBookings,
   exportRestaurantSales,
@@ -33,7 +33,7 @@ router.use(authenticateToken);
  *         content:
  *           application/vnd.openxmlformats-officedocument.spreadsheetml.sheet: {}
  */
-router.get('/bookings', exportBookings);
+router.get('/bookings', requirePermission(['view_bookings', 'manage_bookings']), exportBookings);
 
 /**
  * @openapi
@@ -52,7 +52,7 @@ router.get('/bookings', exportBookings);
  *       200:
  *         description: XLSX spreadsheet of restaurant sales.
  */
-router.get('/restaurant-sales', exportRestaurantSales);
+router.get('/restaurant-sales', requirePermission(['view_restaurant_orders', 'manage_restaurant', 'manage_pos']), exportRestaurantSales);
 
 /**
  * @openapi
@@ -93,6 +93,6 @@ router.get('/transactions', requireManage('manage_accounting'), exportTransactio
  *       200:
  *         description: XLSX spreadsheet of housekeeping tasks.
  */
-router.get('/housekeeping', exportHousekeeping);
+router.get('/housekeeping', requirePermission(['view_housekeeping_tasks', 'manage_housekeeping']), exportHousekeeping);
 
 export default router;

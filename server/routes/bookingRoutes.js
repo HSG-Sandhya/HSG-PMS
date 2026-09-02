@@ -1,5 +1,5 @@
 import express from 'express';
-import { requireManage } from '../middleware/requireManage.js';
+import { requireManage, requirePermission } from '../middleware/requireManage.js';
 const router = express.Router();
 import Booking from '../models/Booking.js';
 import Room from '../models/Room.js';
@@ -89,7 +89,7 @@ const uploadFields = [
 // Rooms held by a banquet/marriage event over a stay window. The booking form
 // uses this to grey out event-reserved rooms so staff can't pick one that the
 // server would then reject with a 409. Defined before /:id so it isn't read as an id.
-router.get('/banquet-blocked', isAuthenticated, async (req, res) => {
+router.get('/banquet-blocked', isAuthenticated, requirePermission(['view_bookings', 'manage_bookings']), async (req, res) => {
   try {
     const { checkIn, checkOut } = req.query;
     if (!checkIn || !checkOut) {
@@ -115,16 +115,16 @@ router.get('/banquet-blocked', isAuthenticated, async (req, res) => {
  *         description: Missing or invalid token.
  */
 // Get all bookings
-router.get('/', isAuthenticated, getBookings);
+router.get('/', isAuthenticated, requirePermission(['view_bookings', 'manage_bookings']), getBookings);
 
 // Get checked-out bookings
-router.get('/checked-out', isAuthenticated, getCheckedOutBookings);
+router.get('/checked-out', isAuthenticated, requirePermission(['view_bookings', 'manage_bookings']), getCheckedOutBookings);
 
 // Generate missing invoice numbers for existing bookings
 router.post('/generate-invoice-numbers', isAuthenticated, requireManage('manage_bookings'), generateMissingInvoiceNumbers);
 
 // Get bookings by date range
-router.get('/range', isAuthenticated, async (req, res) => {
+router.get('/range', isAuthenticated, requirePermission(['view_bookings', 'manage_bookings']), async (req, res) => {
   try {
     const { start, end } = req.query;
     
@@ -163,7 +163,7 @@ router.post('/group', isAuthenticated, requireManage('manage_bookings'), createG
 router.post('/company', isAuthenticated, requireManage('manage_bookings'), createCompanyBooking);
 
 // Rooming list — fetch a group/company cluster, assign a room to a slot
-router.get('/group/:groupId', isAuthenticated, getGroupBookings);
+router.get('/group/:groupId', isAuthenticated, requirePermission(['view_bookings', 'manage_bookings']), getGroupBookings);
 router.patch('/group/:groupId/status', isAuthenticated, requireManage('manage_bookings'), updateGroupStatus);
 router.post('/group/:groupId/room', isAuthenticated, requireManage('manage_bookings'), addRoomToGroup);
 router.patch('/:id/assign-room', isAuthenticated, requireManage('manage_bookings'), assignRoom);
@@ -275,7 +275,7 @@ router.put('/:id/checkout', isAuthenticated, requireManage('manage_bookings'), a
 router.put('/:id', isAuthenticated, requireManage('manage_bookings'), ...uploadFields, updateBooking);
 
 // Get booking by ID
-router.get('/:id', isAuthenticated, async (req, res) => {
+router.get('/:id', isAuthenticated, requirePermission(['view_bookings', 'manage_bookings']), async (req, res) => {
   try {
     const booking = await Booking.findById(req.params.id);
     if (!booking) {
