@@ -83,3 +83,33 @@ export const levelForScope = (scope) => {
 
 export const levelForRole = (role) =>
   role === 'Admin' ? ACCESS_LEVEL.FULL : ACCESS_LEVEL.LIMITED;
+
+// ── Employee IDs ─────────────────────────────────────────────────────────────
+//
+// Numbers come from an atomic counter (services/sequence.js), seeded once from
+// the highest EMP id already present. These two helpers are the pure parts, so
+// the seeding rule can be tested without a database.
+
+export const EMPLOYEE_ID_PREFIX = 'EMP';
+export const EMPLOYEE_ID_PAD = 4;
+
+export const formatEmployeeId = (n) =>
+  `${EMPLOYEE_ID_PREFIX}${String(n).padStart(EMPLOYEE_ID_PAD, '0')}`;
+
+export const employeeIdNumber = (id) => {
+  const n = parseInt(String(id ?? '').replace(new RegExp(`^${EMPLOYEE_ID_PREFIX}`), ''), 10);
+  return Number.isFinite(n) ? n : null;
+};
+
+/**
+ * The highest number in use, compared NUMERICALLY.
+ *
+ * Sorting the strings is wrong once the padding is exhausted — 'EMP9999' sorts
+ * above 'EMP10000' — and a seed that reads low hands out numbers that already
+ * exist.
+ */
+export const highestEmployeeNumber = (rows = []) =>
+  rows.reduce((max, row) => {
+    const n = employeeIdNumber(typeof row === 'string' ? row : row?.employeeId);
+    return n !== null && n > max ? n : max;
+  }, 0);

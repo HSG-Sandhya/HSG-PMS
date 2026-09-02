@@ -1,5 +1,6 @@
 import { limitStaffDetail } from '../services/staffVisibility.js';
 import Staff from '../models/Staff.js';
+import { withDuplicateRetry } from '../services/sequence.js';
 import {
   STAFF_STATUS,
   scopeForRole,
@@ -191,8 +192,16 @@ export const createStaff = async (req, res) => {
     // The schema defaults this; the setter normalizes whatever a caller sends.
     if (!staffData.status) staffData.status = STAFF_STATUS.ACTIVE;
 
-    const staff = new Staff(staffData);
-    const newStaff = await staff.save();
+    // The counter makes a collision vanishingly unlikely, but an employeeId
+    // typed in by hand or created before the counter existed is outside its
+    // knowledge. Retrying turns that into a second, correct number rather than
+    // a 500 at the desk. A fresh document each attempt, because a failed save
+    // leaves the rejected employeeId on the old one.
+    const newStaff = await withDuplicateRetry(async () => {
+      const staff = new Staff(staffData);
+      if (!staffData.employeeId) staff.employeeId = undefined; // re-generate on retry
+      return staff.save();
+    });
     res.status(201).json({ success: true, data: newStaff, message: 'Staff member created successfully' });
   } catch (error) {
     console.error('Error creating staff:', error);

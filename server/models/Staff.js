@@ -1,6 +1,8 @@
 import mongoose from "mongoose";
 
 import { registerModel } from "../db/modelRegistry.js";
+import { nextSequence } from "../services/sequence.js";
+import { formatEmployeeId, highestEmployeeNumber } from "../config/staffConstants.js";
 import {
   STAFF_STATUS,
   STAFF_STATUSES,
@@ -138,10 +140,30 @@ const StaffSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 // Auto-generate Employee ID
+//
+// countDocuments() + 1 was wrong in two separate ways, and the unique index
+// turned both into a failed save at the desk:
+//
+//   • Concurrency. Two people added at the same moment both counted 27 and both
+//     chose EMP0028; whichever saved second died on the index. This is the same
+//     defect already fixed for bookings, invoices and restaurant orders.
+//
+//   • Deletion. A count is not a high-water mark. Delete one of 27 staff and
+//     the next hire is offered EMP0027, which already belongs to someone —
+//     deterministic, repeatable failure, no concurrency required, and it keeps
+//     failing until enough people are hired to pass the gap.
+//
+// One atomic $inc fixes both: the number comes from the database and only ever
+// moves forwards. The counter is seeded once from the highest EMP id already
+// present, so existing records are stepped over rather than collided with.
 StaffSchema.pre("save", async function () {
   if (this.isNew && !this.employeeId) {
-    const count = await this.constructor.countDocuments();
-    this.employeeId = `EMP${String(count + 1).padStart(4, "0")}`;
+    const sequence = await nextSequence("staff:employeeId", {
+      seed: async () => highestEmployeeNumber(
+        await this.constructor.find({ employeeId: /^EMP\d+$/ }).select("employeeId").lean()
+      ),
+    });
+    this.employeeId = formatEmployeeId(sequence);
   }
 });
 
