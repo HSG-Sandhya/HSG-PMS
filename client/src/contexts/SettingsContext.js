@@ -637,50 +637,16 @@ export const SettingsProvider = ({ children }) => {
     }
   }, [settings.theme, updateSettings]);
 
-  // Export settings
-  const exportSettings = useCallback(async () => {
-    try {
-      const response = await api.settings.export();
-      
-      if (response.data.success) {
-        // Create and download file
-        const dataStr = JSON.stringify(response.data, null, 2);
-        const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
-        
-        const exportFileDefaultName = `hotel-settings-${new Date().toISOString().slice(0,10)}.json`;
-        
-        const linkElement = document.createElement('a');
-        linkElement.setAttribute('href', dataUri);
-        linkElement.setAttribute('download', exportFileDefaultName);
-        linkElement.click();
-        
-        return { success: true, message: 'Settings exported successfully' };
-      } else {
-        throw new Error(response.data.message || 'Failed to export settings');
-      }
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
-  }, []);
-
-  // Import settings
-  const importSettings = useCallback(async (settingsData) => {
-    try {
-      setError(null);
-      
-      const response = await api.settings.import(settingsData);
-      
-      if (response.data.success) {
-        setSettings(response.data.data);
-        return { success: true, message: response.data.message };
-      } else {
-        throw new Error(response.data.message || 'Failed to import settings');
-      }
-    } catch (error) {
-      setError(error.message || 'Failed to import settings');
-      return { success: false, error: error.message };
-    }
-  }, []);
+  // REMOVED: exportSettings / importSettings.
+  //
+  // They called api.settings.export() and api.settings.import(), which never
+  // existed — the API layer named them exportSettings/importSettings — so both
+  // threw TypeError into their own catch and returned { success: false }. The
+  // routes they were reaching for (/settings/export, /settings/import) do not
+  // exist server-side either. Nothing in the UI called them.
+  //
+  // Backups cover the same need: api.settings.createManualBackup and
+  // api.settings.downloadBackup, behind the backup permissions.
 
   // Load settings when authentication state changes
   useEffect(() => {
@@ -761,13 +727,11 @@ export const SettingsProvider = ({ children }) => {
     resetSettings,
     uploadLogo,
     toggleAutoTheme,
-    exportSettings,
-    importSettings,
     reload: loadSettings,
   }), [
     settings, loading, error,
     updateSettings, updateSettingsTemporary, getSection, resetSettings,
-    uploadLogo, toggleAutoTheme, exportSettings, importSettings, loadSettings,
+    uploadLogo, toggleAutoTheme, loadSettings,
   ]);
 
   return (

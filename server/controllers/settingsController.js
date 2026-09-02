@@ -1132,24 +1132,6 @@ const getAvailablePermissions = async (_req, res) => {
 
 
 
-const getAllPermissions = async (req, res) => {
-  try {
-    // Canonical catalog shared across all permission endpoints — see
-    // server/config/permissions.js.
-    res.status(200).json({
-      success: true,
-      data: PERMISSION_CATALOG,
-      message: 'All permissions fetched successfully'
-    });
-  } catch (error) {
-    console.error('Error fetching permissions:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Error fetching permissions', 
-      error: error.message 
-    });
-  }
-};
 
 
 
@@ -1431,27 +1413,8 @@ const deleteBackup = async (req, res) => {
 
 // ── Inline-extracted endpoints ───────────────────────────────────────────────
 
-const invalidEndpoint = (_req, res) => {
-  res.status(404).json({ success: false, message: 'Endpoint not found' });
-};
 
-const createRoomType = async (req, res) => {
-  try {
-    const roomType = { id: Date.now().toString(), ...req.body, createdAt: new Date() };
-    res.status(201).json({ success: true, data: roomType, message: 'Room type created successfully' });
-  } catch (error) {
-    res.status(500).json({ success: false, message: 'Error creating room type', error: error.message });
-  }
-};
 
-const createAmenity = async (req, res) => {
-  try {
-    const amenity = { id: Date.now().toString(), ...req.body, createdAt: new Date() };
-    res.status(201).json({ success: true, data: amenity, message: 'Amenity created successfully' });
-  } catch (error) {
-    res.status(500).json({ success: false, message: 'Error creating amenity', error: error.message });
-  }
-};
 
 const previewInvoice = async (req, res) => {
   try {
@@ -1638,15 +1601,11 @@ export default {
   updateSelectedBanquetTemplate,
   previewBanquetTemplate,
   getAvailablePermissions,
-  getAllPermissions,
   createManualBackup,
   getAllBackups,
   getStorageStats,
   downloadBackup,
   deleteBackup,
-  invalidEndpoint,
-  createRoomType,
-  createAmenity,
   previewInvoice,
   testPaymentConnection,
   updateSecurityPolicy,

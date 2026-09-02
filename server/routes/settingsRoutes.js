@@ -95,7 +95,6 @@ const { sectionHandler } = settingsController;
 // === MAIN SETTINGS ROUTES ===
 router.get('/', settingsController.getAllSettings);
 router.get('/section/:section', settingsController.getSettingsSection);
-router.get('/invalid-endpoint', settingsController.invalidEndpoint);
 router.put('/section/:section', settingsController.updateSettingsSection);
 router.put('/', settingsController.updateAllSettings);
 router.post('/reset', settingsController.resetSettings);
@@ -112,9 +111,6 @@ router.post('/room-categories', settingsController.addRoomCategory);
 router.put('/room-categories/:id', settingsController.updateRoomCategory);
 router.delete('/room-categories/:id', settingsController.deleteRoomCategory);
 
-// Room types / amenities (mock stubs for extended API tests)
-router.post('/room-types', settingsController.createRoomType);
-router.post('/amenities', settingsController.createAmenity);
 
 // === STATIC DATA ===
 
@@ -131,7 +127,6 @@ router.post('/hotel-profile/email-otp/verify', settingsController.verifyHotelEma
 
 // === INVOICE TEMPLATE MANAGEMENT ===
 router.get('/invoice-templates', settingsController.getAvailableInvoiceTemplates);
-router.get('/invoice/templates', settingsController.getAvailableInvoiceTemplates);
 router.get('/invoice-template-settings', settingsController.getInvoiceTemplateSettings);
 router.put('/invoice-template', settingsController.updateSelectedInvoiceTemplate);
 router.post('/invoice/preview', settingsController.previewInvoice);
@@ -148,7 +143,6 @@ router.post('/banquet/preview', settingsController.previewBanquetTemplate);
 router.get('/permissions', settingsController.getAvailablePermissions);
 
 // === LEGACY STAFF MGMT ===
-router.get('/staff/permissions', settingsController.getAllPermissions);
 router.get('/staff/shift-templates', settingsController.getShiftTemplates);
 
 // === INTEGRATIONS ===
@@ -161,45 +155,22 @@ router.get('/backup/storage-stats', settingsController.getStorageStats);
 router.get('/backup/download/:filename', requireSystemAdmin, settingsController.downloadBackup);
 router.delete('/backup/:filename', requireBackupManage, settingsController.deleteBackup);
 
-// === LEGACY SECTION ALIASES ===
-router.get('/marriage', sectionHandler('hotelProfile', 'get'));
-router.put('/marriage', sectionHandler('hotelProfile', 'put'));
-
-router.get('/rooms', settingsController.getRoomCategories);
-router.put('/rooms', (req, res) => {
-  if (req.body.categories) return settingsController.updateAllSettings(req, res);
-  res.status(400).json({ success: false, message: 'No room data provided' });
-});
-
-router.get('/banquetHallBooking', sectionHandler('banquetHall', 'get'));
-router.put('/banquetHallBooking', sectionHandler('banquetHall', 'put'));
-
-router.get('/invoice', sectionHandler('invoice', 'get'));
-router.patch('/invoice', sectionHandler('invoice', 'put'));
-
-router.get('/notifications', sectionHandler('notifications', 'get'));
-router.put('/notifications', sectionHandler('notifications', 'put'));
-router.patch('/notifications', sectionHandler('notifications', 'put'));
-
-router.get('/staff', sectionHandler('staff', 'get'));
-router.put('/staff', sectionHandler('staff', 'put'));
-router.patch('/staff', sectionHandler('staff', 'put'));
-
-router.get('/theme', sectionHandler('theme', 'get'));
-router.put('/theme', sectionHandler('theme', 'put'));
-router.patch('/theme', sectionHandler('theme', 'put'));
-
-router.get('/payment', sectionHandler('payment', 'get'));
-router.put('/payment', sectionHandler('payment', 'put'));
-router.patch('/payment', sectionHandler('payment', 'put'));
-
-router.get('/security', sectionHandler('security', 'get'));
-router.put('/security', sectionHandler('security', 'put'));
-router.patch('/security', sectionHandler('security', 'put'));
-
-router.get('/tax', sectionHandler('tax', 'get'));
-router.put('/tax', sectionHandler('tax', 'put'));
-router.patch('/tax', sectionHandler('tax', 'put'));
+// Legacy section aliases used to sit here: GET/PUT/PATCH for /marriage,
+// /rooms, /banquetHallBooking, /invoice, /notifications, /staff, /theme,
+// /payment, /security and /tax, each forwarding to the section handler that
+// /section/:section already reaches directly.
+//
+// Removed after an audit: no caller in the admin client or the website, and
+// zero requests across two weeks of production access logs (19 Aug - 2 Sep),
+// in a window that recorded 219 other settings requests across 20 distinct
+// paths. A second door onto the same handler is a place for the two to drift
+// apart -- which had already happened once, when the guarded /section/payment
+// and the unguarded /payment reached the same controller.
+//
+// The SUB-paths are real endpoints and remain below: /theme/apply,
+// /theme/presets, /payment/test-connection, /security/policy, /security/test,
+// /notifications/test, /tax/validate-gst, /tax/validate-pan,
+// /staff/shift-templates, /invoice/preview.
 
 // === SETTINGS PANEL MISC ===
 router.post('/payment/test-connection', settingsController.testPaymentConnection);

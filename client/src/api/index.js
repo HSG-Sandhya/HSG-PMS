@@ -496,15 +496,13 @@ const api = {
     updateRoomCategory: (id, categoryData) => axiosInstance.put(`/settings/room-categories/${id}`, categoryData),
     deleteRoomCategory: (id) => axiosInstance.delete(`/settings/room-categories/${id}`),
     
-    // Data Management
-    exportSettings: () => axiosInstance.get('/settings/export'),
-    importSettings: (settingsData) => axiosInstance.post('/settings/import', { settingsData }),
+    // REMOVED: exportSettings / importSettings. /settings/export and
+    // /settings/import do not exist server-side, so both would 404. Backups
+    // cover the same ground: api.settings.createManualBackup and
+    // downloadBackup.
     
-    // Static Data
-    getCountries: () => axiosInstance.get('/settings/static/countries'),
-    getStates: (country) => axiosInstance.get(`/settings/static/states/${country}`),
-    getCurrencies: () => axiosInstance.get('/settings/static/currencies'),
-    getTimezones: () => axiosInstance.get('/settings/static/timezones'),
+    // REMOVED: getCountries / getStates / getCurrencies / getTimezones. There
+    // are no /settings/static/* routes on the server and nothing called them.
     
     // REMOVED: getMarriageSettings / updateMarriageSettings /
     // getBanquetHallBookingSettings / updateBanquetHallBookingSettings.
@@ -555,16 +553,12 @@ const api = {
     getUsersByDepartment: (departmentId) => axiosInstance.get(`/user-management/users/department/${departmentId}`),
     getUsersByRole: (roleId) => axiosInstance.get(`/user-management/users/role/${roleId}`),
   },
-  roomsetting: {
-    getAll: () => axiosInstance.get('/settings/rooms'),
-    update: (data) => axiosInstance.put('/settings/rooms', data),
-    addRoomType: (roomTypeData) => axiosInstance.post('/settings/rooms/types', roomTypeData),
-    updateRoomType: (index, roomTypeData) => axiosInstance.put(`/settings/rooms/types/${index}`, roomTypeData),
-    deleteRoomType: (index) => axiosInstance.delete(`/settings/rooms/types/${index}`),
-    addSeasonalRate: (rateData) => axiosInstance.post('/settings/rooms/seasonal-rates', rateData),
-    updateSeasonalRate: (index, rateData) => axiosInstance.put(`/settings/rooms/seasonal-rates/${index}`, rateData),
-    deleteSeasonalRate: (index) => axiosInstance.delete(`/settings/rooms/seasonal-rates/${index}`),
-  },
+  // REMOVED: the `roomsetting` group. It called /settings/rooms and
+  // /settings/rooms/types|seasonal-rates — the first was a legacy alias with no
+  // caller, and the rest were never implemented server-side, so they would have
+  // 404'd had anything used them. Room categories go through
+  // api.settings.getRoomCategories and friends.
+
   channels: {
     getAll: () => axiosInstance.get('/channels'),
     getById: (id) => axiosInstance.get(`/channels/${id}`),
