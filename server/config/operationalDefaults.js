@@ -64,6 +64,7 @@ export const OPERATIONS_DEFAULTS = Object.freeze({
     requireIdProof: false,                 // block booking without an ID document
     allowOverbooking: false,               // permit booking a room that's already occupied
     holdExpiryHours: 24,                   // tentative/hold auto-release window
+    allowCheckInWhileCleaning: false,       // let the desk check in before housekeeping marks the room clean
   }),
 });
 

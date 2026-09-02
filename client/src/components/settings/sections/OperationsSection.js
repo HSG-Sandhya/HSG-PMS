@@ -152,6 +152,12 @@ const OperationsSection = ({ onNotify }) => {
             fd.allowOverbooking,
             (v) => setGroup('frontDesk', { allowOverbooking: v }),
           )}
+          {toggle(
+            'Allow check-in while a room is being cleaned',
+            'Check-in normally waits until housekeeping marks the room available. Turn this on for same-day turnovers where the desk moves faster than the board.',
+            fd.allowCheckInWhileCleaning,
+            (v) => setGroup('frontDesk', { allowCheckInWhileCleaning: v }),
+          )}
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <TextField label="Tentative hold expires after" type="number" fullWidth
               value={fd.holdExpiryHours}

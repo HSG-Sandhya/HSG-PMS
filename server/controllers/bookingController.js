@@ -6,6 +6,7 @@ import Company from '../models/Company.js';
 import Housekeeping from '../models/Housekeeping.js';
 import mongoose from 'mongoose';
 import { getBanquetBlockedRoomIds } from './roomController.js';
+import { validateCheckIn } from '../services/checkIn.js';
 import { getInventorySnapshot, freeCountByType, canReserve, roomIsFree, describeClash } from '../services/inventory.js';
 import { calculateNights } from '../utils/dateHelpers.js';
 import { emitHousekeepingTask } from '../config/socket.js';
@@ -514,6 +515,16 @@ export const updateBooking = async (req, res) => {
     } else if (bookingData.bookingStatus === 'Cancelled' || bookingData.bookingStatus === 'Rejected') {
       bookingData.checkedIn = false;
     } else if (bookingData.checkedIn === true && !existingBooking.checkedIn) {
+      // A second door into check-in. It has to answer the same questions the
+      // dedicated endpoint does, or the guard there is trivially side-stepped
+      // by PUT-ing { checkedIn: true } instead.
+      const room = existingBooking.roomId?._id
+        ? existingBooking.roomId
+        : (existingBooking.roomId ? await Room.findById(existingBooking.roomId) : null);
+      const blocked = await validateCheckIn(existingBooking, room);
+      if (blocked) {
+        return res.status(blocked.status).json({ success: false, message: blocked.message });
+      }
       bookingData.checkedInAt = new Date();
       bookingData.checkedOutAt = null;
     }
@@ -603,7 +614,17 @@ export const checkInGuest = async (req, res) => {
         message: 'Booking not found' 
       });
     }
-    
+
+    // Nothing about the booking's state was checked here before: a Cancelled,
+    // Rejected or Completed booking could be revived by calling this endpoint,
+    // a booking with no room marked `null` occupied, and two guests could be
+    // put in one room. See services/checkIn.js for the full decision table.
+    const room = booking.roomId ? await Room.findById(booking.roomId) : null;
+    const blocked = await validateCheckIn(booking, room);
+    if (blocked) {
+      return res.status(blocked.status).json({ success: false, message: blocked.message });
+    }
+
     // Mark the guest as physically present. The room becomes occupied only
     // here — never at reservation time.
     booking.bookingStatus = 'Confirmed';
