@@ -50,7 +50,26 @@ export const getBanquetBlockedRoomIds = async (checkInDate, checkOutDate) => {
   return blocked;
 };
 
-const ACTIVE = ['Confirmed', 'Pending'];
+/**
+ * The reservation statuses that still consume a room.
+ *
+ * This was ['Confirmed', 'Pending'], while the front desk used its own
+ * four-value list -- so the two disagreed about what "taken" means. Everything
+ * that fell back to this default (the public availability endpoint, the public
+ * booking check, the front desk's room-assignment picker) was blind to:
+ *
+ *   Tentative   an unconfirmed hold, which is exactly a room someone is holding
+ *   Checked-In  a guest physically in the room right now
+ *
+ * So the website advertised, and would sell, a room with a guest asleep in it.
+ * That is not a race — it happens every time. One list, exported, so a caller
+ * cannot quietly pick a narrower one again.
+ *
+ * Draft is deliberately absent: an unsubmitted form holds nothing.
+ */
+export const HOLD_STATUSES = ['Confirmed', 'Pending', 'Tentative', 'Checked-In'];
+
+const ACTIVE = HOLD_STATUSES;
 
 /**
  * Everything blocking inventory across a date range, fetched once.
@@ -208,11 +227,103 @@ export const canReserve = async (
   { roomType, count = 1, checkIn, checkOut, statuses, excludeBookingId },
 ) => {
   const requested = Math.max(1, Number(count) || 1);
-  const rooms = await Room.find({ status: { $ne: 'maintenance' } }).lean();
-  const snapshot = await getInventorySnapshot(checkIn, checkOut, {
-    ...(statuses ? { statuses } : {}),
-    ...(excludeBookingId ? { excludeBookingId } : {}),
-  });
+  // In parallel: this runs inside the booking lock, where every avoidable
+  // round trip is time no other booking can use.
+  const [rooms, snapshot] = await Promise.all([
+    Room.find({ status: { $ne: 'maintenance' } }).lean(),
+    getInventorySnapshot(checkIn, checkOut, {
+      ...(statuses ? { statuses } : {}),
+      ...(excludeBookingId ? { excludeBookingId } : {}),
+    }),
+  ]);
   const available = availabilityByType(rooms, snapshot).get(roomType || 'Room')?.available ?? 0;
   return { ok: available >= requested, available, requested };
+};
+
+/**
+ * The one availability verdict, shared by every path that writes a booking.
+ *
+ * There were three near-copies of this: createBooking's, updateBooking's, and
+ * the website's — and they had already drifted. The website checked the
+ * CATEGORY but never the specific room, so posting a roomId booked straight
+ * over an existing guest; the legacy per-room group flow checked neither. A
+ * single function means a path cannot quietly be missing a check.
+ *
+ * @returns {null} when the reservation may proceed, otherwise
+ *   `{ status, message, waivable, available? }` ready to send as the response
+ *   body. `waivable` says whether the front desk's "allow overbooking" setting
+ *   could have let this through -- a banquet hold never can, so the desk is not
+ *   offered an override that would do nothing.
+ */
+export const availabilityConflict = async (
+  Booking,
+  Room,
+  {
+    roomId = null,
+    roomType = null,
+    roomCount = 1,
+    checkIn,
+    checkOut,
+    statuses = ACTIVE,
+    excludeBookingId = null,
+    allowOverbooking = false,
+  } = {},
+) => {
+  const from = new Date(checkIn);
+  const to = new Date(checkOut);
+
+  // Everything that does not depend on another answer, at once. This runs
+  // inside the booking lock, and a round trip taken here is time during which
+  // no other booking in the hotel can be confirmed -- it was five sequential
+  // queries, which put a 19-second tail on a 50-request rush.
+  const [blocked, roomDoc, roomFree] = await Promise.all([
+    roomId ? getBanquetBlockedRoomIds(from, to) : new Set(),
+    roomId ? Room.findById(roomId).select('type').lean() : null,
+    roomId && !allowOverbooking
+      ? roomIsFree(Booking, { roomId, checkIn: from, checkOut: to, statuses, excludeBookingId })
+      : { free: true, clash: null },
+  ]);
+
+  // A banquet/marriage hold is never waivable by the overbooking setting: those
+  // rooms are physically committed to an event, not merely spoken for.
+  if (roomId && blocked.has(String(roomId))) {
+    return {
+      status: 409,
+      waivable: false,
+      message: 'This room is reserved for a banquet event on the selected dates and cannot be booked.',
+    };
+  }
+
+  if (allowOverbooking) return null;
+
+  // Does another booking already name this exact room over this window?
+  if (!roomFree.free) {
+    return {
+      status: 409,
+      waivable: true,
+      message: `This room is already booked for overlapping dates (${describeClash(roomFree.clash)}).`,
+      clashWith: describeClash(roomFree.clash),
+    };
+  }
+
+  // Category holds name no room, so the room-level test above cannot see them.
+  // A type can be fully spoken for while every individual room still looks
+  // free — taking one here would leave a hold that cannot be fulfilled.
+  const effectiveType = roomId ? roomDoc?.type : roomType;
+  if (!effectiveType) return null;
+
+  const requested = roomId ? 1 : Math.max(1, Number(roomCount) || 1);
+  const capacity = await canReserve(Room, {
+    roomType: effectiveType, count: requested, checkIn: from, checkOut: to, statuses, excludeBookingId,
+  });
+  if (capacity.ok) return null;
+
+  return {
+    status: 409,
+    waivable: true,
+    available: capacity.available,
+    message: capacity.available === 0
+      ? `All "${effectiveType}" rooms are already reserved for these dates, including category holds with no room assigned yet.`
+      : `Only ${capacity.available} "${effectiveType}" room(s) available for these dates (this booking needs ${requested}).`,
+  };
 };

@@ -28,10 +28,10 @@ import { getBilling } from '../config/operationalConfig.js';
 import { priceOrder, OrderPricingError } from '../services/orderPricing.js';
 import { quoteStay, BookingPricingError } from '../services/bookingPricing.js';
 import { secretsMatch } from '../utils/secretCompare.js';
-import { getBanquetBlockedRoomIds } from './roomController.js';
 import { findSlotConflict, findSlotConflicts, describeSlotConflict } from './banquetController.js';
 import { nextSequence } from '../services/sequence.js';
-import { getInventorySnapshot, availabilityByType, canReserve } from '../services/inventory.js';
+import { getInventorySnapshot, availabilityByType, availabilityConflict } from '../services/inventory.js';
+import { withInventoryLock, InventoryBusyError } from '../services/inventoryLock.js';
 
 // ── Public restaurant ─────────────────────────────────────────────────────────
 
@@ -335,21 +335,29 @@ export const createRoomBooking = async (req, res) => {
     // Enforce what /availability reports. Showing the right number is not the
     // same as enforcing it: without this, a stale page, a retry, a race between
     // two guests, or a direct API call could still reserve a sold-out category.
-    if (bookingData.roomType) {
-      const capacity = await canReserve(Room, {
-        roomType: bookingData.roomType,
-        count: bookingData.roomCount,
-        checkIn: bookingData.checkIn,
-        checkOut: bookingData.checkOut,
+    //
+    // This check only ran when the request named a CATEGORY. A request naming a
+    // specific roomId was checked against nothing at all -- not the category,
+    // not the room -- so posting the roomId of an occupied room booked straight
+    // over the guest already in it. availabilityConflict covers both.
+    //
+    // This is the EARLY answer, deliberately before payment is verified so a
+    // sold-out stay is refused before money enters the picture. It is NOT the
+    // binding one: the same check runs again inside the reservation lock below,
+    // which is what actually makes a double booking impossible.
+    const reservation = {
+      roomId: bookingData.roomId || null,
+      roomType: bookingData.roomType || null,
+      roomCount: bookingData.roomCount,
+      checkIn: bookingData.checkIn,
+      checkOut: bookingData.checkOut,
+    };
+    const earlyConflict = await availabilityConflict(Booking, Room, reservation);
+    if (earlyConflict) {
+      return res.status(earlyConflict.status).json({
+        message: earlyConflict.message,
+        available: earlyConflict.available,
       });
-      if (!capacity.ok) {
-        return res.status(409).json({
-          message: capacity.available === 0
-            ? `No "${bookingData.roomType}" rooms are available for these dates.`
-            : `Only ${capacity.available} "${bookingData.roomType}" room(s) available for these dates (you asked for ${capacity.requested}).`,
-          available: capacity.available,
-        });
-      }
     }
 
     // Price the stay before anything else touches money. Every amount below
@@ -446,17 +454,6 @@ export const createRoomBooking = async (req, res) => {
       : null;
     const roomType = assignedRoom?.type || bookingData.roomType || '';
 
-    // If a specific room was chosen, don't let it be one reserved for a
-    // banquet/marriage event over these dates.
-    if (bookingData.roomId) {
-      const banquetBlocked = await getBanquetBlockedRoomIds(new Date(bookingData.checkIn), new Date(bookingData.checkOut));
-      if (banquetBlocked.has(String(bookingData.roomId))) {
-        return res.status(409).json({
-          message: 'This room is reserved for an event on the selected dates. Please choose different dates or another room.',
-        });
-      }
-    }
-
     const mapped = {
       guestName,
       email: bookingData.guest.email,
@@ -505,8 +502,46 @@ export const createRoomBooking = async (req, res) => {
       invoiceNumber,
     };
 
+    // The binding check. Availability and the insert now happen inside one
+    // critical section, so two guests clicking "Book" in the same second cannot
+    // both be told the room is free. Everything expensive -- pricing, payment
+    // verification, the guest record, the invoice number -- is already done, so
+    // the lock is held only for a couple of queries and one write.
     const booking = new Booking(mapped);
-    await booking.save();
+    const conflict = await withInventoryLock(async () => {
+      const clash = await availabilityConflict(Booking, Room, reservation);
+      if (clash) return clash;
+      await booking.save();
+      return null;
+    });
+
+    if (conflict) {
+      // The stay sold out between the guest paying and this request landing.
+      // Refunding is the only honest answer; the alternative is holding money
+      // for a room they cannot have.
+      let refunded = false;
+      if (isOnline && bookingData.razorpayPaymentId && !(await paymentService.isDemoMode())) {
+        try {
+          await paymentService.refundPayment(
+            bookingData.razorpayPaymentId,
+            quote.totalAmount,
+            'Room sold out before the booking could be confirmed',
+          );
+          refunded = true;
+        } catch (err) {
+          console.error('Refund after a sold-out booking failed:', err.message);
+        }
+      }
+      return res.status(conflict.status).json({
+        message: isOnline
+          ? `${conflict.message} ${refunded
+              ? 'Your payment has been refunded and should appear in 5-7 working days.'
+              : 'Your payment could not be refunded automatically -- please contact the hotel and we will return it.'}`
+          : conflict.message,
+        available: conflict.available,
+        ...(isOnline ? { refunded } : {}),
+      });
+    }
 
     // Mirror any prepaid amount into the accounting ledger as income.
     await syncRoomBookingIncome(booking);
@@ -547,6 +582,9 @@ export const createRoomBooking = async (req, res) => {
     });
   } catch (error) {
     if (error instanceof BookingPricingError) {
+      return res.status(error.status).json({ message: error.message });
+    }
+    if (error instanceof InventoryBusyError) {
       return res.status(error.status).json({ message: error.message });
     }
     console.error('Error creating booking:', error);
@@ -1187,7 +1225,8 @@ export const verifyRazorpayPayment = async (req, res) => {
 // tariff calculation and no availability check. It verified the Razorpay
 // signature and nothing else, and recorded `paidAmount: bookingData.totalAmount`
 // from that same body. createRoomBooking covers the online flow properly:
-// server-priced via quoteStay, inventory-checked via canReserve, and the
+// server-priced via quoteStay, inventory-checked under a lock via
+// availabilityConflict, and the
 // captured payment confirmed against the server's own total.
 
 // refundPayment / getPaymentDetails moved to controllers/paymentController.js —

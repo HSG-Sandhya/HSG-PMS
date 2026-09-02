@@ -10,13 +10,22 @@ import { validateCheckIn } from '../services/checkIn.js';
 import { checkOutBlocker } from '../services/checkOut.js';
 import { reconcileRoomStatus } from '../services/roomStatus.js';
 import { nextSequence } from '../services/sequence.js';
-import { getInventorySnapshot, freeCountByType, canReserve, roomIsFree, describeClash } from '../services/inventory.js';
+import { getInventorySnapshot, freeCountByType, availabilityConflict, HOLD_STATUSES } from '../services/inventory.js';
+import { withInventoryLock, InventoryBusyError } from '../services/inventoryLock.js';
 import { calculateNights, validateStayDates } from '../utils/dateHelpers.js';
 import { emitHousekeepingTask } from '../config/socket.js';
 import { sendBookingNotification } from '../services/notificationService.js';
 import { getBilling, getOps } from '../config/operationalConfig.js';
 import { syncRoomBookingIncome, removeEntriesBySource } from '../services/accountingSync.js';
 import { upsertGuest } from '../services/guestDirectory.js';
+
+// How an availability conflict reads at the front desk. The override hint is
+// added only when the setting could actually have allowed it: a banquet hold
+// cannot be overbooked, so offering the toggle there would just be wrong.
+const deskMessage = (conflict) =>
+  conflict.waivable
+    ? `${conflict.message} Turn on "Allow overbooking" in Operations settings to override.`
+    : conflict.message;
 
 // Generate invoice number — the prefix comes from billing settings so the whole
 // numbering scheme is configurable (Billing & Tariff → Invoice prefix).
@@ -154,52 +163,24 @@ export const createBooking = async (req, res) => {
     bookingData.checkIn = new Date(bookingData.checkIn);
     bookingData.checkOut = new Date(bookingData.checkOut);
 
-    // Reject if the room is reserved for a banquet/marriage event on these dates
-    const banquetBlocked = await getBanquetBlockedRoomIds(bookingData.checkIn, bookingData.checkOut);
-    if (bookingData.roomId && banquetBlocked.has(bookingData.roomId.toString())) {
-      return res.status(409).json({
-        success: false,
-        message: 'This room is reserved for a banquet event on the selected dates and cannot be booked.'
-      });
-    }
-
-    // Front desk: block double-booking the same room for overlapping dates,
-    // unless overbooking is explicitly allowed (Settings → Operations → Front
-    // desk). Overlap = existing active booking whose stay intersects this one.
-    if (!frontDesk.allowOverbooking) {
-      const { free, clash } = await roomIsFree(Booking, {
-        roomId: bookingData.roomId,
-        checkIn: bookingData.checkIn,
-        checkOut: bookingData.checkOut,
-        statuses: ACTIVE_HOLD_STATUSES,
-      });
-      if (!free) {
-        return res.status(409).json({
-          success: false,
-          message: `This room is already booked for overlapping dates (${describeClash(clash)}). Turn on "Allow overbooking" in Operations settings to override.`,
-        });
-      }
-
-      // The clash check above only sees bookings that NAME this room. Category
-      // holds (website reservations, group blocks) name no room, so a category
-      // could be fully spoken for while every individual room still looks free
-      // — and taking one here would leave a hold that cannot be fulfilled.
-      const room = await Room.findById(bookingData.roomId).select('type').lean();
-      if (room?.type) {
-        const capacity = await canReserve(Room, {
-          roomType: room.type,
-          count: 1,
-          checkIn: bookingData.checkIn,
-          checkOut: bookingData.checkOut,
-          statuses: ACTIVE_HOLD_STATUSES,
-        });
-        if (!capacity.ok) {
-          return res.status(409).json({
-            success: false,
-            message: `All "${room.type}" rooms are already reserved for these dates, including category holds that have no room assigned yet. Assign this guest to an existing reservation, or turn on "Allow overbooking" in Operations settings to override.`,
-          });
-        }
-      }
+    // Banquet holds, an overlapping booking on this exact room, and a category
+    // that is already fully spoken for -- one verdict, shared with the website
+    // and the edit path so none of them can quietly be missing a check.
+    //
+    // This is the EARLY answer, run here so an impossible booking is refused
+    // before a guest record and an invoice number are created for it. It is not
+    // the binding one: the same check runs again inside the reservation lock at
+    // the save below, which is what makes the race impossible rather than rare.
+    const reservation = {
+      roomId: bookingData.roomId,
+      checkIn: bookingData.checkIn,
+      checkOut: bookingData.checkOut,
+      statuses: ACTIVE_HOLD_STATUSES,
+      allowOverbooking: frontDesk.allowOverbooking,
+    };
+    const earlyConflict = await availabilityConflict(Booking, Room, reservation);
+    if (earlyConflict) {
+      return res.status(earlyConflict.status).json({ success: false, message: deskMessage(earlyConflict) });
     }
 
     // Generate customer ID
@@ -287,9 +268,21 @@ export const createBooking = async (req, res) => {
       bookingData.checkedIn = false;
     }
 
-    // Create booking
+    // Create booking. Checking availability and inserting are one critical
+    // section here, so two clerks -- or a clerk and a website guest -- working in
+    // the same second cannot both be told the room is free and both write.
+    // See services/inventoryLock.js.
     const booking = new Booking(bookingData);
-    const savedBooking = await booking.save();
+    const conflict = await withInventoryLock(async () => {
+      const clash = await availabilityConflict(Booking, Room, reservation);
+      if (clash) return clash;
+      await booking.save();
+      return null;
+    });
+    if (conflict) {
+      return res.status(conflict.status).json({ success: false, message: deskMessage(conflict) });
+    }
+    const savedBooking = booking;
 
     // Occupy the room only for a checked-in guest.
     if (bookingData.checkedIn === true) {
@@ -312,6 +305,9 @@ export const createBooking = async (req, res) => {
     });
 
   } catch (error) {
+    if (error instanceof InventoryBusyError) {
+      return res.status(error.status).json({ success: false, message: error.message });
+    }
     console.error('Error creating booking:', error);
     res.status(500).json({ 
       success: false,
@@ -422,6 +418,10 @@ export const updateBooking = async (req, res) => {
     const touchesRoomOrDates =
       INVENTORY_FIELDS.some((f) => bookingData[f] !== undefined)
       || bookingData.bookingStatus === 'Confirmed';
+    // Set when this edit consumes inventory, so the write below can re-check it
+    // atomically. Null for an edit that touches neither room nor dates -- there
+    // is nothing to race over, and taking the lock would only slow it down.
+    let reservation = null;
     if (touchesRoomOrDates) {
       // An explicit null means "unassign this room", so honour it rather than
       // falling back to the room the booking is being moved off.
@@ -430,59 +430,28 @@ export const updateBooking = async (req, res) => {
         : (existingBooking.roomId?._id || existingBooking.roomId);
       const effCheckIn = new Date(bookingData.checkIn || existingBooking.checkIn);
       const effCheckOut = new Date(bookingData.checkOut || existingBooking.checkOut);
-      if (effRoomId) {
-        const blocked = await getBanquetBlockedRoomIds(effCheckIn, effCheckOut);
-        if (blocked.has(effRoomId.toString())) {
-          return res.status(409).json({
-            success: false,
-            message: 'This room is reserved for a banquet event on the selected dates and cannot be booked.'
-          });
-        }
-      }
-
       // An edit could move a booking onto a room and window another booking
       // already holds. createBooking has always guarded this; updateBooking did
       // not check availability at all, so the guard could be walked straight
       // past by editing an existing booking instead of making a new one.
       //
-      // The booking being edited is excluded from every check below — it already
+      // The booking being edited is excluded from every check — it already
       // occupies its own slot, and counting it against itself would block any
       // edit of a full room or category.
       const { frontDesk: fd } = await getOps();
-      if (!fd.allowOverbooking) {
-        const { free, clash } = await roomIsFree(Booking, {
-          roomId: effRoomId,
-          checkIn: effCheckIn,
-          checkOut: effCheckOut,
-          statuses: ACTIVE_HOLD_STATUSES,
-          excludeBookingId: bookingId,
-        });
-        if (!free) {
-          return res.status(409).json({
-            success: false,
-            message: `This room is already booked for overlapping dates (${describeClash(clash)}). Turn on "Allow overbooking" in Operations settings to override.`,
-          });
-        }
-
-        // A category hold names no room, so a room-level clash check cannot see
-        // it. Re-check the category whenever the dates, type or count move.
-        const effType = bookingData.roomType || existingBooking.roomType;
-        if (!effRoomId && effType) {
-          const capacity = await canReserve(Room, {
-            roomType: effType,
-            count: bookingData.roomCount ?? existingBooking.roomCount ?? 1,
-            checkIn: effCheckIn,
-            checkOut: effCheckOut,
-            statuses: ACTIVE_HOLD_STATUSES,
-            excludeBookingId: bookingId,
-          });
-          if (!capacity.ok) {
-            return res.status(409).json({
-              success: false,
-              message: `Only ${capacity.available} "${effType}" room(s) available for these dates (this booking needs ${capacity.requested}).`,
-            });
-          }
-        }
+      reservation = {
+        roomId: effRoomId,
+        roomType: bookingData.roomType || existingBooking.roomType,
+        roomCount: bookingData.roomCount ?? existingBooking.roomCount ?? 1,
+        checkIn: effCheckIn,
+        checkOut: effCheckOut,
+        statuses: ACTIVE_HOLD_STATUSES,
+        excludeBookingId: bookingId,
+        allowOverbooking: fd.allowOverbooking,
+      };
+      const earlyConflict = await availabilityConflict(Booking, Room, reservation);
+      if (earlyConflict) {
+        return res.status(earlyConflict.status).json({ success: false, message: deskMessage(earlyConflict) });
       }
     }
 
@@ -555,12 +524,27 @@ export const updateBooking = async (req, res) => {
       bookingData.checkedOutAt = null;
     }
 
-    // Update booking
-    const updatedBooking = await Booking.findByIdAndUpdate(
+    // Update booking. When the edit moves the booking onto a room or a set of
+    // dates, availability is re-checked and the write performed inside one
+    // critical section -- otherwise two edits, or an edit and a new booking,
+    // could each be told the slot is free and both take it.
+    const applyUpdate = () => Booking.findByIdAndUpdate(
       bookingId,
       bookingData,
       { returnDocument: 'after', runValidators: true }
     ).populate('roomId');
+
+    let updateConflict = null;
+    const updatedBooking = reservation
+      ? await withInventoryLock(async () => {
+        updateConflict = await availabilityConflict(Booking, Room, reservation);
+        return updateConflict ? null : applyUpdate();
+      })
+      : await applyUpdate();
+
+    if (updateConflict) {
+      return res.status(updateConflict.status).json({ success: false, message: deskMessage(updateConflict) });
+    }
 
     // Reconcile the room from the booking's resulting state. Category holds have
     // no room yet (assigned at check-in) — nothing to reconcile in that case.
@@ -619,6 +603,9 @@ export const updateBooking = async (req, res) => {
     }
 
   } catch (error) {
+    if (error instanceof InventoryBusyError) {
+      return res.status(error.status).json({ success: false, message: error.message });
+    }
     console.error('Error updating booking:', error);
     res.status(500).json({ 
       success: false,
@@ -781,7 +768,9 @@ const generateCustomerId = async (guestName, checkInDate, offset = 0) => {
 };
 
 // Booking statuses that still hold a room against availability.
-const ACTIVE_HOLD_STATUSES = ['Confirmed', 'Pending', 'Tentative', 'Checked-In'];
+// Kept as a local alias for readability at the call sites below; the list
+// itself lives with the availability logic so the two cannot drift apart again.
+const ACTIVE_HOLD_STATUSES = HOLD_STATUSES;
 
 // Allowed group/company lifecycle transitions (Section 8 workflow). Terminal
 // states (Completed, Cancelled, Rejected) have no onward moves.
@@ -802,27 +791,48 @@ const mapAdvanceMode = (m) => ({ Cash: 'Cash', UPI: 'UPI', Card: 'Card' }[m] || 
 // Blocks inventory by room type/qty/rate (specific rooms are assigned later via
 // the rooming list, so each booking is created with roomId=null). The first
 // booking is the group master and carries the rich groupDetails + advance.
+/**
+ * Is there room for a whole BLOCK of categories over this window?
+ *
+ * The group and company flows each had their own copy of this loop, and both
+ * compared every block line against the free count INDEPENDENTLY -- so a body
+ * listing "Deluxe x3" twice passed twice against 4 free rooms and blocked 6.
+ * Summing per type first is the fix, and one copy means it stays fixed.
+ */
+const blockAvailabilityConflict = async (blocks, checkInDate, checkOutDate, verb = 'blocked') => {
+  const allRooms = await Room.find({ status: { $ne: 'maintenance' } });
+  // A block creates one roomId=null hold per blocked room, so this MUST count
+  // existing holds or two overlapping blocks claim the same rooms.
+  const freeByType = freeCountByType(
+    allRooms,
+    await getInventorySnapshot(checkInDate, checkOutDate, { statuses: ACTIVE_HOLD_STATUSES }),
+  );
+
+  const wanted = new Map();
+  for (const b of blocks) wanted.set(b.roomType, (wanted.get(b.roomType) || 0) + (Number(b.qty) || 0));
+
+  for (const [roomType, qty] of wanted) {
+    const free = freeByType[roomType] || 0;
+    if (qty > free) {
+      return {
+        status: 409,
+        message: `Only ${free} "${roomType}" room(s) free for these dates (you ${verb} ${qty}).`,
+      };
+    }
+  }
+  return null;
+};
+
 const createGroupFromRoomBlock = async (res, ctx) => {
   const { body, coordinator, groupName, checkInDate, checkOutDate, roomBlock } = ctx;
   const nights = Math.max(1, calculateNights(checkInDate, checkOutDate) || 1);
 
-  // Availability: ensure enough free rooms of each blocked type for the window.
-  const allRooms = await Room.find({ status: { $ne: 'maintenance' } });
-  // A room block creates one roomId=null hold per blocked room, so this check
-  // MUST count existing holds or two overlapping blocks can claim the same
-  // rooms. See services/inventory.js.
-  const snapshot = await getInventorySnapshot(checkInDate, checkOutDate, {
-    statuses: ACTIVE_HOLD_STATUSES,
-  });
-  const freeByType = freeCountByType(allRooms, snapshot);
-  for (const b of roomBlock) {
-    const free = freeByType[b.roomType] || 0;
-    if (Number(b.qty) > free) {
-      return res.status(409).json({
-        success: false,
-        message: `Only ${free} "${b.roomType}" room(s) free for these dates (you blocked ${b.qty}).`,
-      });
-    }
+  // Early answer, so an impossible block is refused before a coordinator record
+  // and a run of invoice numbers are created for it. The binding one runs inside
+  // the reservation lock around the writes below.
+  const earlyConflict = await blockAvailabilityConflict(roomBlock, checkInDate, checkOutDate);
+  if (earlyConflict) {
+    return res.status(earlyConflict.status).json({ success: false, message: earlyConflict.message });
   }
 
   const groupId = `GRP-${Date.now()}-${Math.round(Math.random() * 1e4)}`;
@@ -861,59 +871,70 @@ const createGroupFromRoomBlock = async (res, ctx) => {
     advanceTransactionId: body.advanceTransactionId || '',
   };
 
-  const created = [];
-  let idx = 0;
-  for (const b of roomBlock) {
-    const qty = Number(b.qty) || 0;
-    const perBase = Number(b.baseAmount) || (Number(b.rate) || 0) * nights;
-    const perGst = Number(b.gstAmount) || 0;
-    const perTotal = Number(b.totalAmount) || perBase + perGst;
-    const paxTotal = Number(b.pax) || 0;
+  // Re-check and write inside one critical section: without it, two blocks
+  // requested in the same second each see the rooms free and both take them.
+  const conflict = await withInventoryLock(async () => {
+    const clash = await blockAvailabilityConflict(roomBlock, checkInDate, checkOutDate);
+    if (clash) return clash;
 
-    for (let k = 0; k < qty; k++) {
-      const isMaster = idx === 0;
-      // Spread the block's pax across its rooms (min 1 adult per room).
-      const adults = qty > 0
-        ? Math.max(1, Math.floor(paxTotal / qty) + (k < paxTotal % qty ? 1 : 0))
-        : 1;
+    const created = [];
+    let idx = 0;
+    for (const b of roomBlock) {
+      const qty = Number(b.qty) || 0;
+      const perBase = Number(b.baseAmount) || (Number(b.rate) || 0) * nights;
+      const perGst = Number(b.gstAmount) || 0;
+      const perTotal = Number(b.totalAmount) || perBase + perGst;
+      const paxTotal = Number(b.pax) || 0;
 
-      const customerId = await generateCustomerId(coordinator.guestName, checkInDate, idx);
-      const invoiceNumber = await generateInvoiceNumber(coordinator.guestName, checkInDate);
+      for (let k = 0; k < qty; k++) {
+        const isMaster = idx === 0;
+        // Spread the block's pax across its rooms (min 1 adult per room).
+        const adults = qty > 0
+          ? Math.max(1, Math.floor(paxTotal / qty) + (k < paxTotal % qty ? 1 : 0))
+          : 1;
 
-      const booking = new Booking({
-        guestName: coordinator.guestName,
-        email: coordinator.email,
-        phone: coordinator.phone,
-        roomId: null,
-        roomType: b.roomType,
-        checkIn: checkInDate,
-        checkOut: checkOutDate,
-        checkInTime: body.arrivalTime || defaultCheckInTime,
-        checkOutTime: body.departureTime || defaultCheckOutTime,
-        adults: adults || 1,
-        children: 0,
-        baseAmount: perBase,
-        gstAmount: perGst,
-        totalAmount: perTotal,
-        bookingStatus: status,
-        specialRequests: body.specialRequests || '',
-        bookingType: 'group',
-        groupId,
-        groupName: groupName || `${coordinator.guestName}'s group`,
-        isGroupMaster: isMaster,
-        groupTotalAmount: isMaster ? groupTotalAmount : 0,
-        groupRoomCount: isMaster ? totalRooms : 0,
-        groupDetails: isMaster ? groupDetails : undefined,
-        paidAmount: isMaster ? advanceAmount : 0,
-        remainingAmount: isMaster ? Math.max(0, groupTotalAmount - advanceAmount) : 0,
-        paymentMethod: isMaster ? mapAdvanceMode(body.advancePaymentMode) : '',
-        paymentStatus: isMaster && advanceAmount > 0 ? 'Partial' : 'Pending',
-        customerId,
-        invoiceNumber,
-      });
-      created.push(await booking.save());
-      idx++;
+        const customerId = await generateCustomerId(coordinator.guestName, checkInDate, idx);
+        const invoiceNumber = await generateInvoiceNumber(coordinator.guestName, checkInDate);
+
+        const booking = new Booking({
+          guestName: coordinator.guestName,
+          email: coordinator.email,
+          phone: coordinator.phone,
+          roomId: null,
+          roomType: b.roomType,
+          checkIn: checkInDate,
+          checkOut: checkOutDate,
+          checkInTime: body.arrivalTime || defaultCheckInTime,
+          checkOutTime: body.departureTime || defaultCheckOutTime,
+          adults: adults || 1,
+          children: 0,
+          baseAmount: perBase,
+          gstAmount: perGst,
+          totalAmount: perTotal,
+          bookingStatus: status,
+          specialRequests: body.specialRequests || '',
+          bookingType: 'group',
+          groupId,
+          groupName: groupName || `${coordinator.guestName}'s group`,
+          isGroupMaster: isMaster,
+          groupTotalAmount: isMaster ? groupTotalAmount : 0,
+          groupRoomCount: isMaster ? totalRooms : 0,
+          groupDetails: isMaster ? groupDetails : undefined,
+          paidAmount: isMaster ? advanceAmount : 0,
+          remainingAmount: isMaster ? Math.max(0, groupTotalAmount - advanceAmount) : 0,
+          paymentMethod: isMaster ? mapAdvanceMode(body.advancePaymentMode) : '',
+          paymentStatus: isMaster && advanceAmount > 0 ? 'Partial' : 'Pending',
+          customerId,
+          invoiceNumber,
+        });
+        created.push(await booking.save());
+        idx++;
+      }
     }
+    return null;
+  });
+  if (conflict) {
+    return res.status(conflict.status).json({ success: false, message: conflict.message });
   }
 
   const populated = await Booking.find({ groupId });
@@ -980,13 +1001,37 @@ export const createGroupBooking = async (req, res) => {
     }
 
     // Reject if any room is reserved for a banquet event on these dates.
-    const banquetBlocked = await getBanquetBlockedRoomIds(checkInDate, checkOutDate);
-    const clash = roomDocs.find((rd) => banquetBlocked.has(rd._id.toString()));
-    if (clash) {
-      return res.status(409).json({
-        success: false,
-        message: `Room ${clash.roomNumber} is reserved for a banquet event on these dates.`,
+    // The same room twice in one request would have passed every check below,
+    // since neither copy exists in the database yet.
+    const seen = new Set();
+    for (const rd of roomDocs) {
+      if (seen.has(String(rd._id))) {
+        return res.status(400).json({
+          success: false,
+          message: `Room ${rd.roomNumber} is listed twice in this group.`,
+        });
+      }
+      seen.add(String(rd._id));
+    }
+
+    // This flow checked banquet holds and NOTHING else -- not whether another
+    // guest already had the room over these dates, not whether the category was
+    // spoken for. A group of five could be written straight on top of five
+    // existing bookings. Every named room now goes through the same verdict the
+    // single-room desk booking uses.
+    const roomConflict = async (rd) => {
+      const conflict = await availabilityConflict(Booking, Room, {
+        roomId: rd._id,
+        checkIn: checkInDate,
+        checkOut: checkOutDate,
+        statuses: ACTIVE_HOLD_STATUSES,
       });
+      return conflict ? { ...conflict, message: `Room ${rd.roomNumber}: ${conflict.message}` } : null;
+    };
+
+    for (const rd of roomDocs) {
+      const early = await roomConflict(rd);
+      if (early) return res.status(early.status).json({ success: false, message: early.message });
     }
 
     const groupId = `GRP-${Date.now()}-${Math.round(Math.random() * 1e4)}`;
@@ -1004,71 +1049,85 @@ export const createGroupBooking = async (req, res) => {
       nationality: coordinator.nationality,
     });
 
-    const created = [];
-    for (let i = 0; i < rooms.length; i++) {
-      const r = rooms[i];
-      const roomDoc = roomDocs[i];
-      const isMaster = i === 0;
-      const occupantName = (r.guestName && r.guestName.trim()) || coordinator.guestName;
-
-      const customerId = await generateCustomerId(coordinator.guestName, checkInDate, i);
-      const invoiceNumber = await generateInvoiceNumber(occupantName, checkInDate);
-
-      const booking = new Booking({
-        guestName: occupantName,
-        email: coordinator.email,
-        phone: coordinator.phone,
-        gender: coordinator.gender,
-        age: coordinator.age,
-        nationality: coordinator.nationality,
-        idCardType: coordinator.idCardType,
-        idCardNumber: coordinator.idCardNumber,
-        streetName: coordinator.streetName,
-        area: coordinator.area,
-        district: coordinator.district,
-        state: coordinator.state,
-        pincode: coordinator.pincode,
-
-        roomId: roomDoc._id,
-        checkIn: checkInDate,
-        checkOut: checkOutDate,
-        checkInTime: body.checkInTime || defaultCheckInTime,
-        checkOutTime: body.checkOutTime || defaultCheckOutTime,
-        adults: Number(r.adults) || 1,
-        children: Number(r.children) || 0,
-
-        baseAmount: Number(r.baseAmount) || 0,
-        gstAmount: Number(r.gstAmount) || 0,
-        totalAmount: Number(r.totalAmount) || 0,
-        paymentMethod: body.paymentMethod || '',
-        paymentStatus: 'Pending',
-
-        bookingStatus: status,
-        specialRequests: body.specialRequests || '',
-
-        bookingType: 'group',
-        groupId,
-        groupName: groupName || `${coordinator.guestName}'s group`,
-        isGroupMaster: isMaster,
-        groupTotalAmount: isMaster ? groupTotalAmount : 0,
-        groupRoomCount: isMaster ? rooms.length : 0,
-
-        checkedIn: body.checkedIn === true,
-        checkedInAt: body.checkedIn === true ? new Date() : null,
-
-        customerId,
-        invoiceNumber,
-      });
-
-      const saved = await booking.save();
-
-      // Occupy each room only if the whole party is checked in on arrival.
-      // By default a group is a reservation — rooms stay available until each
-      // guest physically checks in.
-      if (body.checkedIn === true) {
-        await Room.findByIdAndUpdate(roomDoc._id, { status: 'occupied', isAvailable: false });
+    // Re-check every room and write them all inside one critical section. All
+    // the checks run before the first save, so a clash on the last room cannot
+    // leave the earlier ones behind as orphans.
+    const conflict = await withInventoryLock(async () => {
+      for (const rd of roomDocs) {
+        const clash = await roomConflict(rd);
+        if (clash) return clash;
       }
-      created.push(saved);
+
+      const created = [];
+      for (let i = 0; i < rooms.length; i++) {
+        const r = rooms[i];
+        const roomDoc = roomDocs[i];
+        const isMaster = i === 0;
+        const occupantName = (r.guestName && r.guestName.trim()) || coordinator.guestName;
+
+        const customerId = await generateCustomerId(coordinator.guestName, checkInDate, i);
+        const invoiceNumber = await generateInvoiceNumber(occupantName, checkInDate);
+
+        const booking = new Booking({
+          guestName: occupantName,
+          email: coordinator.email,
+          phone: coordinator.phone,
+          gender: coordinator.gender,
+          age: coordinator.age,
+          nationality: coordinator.nationality,
+          idCardType: coordinator.idCardType,
+          idCardNumber: coordinator.idCardNumber,
+          streetName: coordinator.streetName,
+          area: coordinator.area,
+          district: coordinator.district,
+          state: coordinator.state,
+          pincode: coordinator.pincode,
+
+          roomId: roomDoc._id,
+          checkIn: checkInDate,
+          checkOut: checkOutDate,
+          checkInTime: body.checkInTime || defaultCheckInTime,
+          checkOutTime: body.checkOutTime || defaultCheckOutTime,
+          adults: Number(r.adults) || 1,
+          children: Number(r.children) || 0,
+
+          baseAmount: Number(r.baseAmount) || 0,
+          gstAmount: Number(r.gstAmount) || 0,
+          totalAmount: Number(r.totalAmount) || 0,
+          paymentMethod: body.paymentMethod || '',
+          paymentStatus: 'Pending',
+
+          bookingStatus: status,
+          specialRequests: body.specialRequests || '',
+
+          bookingType: 'group',
+          groupId,
+          groupName: groupName || `${coordinator.guestName}'s group`,
+          isGroupMaster: isMaster,
+          groupTotalAmount: isMaster ? groupTotalAmount : 0,
+          groupRoomCount: isMaster ? rooms.length : 0,
+
+          checkedIn: body.checkedIn === true,
+          checkedInAt: body.checkedIn === true ? new Date() : null,
+
+          customerId,
+          invoiceNumber,
+        });
+
+        const saved = await booking.save();
+
+        // Occupy each room only if the whole party is checked in on arrival.
+        // By default a group is a reservation — rooms stay available until each
+        // guest physically checks in.
+        if (body.checkedIn === true) {
+          await Room.findByIdAndUpdate(roomDoc._id, { status: 'occupied', isAvailable: false });
+        }
+        created.push(saved);
+      }
+      return null;
+    });
+    if (conflict) {
+      return res.status(conflict.status).json({ success: false, message: conflict.message });
     }
 
     const populated = await Booking.find({ groupId }).populate('roomId');
@@ -1076,9 +1135,12 @@ export const createGroupBooking = async (req, res) => {
     return res.status(201).json({
       success: true,
       data: { groupId, groupName: groupName || `${coordinator.guestName}'s group`, bookings: populated },
-      message: `Group booking created — ${created.length} room(s)`,
+      message: `Group booking created — ${populated.length} room(s)`,
     });
   } catch (error) {
+    if (error instanceof InventoryBusyError) {
+      return res.status(error.status).json({ success: false, message: error.message });
+    }
     console.error('Error creating group booking:', error);
     return res.status(500).json({
       success: false,
@@ -1129,21 +1191,12 @@ export const createCompanyBooking = async (req, res) => {
     const checkOutDate = new Date(checkOut);
     const nights = Math.max(1, calculateNights(checkInDate, checkOutDate) || 1);
 
-    // Availability: enough free rooms of each required type for the window.
-    const allRooms = await Room.find({ status: { $ne: 'maintenance' } });
-    // Counts category holds too — company blocks also create roomId=null rows.
-    const freeByType = freeCountByType(
-      allRooms,
-      await getInventorySnapshot(checkInDate, checkOutDate, { statuses: ACTIVE_HOLD_STATUSES }),
-    );
-    for (const b of roomRequirement) {
-      const free = freeByType[b.roomType] || 0;
-      if (Number(b.qty) > free) {
-        return res.status(409).json({
-          success: false,
-          message: `Only ${free} "${b.roomType}" room(s) free for these dates (you need ${b.qty}).`,
-        });
-      }
+    // Early answer, before a company record, a credit draw-down and a run of
+    // invoice numbers are created for a block that cannot be honoured. The
+    // binding one runs inside the reservation lock around the writes below.
+    const earlyConflict = await blockAvailabilityConflict(roomRequirement, checkInDate, checkOutDate, 'need');
+    if (earlyConflict) {
+      return res.status(earlyConflict.status).json({ success: false, message: earlyConflict.message });
     }
 
     const groupId = `CMP-${Date.now()}-${Math.round(Math.random() * 1e4)}`;
@@ -1235,54 +1288,65 @@ export const createCompanyBooking = async (req, res) => {
     }
     if (companyDoc) companySub.ref = companyDoc._id;
 
-    let idx = 0;
-    for (const b of roomRequirement) {
-      const qty = Number(b.qty) || 0;
-      const perBase = Number(b.baseAmount) || (Number(b.rate) || 0) * nights;
-      const perGst = Number(b.gstAmount) || 0;
-      const perTotal = Number(b.totalAmount) || perBase + perGst;
+    // Re-check and write inside one critical section, so two company blocks
+    // requested at once cannot each be told the rooms are free.
+    const conflict = await withInventoryLock(async () => {
+      const clash = await blockAvailabilityConflict(roomRequirement, checkInDate, checkOutDate, 'need');
+      if (clash) return clash;
 
-      for (let k = 0; k < qty; k++) {
-        const isMaster = idx === 0;
-        const occupant = (employees[idx]?.name || '').trim() || primaryContact.name;
-        const customerId = await generateCustomerId(company.name, checkInDate, idx);
-        const invoiceNumber = await generateInvoiceNumber(occupant, checkInDate);
+      let idx = 0;
+      for (const b of roomRequirement) {
+        const qty = Number(b.qty) || 0;
+        const perBase = Number(b.baseAmount) || (Number(b.rate) || 0) * nights;
+        const perGst = Number(b.gstAmount) || 0;
+        const perTotal = Number(b.totalAmount) || perBase + perGst;
 
-        const booking = new Booking({
-          guestName: occupant,
-          email: employees[idx]?.email || primaryContact.email || '',
-          phone: employees[idx]?.mobile || primaryContact.phone,
-          roomId: null,
-          roomType: b.roomType,
-          checkIn: checkInDate,
-          checkOut: checkOutDate,
-          checkInTime: body.arrivalTime || defaultCheckInTime,
-          checkOutTime: body.departureTime || defaultCheckOutTime,
-          adults: 1,
-          children: 0,
-          baseAmount: perBase,
-          gstAmount: perGst,
-          totalAmount: perTotal,
-          bookingStatus: status,
-          specialRequests: body.specialRequests || '',
-          bookingType: 'company',
-          groupId,
-          groupName: company.name,
-          isGroupMaster: isMaster,
-          groupTotalAmount: isMaster ? groupTotalAmount : 0,
-          groupRoomCount: isMaster ? totalRooms : 0,
-          company: companySub,
-          companyDetails: isMaster ? companyDetails : undefined,
-          paidAmount: isMaster ? advanceAmount : 0,
-          remainingAmount: isMaster ? Math.max(0, groupTotalAmount - advanceAmount) : 0,
-          paymentMethod: isMaster ? mapAdvanceMode(body.advancePaymentMode) : '',
-          paymentStatus: isMaster && advanceAmount > 0 ? 'Partial' : 'Pending',
-          customerId,
-          invoiceNumber,
-        });
-        await booking.save();
-        idx++;
+        for (let k = 0; k < qty; k++) {
+          const isMaster = idx === 0;
+          const occupant = (employees[idx]?.name || '').trim() || primaryContact.name;
+          const customerId = await generateCustomerId(company.name, checkInDate, idx);
+          const invoiceNumber = await generateInvoiceNumber(occupant, checkInDate);
+
+          const booking = new Booking({
+            guestName: occupant,
+            email: employees[idx]?.email || primaryContact.email || '',
+            phone: employees[idx]?.mobile || primaryContact.phone,
+            roomId: null,
+            roomType: b.roomType,
+            checkIn: checkInDate,
+            checkOut: checkOutDate,
+            checkInTime: body.arrivalTime || defaultCheckInTime,
+            checkOutTime: body.departureTime || defaultCheckOutTime,
+            adults: 1,
+            children: 0,
+            baseAmount: perBase,
+            gstAmount: perGst,
+            totalAmount: perTotal,
+            bookingStatus: status,
+            specialRequests: body.specialRequests || '',
+            bookingType: 'company',
+            groupId,
+            groupName: company.name,
+            isGroupMaster: isMaster,
+            groupTotalAmount: isMaster ? groupTotalAmount : 0,
+            groupRoomCount: isMaster ? totalRooms : 0,
+            company: companySub,
+            companyDetails: isMaster ? companyDetails : undefined,
+            paidAmount: isMaster ? advanceAmount : 0,
+            remainingAmount: isMaster ? Math.max(0, groupTotalAmount - advanceAmount) : 0,
+            paymentMethod: isMaster ? mapAdvanceMode(body.advancePaymentMode) : '',
+            paymentStatus: isMaster && advanceAmount > 0 ? 'Partial' : 'Pending',
+            customerId,
+            invoiceNumber,
+          });
+          await booking.save();
+          idx++;
+        }
       }
+      return null;
+    });
+    if (conflict) {
+      return res.status(conflict.status).json({ success: false, message: conflict.message });
     }
 
     // Draw down the company's credit once the bookings are committed.
@@ -1299,6 +1363,9 @@ export const createCompanyBooking = async (req, res) => {
       message: `Company booking "${company.name}" created — ${totalRooms} room(s)`,
     });
   } catch (error) {
+    if (error instanceof InventoryBusyError) {
+      return res.status(error.status).json({ success: false, message: error.message });
+    }
     console.error('Error creating company booking:', error);
     return res.status(500).json({
       success: false,
@@ -1410,6 +1477,21 @@ export const addRoomToGroup = async (req, res) => {
     const total = Number(body.totalAmount) || base + gst;
     const occupant = (body.guestName || '').trim() || master.guestName;
 
+    // Adding a room to an existing group is still selling a room, and this path
+    // checked nothing at all -- a group could be grown past the hotel's own
+    // inventory one call at a time.
+    const reservation = {
+      roomType: body.roomType,
+      roomCount: 1,
+      checkIn: master.checkIn,
+      checkOut: master.checkOut,
+      statuses: ACTIVE_HOLD_STATUSES,
+    };
+    const earlyConflict = await availabilityConflict(Booking, Room, reservation);
+    if (earlyConflict) {
+      return res.status(earlyConflict.status).json({ success: false, message: earlyConflict.message });
+    }
+
     const customerId = await generateCustomerId(master.groupName || occupant, master.checkIn, cluster.length);
     const invoiceNumber = await generateInvoiceNumber(occupant, master.checkIn);
 
@@ -1437,7 +1519,15 @@ export const addRoomToGroup = async (req, res) => {
       customerId,
       invoiceNumber,
     });
-    await booking.save();
+    const conflict = await withInventoryLock(async () => {
+      const clash = await availabilityConflict(Booking, Room, reservation);
+      if (clash) return clash;
+      await booking.save();
+      return null;
+    });
+    if (conflict) {
+      return res.status(conflict.status).json({ success: false, message: conflict.message });
+    }
 
     // Keep the master's roll-up totals in sync.
     master.groupRoomCount = (master.groupRoomCount || 0) + 1;
@@ -1450,6 +1540,9 @@ export const addRoomToGroup = async (req, res) => {
       .sort({ isGroupMaster: -1, createdAt: 1 });
     return res.status(201).json({ success: true, data: updated, message: 'Guest added to group' });
   } catch (error) {
+    if (error instanceof InventoryBusyError) {
+      return res.status(error.status).json({ success: false, message: error.message });
+    }
     console.error('Error adding room to group:', error);
     return res.status(500).json({
       success: false,
