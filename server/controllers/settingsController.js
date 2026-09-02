@@ -28,6 +28,19 @@ import {
 import { resolveLogo } from '../utils/resolveLogo.js';
 import paymentService from '../services/paymentService.js';
 import { invalidateOperationalConfig } from '../config/operationalConfig.js';
+import { callerHasAnyPermission } from '../middleware/requireManage.js';
+import {
+  serializeSettings,
+  preserveSecrets,
+  preserveSectionSecrets,
+  sectionIsPrivileged,
+  VIEW_SETTINGS_PERMISSIONS,
+} from '../services/settingsRedaction.js';
+
+// Every GET on this router is reachable by any authenticated account — the
+// router only gates mutations. So the read side has to answer "who is asking?"
+// itself rather than assume the caller is an administrator.
+const canViewAllSettings = (req) => callerHasAnyPermission(req, VIEW_SETTINGS_PERMISSIONS);
 
 // Import models to ensure they're registered
 import '../models/Room.js';
@@ -138,9 +151,15 @@ export const getAllSettings = async (req, res) => {
   try {
     const settings = await Settings.getSettings();
 
+    // Secrets are stripped for everyone; the administrator-only sections are
+    // stripped for callers without view_settings. The app's own screens read
+    // branding, billing, invoice, room categories and guest messaging, so an
+    // ordinary staff account still gets a working document rather than a 403.
+    const data = serializeSettings(settings, { canViewAll: await canViewAllSettings(req) });
+
     return res.status(200).json({
       success: true,
-      data: settings,
+      data,
       message: "Settings retrieved successfully"
     });
   } catch (err) {
@@ -157,18 +176,34 @@ export const getAllSettings = async (req, res) => {
 export const getSettingsSection = async (req, res) => {
   try {
     const { section } = req.params;
+
+    // A named section is the same data by another door: /section/payment and the
+    // legacy /payment alias both land here, so the check belongs here too.
+    const canViewAll = await canViewAllSettings(req);
+    if (sectionIsPrivileged(section) && !canViewAll) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. Insufficient permissions.',
+        required: VIEW_SETTINGS_PERMISSIONS,
+      });
+    }
+
     const settings = await Settings.getSection(section);
-    
+
     if (!settings) {
       return res.status(404).json({
         success: false,
         message: `Settings section '${section}' not found`
       });
     }
-    
+
+    // Re-root the redaction at the whole document so the dotted secret paths
+    // still line up, then hand back just the section.
+    const data = serializeSettings({ [section]: settings }, { canViewAll })[section];
+
     return res.status(200).json({
       success: true,
-      data: settings,
+      data,
       message: `${section} settings retrieved successfully`
     });
   } catch (err) {
@@ -216,7 +251,13 @@ export const updateSettingsSection = async (req, res) => {
       }
     }
     
-    const updatedSettings = await Settings.updateSection(section, updateData);
+    // The client was never sent the stored secrets, so it cannot send them back.
+    // Without this, saving the Payments form would write the blank fields it
+    // rendered over a live gateway key.
+    const stored = await Settings.getSettings();
+    const safeData = preserveSectionSecrets(section, updateData, stored);
+
+    const updatedSettings = await Settings.updateSection(section, safeData);
 
     // Drop the operational config cache so billing/operations edits (GST rate,
     // breakfast charge, invoice prefix, default times, housekeeping rules) take
@@ -234,7 +275,7 @@ export const updateSettingsSection = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      data: updatedSettings,
+      data: serializeSettings({ [section]: updatedSettings }, { canViewAll: true })[section],
       message: `${section} settings updated successfully`
     });
   } catch (err) {
@@ -251,14 +292,15 @@ export const updateSettingsSection = async (req, res) => {
 export const updateAllSettings = async (req, res) => {
   try {
     const updateData = req.body;
-    
+
     const settings = await Settings.getSettings();
-    Object.assign(settings, updateData);
+    // Same reasoning as the section update: a blank secret means "unchanged".
+    Object.assign(settings, preserveSecrets(updateData, settings));
     await settings.save();
-    
+
     return res.status(200).json({
       success: true,
-      data: settings,
+      data: serializeSettings(settings, { canViewAll: true }),
       message: "Settings updated successfully"
     });
   } catch (err) {
@@ -1303,20 +1345,42 @@ const getStorageStats = async (req, res) => {
   }
 };
 
+
+// ── Backup file access ───────────────────────────────────────────────────────
+//
+// `path.join(backupDir, req.params.filename)` walks straight out of the backup
+// directory: a filename of "..%2f.env" decodes to "../.env" and resolves to the
+// server's environment file — Mongo URI, JWT secret, live payment keys. The
+// route is a GET, and this router only guards mutations, so any authenticated
+// account could read it. Resolve the path and require it to stay inside the
+// directory, and accept only the archive names this app actually writes.
+const BACKUP_NAME = /^[A-Za-z0-9._-]+\.(json|gz|tar\.gz|zip)$/;
+
+const resolveBackupPath = (filename) => {
+  const name = String(filename || '');
+  if (!BACKUP_NAME.test(name) || name.includes('..')) return null;
+
+  const backupDir = path.resolve(process.cwd(), 'backups');
+  const full = path.resolve(backupDir, name);
+  // path.resolve collapses any traversal; anything that escapes is refused.
+  if (full !== path.join(backupDir, name) || !full.startsWith(backupDir + path.sep)) return null;
+  return full;
+};
+
 const downloadBackup = async (req, res) => {
   try {
     const { filename } = req.params;
-    const backupDir = path.join(process.cwd(), 'backups');
-    const filePath = path.join(backupDir, filename);
-    
-    // Check if file exists
-    if (!fs.existsSync(filePath)) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Backup file not found' 
+    const filePath = resolveBackupPath(filename);
+
+    // A rejected path and a missing file answer identically, so probing for
+    // files outside the directory tells the caller nothing.
+    if (!filePath || !fs.existsSync(filePath)) {
+      return res.status(404).json({
+        success: false,
+        message: 'Backup file not found'
       });
     }
-    
+
     // Set headers for file download
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.setHeader('Content-Type', 'application/json');
@@ -1337,11 +1401,9 @@ const downloadBackup = async (req, res) => {
 const deleteBackup = async (req, res) => {
   try {
     const { filename } = req.params;
-    const backupDir = path.join(process.cwd(), 'backups');
-    const filePath = path.join(backupDir, filename);
-    
-    // Check if file exists
-    if (!fs.existsSync(filePath)) {
+    const filePath = resolveBackupPath(filename);
+
+    if (!filePath || !fs.existsSync(filePath)) {
       return res.status(404).json({ 
         success: false, 
         message: 'Backup file not found' 

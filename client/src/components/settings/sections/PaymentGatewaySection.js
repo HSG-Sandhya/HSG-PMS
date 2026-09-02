@@ -41,12 +41,17 @@ const sectionPaper = {
     '0 4px 24px rgba(0, 0, 0, 0.05), 0 0 24px rgba(var(--app-primary-rgb), 0.08), inset 0 1px 0 rgba(255, 255, 255, var(--app-surface-border-alpha, 0.08))',
 };
 
+// The server never sends a stored secret back — only whether one is set. The
+// form therefore holds a blank secret field plus a "…Configured" flag, and a
+// blank field on save means "leave the saved key alone" rather than "clear it".
 const empty = {
   enabled: false,
   environment: 'test',
   keyId: '',
   keySecret: '',
   webhookSecret: '',
+  keySecretConfigured: false,
+  webhookSecretConfigured: false,
 };
 
 const isPlaceholder = (s) =>
@@ -71,8 +76,11 @@ const PaymentGatewaySection = ({ onNotify }) => {
           enabled: !!razor.enabled,
           environment: razor.environment || 'test',
           keyId: razor.keyId || '',
-          keySecret: razor.keySecret || '',
-          webhookSecret: razor.webhookSecret || '',
+          // Always blank: the value is write-only. Typing here replaces it.
+          keySecret: '',
+          webhookSecret: '',
+          keySecretConfigured: !!razor.keySecretConfigured,
+          webhookSecretConfigured: !!razor.webhookSecretConfigured,
         };
         if (active) {
           setForm(next);
@@ -94,9 +102,24 @@ const PaymentGatewaySection = ({ onNotify }) => {
   const handleSave = async () => {
     setSaving(true);
     try {
-      // Send the whole razorpay object so partial updates don't drop fields.
-      await api.put('/settings/section/payment', { razorpay: form });
-      setOriginal(form);
+      // Send the whole razorpay object so partial updates don't drop fields —
+      // but omit any secret the admin did not retype, and never send back the
+      // derived "configured" flags.
+      const { keySecretConfigured, webhookSecretConfigured, ...payload } = form;
+      if (!payload.keySecret.trim()) delete payload.keySecret;
+      if (!payload.webhookSecret.trim()) delete payload.webhookSecret;
+
+      await api.put('/settings/section/payment', { razorpay: payload });
+      // A saved secret is now configured, and the field returns to blank.
+      const saved = {
+        ...form,
+        keySecret: '',
+        webhookSecret: '',
+        keySecretConfigured: keySecretConfigured || !!form.keySecret.trim(),
+        webhookSecretConfigured: webhookSecretConfigured || !!form.webhookSecret.trim(),
+      };
+      setForm(saved);
+      setOriginal(saved);
       onNotify?.('Payment gateway settings saved · Razorpay re-initialised', 'success');
     } catch (err) {
       onNotify?.(err.response?.data?.message || 'Save failed', 'error');
@@ -112,8 +135,11 @@ const PaymentGatewaySection = ({ onNotify }) => {
   };
 
   const isDirty = JSON.stringify(form) !== JSON.stringify(original);
-  const isLive = form.environment === 'live' && !isPlaceholder(form.keyId) && !isPlaceholder(form.keySecret) && form.enabled;
-  const isDemoFlow = !form.enabled || isPlaceholder(form.keyId) || isPlaceholder(form.keySecret);
+  // The secret's value is no longer available to inspect, so "is a secret set?"
+  // replaces the old placeholder test on it.
+  const secretSet = form.keySecretConfigured || !!form.keySecret.trim();
+  const isLive = form.environment === 'live' && !isPlaceholder(form.keyId) && secretSet && form.enabled;
+  const isDemoFlow = !form.enabled || isPlaceholder(form.keyId) || !secretSet;
 
   if (loading) {
     return (
@@ -285,7 +311,11 @@ const PaymentGatewaySection = ({ onNotify }) => {
                 type={showSecret ? 'text' : 'password'}
                 value={form.keySecret}
                 onChange={(e) => update('keySecret', e.target.value.trim())}
-                helperText="Razorpay shows this once when you generate the key — store it carefully."
+                helperText={
+                  form.keySecretConfigured
+                    ? 'A key secret is saved. Leave blank to keep it, or type a new one to replace it.'
+                    : 'Not set. Razorpay shows this once when you generate the key — store it carefully.'
+                }
                 slotProps={{
                   input: {
                     endAdornment: (
@@ -307,7 +337,11 @@ const PaymentGatewaySection = ({ onNotify }) => {
                 type={showWebhook ? 'text' : 'password'}
                 value={form.webhookSecret}
                 onChange={(e) => update('webhookSecret', e.target.value.trim())}
-                helperText="Only required if you create a Razorpay webhook for payment status notifications."
+                helperText={
+                  form.webhookSecretConfigured
+                    ? 'A webhook secret is saved. Leave blank to keep it, or type a new one to replace it.'
+                    : 'Only required if you create a Razorpay webhook for payment status notifications.'
+                }
                 slotProps={{
                   input: {
                     endAdornment: (

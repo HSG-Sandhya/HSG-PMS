@@ -35,6 +35,24 @@ router.use((req, res, next) => {
   return requireManage('manage_settings')(req, res, next);
 });
 
+// READS were left to authenticateToken alone, which is not the same thing as
+// "safe to read". The Settings document carries payment-gateway keys, SMTP and
+// SMS provider credentials and channel-manager keys, so `GET /api/settings`
+// handed every logged-in account — housekeeping, waiters, reception — the live
+// Razorpay secret. Two answers, because the reads are not all alike:
+//
+//   • The whole-document and named-section reads stay open, but the controller
+//     redacts secrets for EVERY caller and drops the administrator-only
+//     sections for anyone without view_settings. The admin UI loads settings on
+//     every screen for every user, so a blanket 403 would break the app for
+//     ordinary staff to no benefit.
+//
+//   • The backup endpoints are different: a backup archive is the whole
+//     database, and downloadBackup streams a file straight off disk. Nothing
+//     about those is ordinary staff business, so they are gated outright.
+const requireSettingsRead = requireManage(['view_settings', 'manage_settings']);
+router.use('/backup', requireSettingsRead);
+
 const storage = multer.memoryStorage();
 const fileFilter = (req, file, cb) => {
   if (!file.originalname.match(/\.(jpg|jpeg|png|gif|svg)$/)) {
