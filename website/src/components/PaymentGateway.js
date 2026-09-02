@@ -81,10 +81,19 @@ const PaymentGateway = ({
 
     try {
       // Step 1: Create Razorpay order
+      // No amount is sent. The server prices the stay from the category and
+      // dates and opens the order for that figure -- posting an amount here let
+      // a caller open a Rs1 order against a Rs20,000 booking.
       const orderResponse = await axios.post('/api/website/create-razorpay-order', {
-        amount: amount,
         currency: currency,
-        receipt: `booking_${Date.now()}`
+        receipt: `booking_${Date.now()}`,
+        stay: {
+          roomType: bookingData?.roomType,
+          roomId: bookingData?.roomId,
+          checkIn: bookingData?.checkIn,
+          checkOut: bookingData?.checkOut,
+          roomCount: bookingData?.roomCount,
+        },
       });
 
       const order = orderResponse.data;

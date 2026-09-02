@@ -82,3 +82,49 @@ test('a tax invoice always reconciles: taxable + CGST + SGST = total', () => {
     );
   }
 });
+
+// ── Per-line CGST/SGST on the compliance grid ───────────────────────────────
+import { splitItemTax } from '../services/invoiceTemplates/formatters.js';
+
+test('a line is split at its own rate, not at a flat 5%', () => {
+  // A food line taxed at 12%: 1120 gross → 1000 taxable, 60 + 60.
+  const food = splitItemTax({ amount: 1120, gstRate: 0.12 });
+  assert.equal(food.taxable, 1000);
+  assert.equal(food.cgst, 60);
+  assert.equal(food.sgst, 60);
+
+  // A banquet line at 18%: 1180 gross → 1000 taxable, 90 + 90.
+  const banquet = splitItemTax({ amount: 1180, gstRate: 0.18 });
+  assert.equal(banquet.taxable, 1000);
+  assert.equal(banquet.cgst, 90);
+  assert.equal(banquet.sgst, 90);
+});
+
+test('every split reconciles back to the gross amount', () => {
+  for (const gstRate of [0, 0.05, 0.12, 0.18, 0.28]) {
+    const t = splitItemTax({ amount: 4321, gstRate });
+    const sum = Math.round((t.taxable + t.cgst + t.sgst) * 100) / 100;
+    assert.ok(Math.abs(sum - t.gross) <= 0.02, `at ${gstRate}: ${sum} vs ${t.gross}`);
+  }
+});
+
+test('banquet lines use the configured banquet rate', () => {
+  const booking = {
+    eventType: 'Corporate',
+    // A GST-inclusive hall line: at 18% a 1180 gross is 1000 taxable.
+    totalAmount: 1180,
+    paidAmount: 0,
+  };
+  const at18 = normalizeInvoiceContext({
+    booking, hotel: {}, type: 'banquet',
+    billing: { roomGstRate: 5, posGstRate: 5, banquetGstRate: 18, roundAmounts: true },
+  });
+  const at28 = normalizeInvoiceContext({
+    booking, hotel: {}, type: 'banquet',
+    billing: { roomGstRate: 5, posGstRate: 5, banquetGstRate: 28, roundAmounts: true },
+  });
+  assert.equal(at18.totals.subtotal, 1000);
+  // Changing the setting must change the split -- the proof it is no longer a
+  // literal 18 in three separate files.
+  assert.notEqual(at28.totals.subtotal, at18.totals.subtotal);
+});

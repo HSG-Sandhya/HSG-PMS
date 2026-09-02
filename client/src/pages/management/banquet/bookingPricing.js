@@ -16,16 +16,21 @@ export const calculateFloorCost = (selectedFloors) => {
 export const calculateCateringCost = (perPlate, numberOfPlates, days) =>
   (Number(perPlate) || 0) * (parseInt(numberOfPlates, 10) || 0) * Math.max(1, parseInt(days, 10) || 1);
 
-// Banquet GST. Catering is priced PRE-GST, so 18% is added on top of the
+// Banquet GST. Catering is priced PRE-GST, so the tax is added on top of the
 // catering value to reach the billed amount; every other line (venue, décor,
 // facilities …) is priced GST-inclusive and does not grow. This mirrors the
 // invoice renderer (server/services/invoiceTemplates/normalize.js) so the
 // booking total the PMS tracks equals the total the invoice prints.
 // GST-exempt events (weddings — see isGstExemptType) carry no tax at all, so
 // nothing is added on top of their catering.
-export const BANQUET_GST_RATE = 0.18;
+//
+// The rate is configured in Billing & Tariff (banquetGstRate). It was a literal
+// 0.18 here, in FinalizeBillingDialog and in the server's invoice renderer --
+// three copies that had to be edited together and silently disagreed if they
+// were not.
+export const banquetGstFraction = () => (liveBilling().banquetGstRate || 0) / 100;
 export const cateringGst = (cateringCost, gstExempt = false) =>
-  (gstExempt ? 0 : Math.round((Number(cateringCost) || 0) * BANQUET_GST_RATE));
+  (gstExempt ? 0 : Math.round((Number(cateringCost) || 0) * banquetGstFraction()));
 
 // One catering line item's amount: per-plate × plates × days.
 //  • After the event, the ACTUAL plates consumed (actualPlates) drive the amount.

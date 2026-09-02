@@ -6,7 +6,7 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined';
 import FormDialog, { FormSection } from '../forms/FormDialog';
 import api from '../../api';
 import { currencySym } from '../../utils/billing';
-import { roundBanquetTotal, facilityItemAmount, sumFacilityItems } from '../../pages/management/banquet/bookingPricing';
+import { roundBanquetTotal, facilityItemAmount, sumFacilityItems, banquetGstFraction } from '../../pages/management/banquet/bookingPricing';
 import { isGstExemptType } from '../../pages/management/banquet/bookingConstants';
 
 const fmt = (n) =>
@@ -21,14 +21,13 @@ const days = (it) => Math.max(1, Number(it?.days) || 1);
 const lineAmount = (perPlate, plates, d) =>
   (Number(perPlate) || 0) * (parseInt(plates, 10) || 0) * Math.max(1, Number(d) || 1);
 const estAmount = (it) => lineAmount(it?.perPlate, it?.plates, it?.days);
-// Catering is billed with 18% GST added on top. `booking.totalAmount` includes
+// Catering is billed with the configured banquet GST added on top. `booking.totalAmount` includes
 // this GST, so the catering figures here must be gross too or "other charges"
 // (total − catering) would wrongly absorb the tax. Mirrors the invoice + form.
 // GST-exempt events (weddings) carry no tax, so their catering stays at base.
-const BANQUET_GST_RATE = 0.18;
 const withGst = (base, gstExempt = false) => {
   const n = Number(base) || 0;
-  return gstExempt ? n : n + Math.round(n * BANQUET_GST_RATE);
+  return gstExempt ? n : n + Math.round(n * banquetGstFraction());
 };
 
 /**
@@ -354,7 +353,7 @@ const FinalizeBillingDialog = ({ open, onClose, booking, onUpdated }) => {
       <FormSection title="Revised bill">
         <Grid container spacing={1.5}>
           <Summary label="Other charges" value={fmt(nonCatering)} />
-          <Summary label={gstExempt ? 'Catering (actual)' : 'Catering (actual, incl. 18% GST)'} value={fmt(newCateringSum)} color="#6366f1" />
+          <Summary label={gstExempt ? 'Catering (actual)' : `Catering (actual, incl. ${Math.round(banquetGstFraction() * 100)}% GST)`} value={fmt(newCateringSum)} color="#6366f1" />
           {postEventSum > 0 && <Summary label="Extras taken" value={fmt(postEventSum)} color="#b45309" />}
           {discount > 0 && <Summary label="Discount" value={`− ${fmt(discount)}`} color="#dc2626" />}
           <Summary label="New total" value={fmt(newTotal)} color="#0f7fc9" />

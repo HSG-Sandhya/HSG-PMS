@@ -43,6 +43,7 @@ const BillingSection = ({ onNotify }) => {
         ...form,
         roomGstRate: num(form.roomGstRate, BILLING_DEFAULTS.roomGstRate),
         posGstRate: num(form.posGstRate, BILLING_DEFAULTS.posGstRate),
+        banquetGstRate: num(form.banquetGstRate, BILLING_DEFAULTS.banquetGstRate),
         breakfastChargePerNight: num(form.breakfastChargePerNight, BILLING_DEFAULTS.breakfastChargePerNight),
         banquetVenueHourlyRate: num(form.banquetVenueHourlyRate, BILLING_DEFAULTS.banquetVenueHourlyRate),
         maxDiscountPercent: num(form.maxDiscountPercent, BILLING_DEFAULTS.maxDiscountPercent),
@@ -69,7 +70,7 @@ const BillingSection = ({ onNotify }) => {
           <Typography variant="caption" sx={{
             color: "text.secondary"
           }}>
-            GST rates apply to room tariff and restaurant/POS bills. The breakfast charge is added per night when a booking includes breakfast.
+            GST rates apply to room tariff, restaurant/POS bills and banquet services. The breakfast charge is added per night when a booking includes breakfast.
           </Typography>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <TextField
@@ -84,6 +85,14 @@ const BillingSection = ({ onNotify }) => {
               label="Restaurant / POS GST rate" type="number" fullWidth
               value={form.posGstRate}
               onChange={(e) => set({ posGstRate: e.target.value })}
+              slotProps={{
+                input: { endAdornment: <InputAdornment position="end">%</InputAdornment> }
+              }}
+            />
+            <TextField
+              label="Banquet / event GST rate" type="number" fullWidth
+              value={form.banquetGstRate}
+              onChange={(e) => set({ banquetGstRate: e.target.value })}
               slotProps={{
                 input: { endAdornment: <InputAdornment position="end">%</InputAdornment> }
               }}

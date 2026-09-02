@@ -1,3 +1,4 @@
+import { BILLING_DEFAULTS, pctToFraction } from '../../config/operationalDefaults.js';
 export const escapeHtml = (input) => {
   if (input === null || input === undefined) return '';
   return String(input)
@@ -72,11 +73,17 @@ const SAC_BY_CATEGORY = {
 
 export const hsnFor = (category) => SAC_BY_CATEGORY[category] || '996311';
 
-// Per-line GST split — base templates carry GST as a single 5% bucket; the
-// modern templates surface CGST/SGST per line.
-export const splitItemTax = (item, rate = 0.05) => {
+// Per-line GST split for the templates that surface CGST/SGST per line.
+//
+// The rate is the LINE's own (normalize.js tags every item with the configured
+// rate for its category). This defaulted to a flat 0.05, so the compliance grid
+// printed a 5% split on food and banquet lines that were never taxed at 5%.
+export const splitItemTax = (item, rate = null) => {
+  const effectiveRate = rate != null
+    ? rate
+    : (Number(item?.gstRate) || pctToFraction(BILLING_DEFAULTS.roomGstRate));
   const gross = Number(item.amount || 0);
-  const taxable = gross / (1 + rate);
+  const taxable = gross / (1 + effectiveRate);
   const tax = gross - taxable;
   return {
     taxable: Math.round(taxable * 100) / 100,

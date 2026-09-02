@@ -18,6 +18,7 @@ import {
   getServices,
   getRoomsForWebsite,
   getTaxConfig,
+  getStayQuote,
   createRestaurantOrder,
   getRoomServiceContext,
   createRoomServiceOrder,
@@ -44,6 +45,7 @@ router.post('/banquet-bookings', createBanquetBooking);
 router.get('/availability', getAvailability);
 router.get('/room-types', getRoomTypes);
 router.get('/room-types/:id', getRoomTypeById);
+router.get('/quote', getStayQuote);
 router.post('/bookings', createRoomBooking);
 router.get('/bookings/:id/status', getBookingStatus);
 

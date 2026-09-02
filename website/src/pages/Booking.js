@@ -8,7 +8,6 @@ import { useLocation } from 'react-router-dom';
 import PaymentGateway from '../components/PaymentGateway';
 import OptionSelect from '../components/OptionSelect';
 import { roomImage } from '../lib/roomImages';
-import { fetchTaxRates, taxOn, taxLabel } from '../lib/tax';
 
 const EASE = [0.22, 1, 0.36, 1];
 
@@ -247,7 +246,8 @@ const Field = ({ label, error, children }) => (
 
 const Booking = () => {
   const [rooms, setRooms] = useState([]);
-  const [taxRates, setTaxRates] = useState(null);
+  const [quote, setQuote] = useState(null);
+  const [quoting, setQuoting] = useState(false);
   const [loading, setLoading] = useState(false);
   const [selectedRoom, setSelectedRoom] = useState(null);
   const [nights, setNights] = useState(1);
@@ -276,14 +276,8 @@ const Booking = () => {
   useEffect(() => {
     (async () => {
       try {
-        // Rooms and the tax rate together: a tariff cannot be quoted without
-        // the rate the server will actually apply to it.
-        const [{ data }, rates] = await Promise.all([
-          axios.get('/api/website/rooms'),
-          fetchTaxRates(),
-        ]);
+        const { data } = await axios.get('/api/website/rooms');
         setRooms(data.filter((r) => r.status && r.status.toLowerCase() === 'available'));
-        setTaxRates(rates);
       } catch (err) {
         console.error('Error fetching rooms:', err);
         toast.error('Failed to load available rooms');
@@ -334,6 +328,30 @@ const Booking = () => {
     }
   }, [checkInDate, checkOutDate]);
 
+  // Re-quote whenever the stay changes. The request carries no money, only
+  // which category and which dates.
+  useEffect(() => {
+    const type = selectedRoom?.type;
+    if (!type || !checkInDate || !checkOutDate || nights <= 0) {
+      setQuote(null);
+      return undefined;
+    }
+    let alive = true;
+    setQuoting(true);
+    axios
+      .get('/api/website/quote', {
+        params: { roomType: type, checkIn: checkInDate, checkOut: checkOutDate, roomCount },
+      })
+      .then(({ data }) => alive && setQuote(data))
+      .catch((err) => {
+        if (!alive) return;
+        setQuote(null);
+        console.error('Error quoting stay:', err);
+      })
+      .finally(() => alive && setQuoting(false));
+    return () => { alive = false; };
+  }, [selectedRoom?.type, checkInDate, checkOutDate, roomCount, nights]);
+
   useEffect(() => {
     if (selectedRoomId) {
       const room = rooms.find((r) => r._id === selectedRoomId);
@@ -365,13 +383,13 @@ const Booking = () => {
 
   // Derived totals — keep base / GST / grand total in sync with the room
   // selection and the number of rooms so the summary and payment reconcile.
-  const perRoomBase = selectedRoom && nights > 0 ? selectedRoom.price * nights : 0;
-  const baseAmount = perRoomBase * roomCount;
-  // Accommodation uses roomGstRate, which is configured separately from the
-  // restaurant's posGstRate -- both came from the same hardcoded 5% before.
-  const gstRate = taxRates?.roomGstRate;
-  const gstAmount = gstRate == null ? 0 : taxOn(baseAmount, gstRate, taxRates.roundAmounts);
-  const grandTotal = baseAmount + gstAmount;
+  // Every figure below is the SERVER's. The page used to multiply the rate by
+  // the nights, add a hardcoded 5%, and post the result -- which meant the
+  // amount the guest was billed was whatever the browser said it was.
+  const baseAmount = quote?.baseAmount ?? 0;
+  const gstAmount = quote?.gstAmount ?? 0;
+  const grandTotal = quote?.totalAmount ?? 0;
+  const gstRate = quote?.gstRate;
 
   useEffect(() => {
     if (!window.Razorpay) {
@@ -383,10 +401,10 @@ const Booking = () => {
   }, []);
 
   const onSubmit = async (data) => {
-    // Without the rate we would post a total with no GST on it. Better to ask
-    // the guest to retry than to book a tariff neither side agrees on.
-    if (gstRate == null) {
-      toast.error('Could not load current tax rates. Please refresh and try again.');
+    // The server prices the stay either way, but without a quote we would be
+    // asking the guest to confirm a total we never showed them.
+    if (!quote) {
+      toast.error('Could not price those dates. Please refresh and try again.');
       return;
     }
     setLoading(true);
@@ -407,9 +425,7 @@ const Booking = () => {
         adults: Math.max(1, Number(data.adults) || 1),
         children: Math.max(0, Number(data.children) || 0),
         roomCount,
-        baseAmount,
-        gstAmount,
-        totalAmount: grandTotal,
+        // No amounts: the server prices the stay from the category and dates.
         specialRequests: data.specialRequests || '',
         paymentMethod,
       };
@@ -719,11 +735,13 @@ const Booking = () => {
 
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || quoting}
                 className="btn-primary w-full md:w-auto disabled:opacity-50"
               >
                 {loading
                   ? 'Working…'
+                  : quoting
+                  ? 'Pricing…'
                   : paymentMethod === 'online'
                     ? <>Continue to payment <span aria-hidden>→</span></>
                     : <>Confirm reservation <span aria-hidden>→</span></>}
@@ -803,8 +821,8 @@ const Booking = () => {
                     />
                   )}
                   <Row
-                    label={taxLabel(gstRate)}
-                    value={gstRate == null ? '—' : `₹${gstAmount.toLocaleString('en-IN')}`}
+                    label={gstRate == null ? 'GST' : `GST (${gstRate}%)`}
+                    value={quote ? `₹${gstAmount.toLocaleString('en-IN')}` : '—'}
                   />
                 </>
               )}
@@ -812,7 +830,7 @@ const Booking = () => {
               <div className="pt-4 border-t border-ink-100 flex items-baseline justify-between">
                 <span className="text-xs uppercase tracking-widest text-ink-500">Total</span>
                 <span className="font-serif font-light text-3xl text-ink-900">
-                  ₹{grandTotal.toLocaleString('en-IN')}
+                  {quoting ? 'Pricing…' : quote ? `₹${grandTotal.toLocaleString('en-IN')}` : '—'}
                 </span>
               </div>
             </div>

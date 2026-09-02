@@ -1,9 +1,10 @@
 import { balanceOf } from '../../utils/money.js';
 import { BILLING_DEFAULTS, pctToFraction } from '../../config/operationalDefaults.js';
 
-// Banquet services are taxed at 18% (9% CGST + 9% SGST). Catering is priced
-// pre-GST (tax added on top); every other banquet line is priced GST-inclusive.
-const DEFAULT_BANQUET_GST = 18;
+// Banquet services carry their own GST rate, configured in Billing & Tariff
+// (banquetGstRate) alongside the room and POS rates. Catering is priced pre-GST
+// (tax added on top); every other banquet line is priced GST-inclusive. A line
+// that carries its own gstPercent still wins over the configured default.
 const GST_EXCLUSIVE_CATEGORIES = new Set(['catering', 'meals']);
 // Banquet payables are billed in round figures — rounded UP to the next ₹100.
 const BANQUET_ROUNDING_STEP = 100;
@@ -26,7 +27,12 @@ const calculateNights = (booking) => {
   return 1;
 };
 
-const buildHotelItems = (booking) => {
+const buildHotelItems = (booking, billing = BILLING_DEFAULTS) => {
+  // Each line carries the rate that applies to it. Accommodation and food are
+  // taxed separately, and the per-line CGST/SGST grid used to split every line
+  // at a flat 5% regardless.
+  const roomRate = pctToFraction(billing.roomGstRate);
+  const posRate = pctToFraction(billing.posGstRate);
   const items = [];
   const totalAmount = Number(booking.totalAmount || 0);
   const nights = calculateNights(booking);
@@ -50,6 +56,7 @@ const buildHotelItems = (booking) => {
     rate,
     amount: rate * nights,
     category: 'room',
+    gstRate: roomRate,
   });
 
   const orders = Array.isArray(booking.restaurantOrders) ? booking.restaurantOrders : [];
@@ -67,6 +74,7 @@ const buildHotelItems = (booking) => {
       rate: Number(order.totalAmount || 0),
       amount: Number(order.totalAmount || 0),
       category: 'restaurant',
+      gstRate: posRate,
     });
   });
 
@@ -79,6 +87,7 @@ const buildHotelItems = (booking) => {
       rate: lateFee,
       amount: lateFee,
       category: 'extra',
+      gstRate: roomRate,
     });
   }
 
@@ -111,7 +120,8 @@ const MEAL_OPTIONS = [
   { value: 'mutton', label: 'Standard + Mutton', cost: 800 },
 ];
 
-const buildBanquetItems = (booking) => {
+const buildBanquetItems = (booking, billing = BILLING_DEFAULTS) => {
+  const DEFAULT_BANQUET_GST = billing.banquetGstRate;
   const items = [];
   const hallName = booking.hallId?.name || booking.hallName || 'Banquet Hall';
 
@@ -427,7 +437,7 @@ export const normalizeInvoiceContext = ({
 }) => {
   const safeBooking = booking || {};
   const isBanquet = type === 'banquet';
-  const items = isBanquet ? buildBanquetItems(safeBooking) : buildHotelItems(safeBooking);
+  const items = isBanquet ? buildBanquetItems(safeBooking, billing) : buildHotelItems(safeBooking, billing);
   const totals = computeTotals(items, safeBooking, isBanquet, billing);
 
   const customerName = safeBooking.customerName

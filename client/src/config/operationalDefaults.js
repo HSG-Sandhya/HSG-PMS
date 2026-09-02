@@ -11,6 +11,7 @@
 export const BILLING_DEFAULTS = {
   roomGstRate: 5,                 // % GST applied to room tariff (subtotal)
   posGstRate: 5,                  // % GST applied to restaurant / POS orders
+  banquetGstRate: 18,             // % GST applied to banquet / event services
   breakfastChargePerNight: 200,   // ₹ added per night when tariff includes breakfast
   defaultCheckInTime: '12:00',    // HH:mm used when a booking omits a check-in time
   defaultCheckOutTime: '11:00',   // HH:mm used when a booking omits a check-out time

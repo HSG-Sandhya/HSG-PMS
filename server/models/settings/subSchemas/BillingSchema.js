@@ -8,6 +8,7 @@ const BillingSchema = new Schema(
   {
     roomGstRate: { type: Number, min: 0, max: 100, default: BILLING_DEFAULTS.roomGstRate },
     posGstRate: { type: Number, min: 0, max: 100, default: BILLING_DEFAULTS.posGstRate },
+    banquetGstRate: { type: Number, min: 0, max: 100, default: BILLING_DEFAULTS.banquetGstRate },
     breakfastChargePerNight: { type: Number, min: 0, default: BILLING_DEFAULTS.breakfastChargePerNight },
     defaultCheckInTime: { type: String, trim: true, default: BILLING_DEFAULTS.defaultCheckInTime },
     defaultCheckOutTime: { type: String, trim: true, default: BILLING_DEFAULTS.defaultCheckOutTime },

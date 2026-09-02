@@ -14,6 +14,7 @@ import { syncRoomBookingIncome } from '../services/accountingSync.js';
 import { emitNewWebsiteBooking } from '../config/socket.js';
 import { getBilling, roomGst } from '../config/operationalConfig.js';
 import { priceOrder, OrderPricingError } from '../services/orderPricing.js';
+import { quoteStay, BookingPricingError } from '../services/bookingPricing.js';
 import { getBanquetBlockedRoomIds } from './roomController.js';
 import { getInventorySnapshot, availabilityByType, canReserve } from '../services/inventory.js';
 
@@ -314,11 +315,22 @@ export const createRoomBooking = async (req, res) => {
       }
     }
 
+    // Price the stay before anything else touches money. Every amount below
+    // comes from this quote; nothing from the request body does.
+    const quote = await quoteStay({
+      roomId: bookingData.roomId,
+      roomType: bookingData.roomType,
+      checkIn: bookingData.checkIn,
+      checkOut: bookingData.checkOut,
+      roomCount: bookingData.roomCount,
+    });
+
     // An "online" booking is only trusted as Paid after we verify the payment
     // server-side. Without this a crafted request could mark a booking Paid (and
     // post income) without ever paying, or confirm a large booking with a tiny
     // real payment. The client already sends the three Razorpay fields.
-    if (bookingData.paymentMethod === 'online') {
+    const isOnline = bookingData.paymentMethod === 'online';
+    if (isOnline) {
       const { razorpayOrderId, razorpayPaymentId, razorpaySignature } = bookingData;
       if (!razorpayOrderId || !razorpayPaymentId || !razorpaySignature) {
         return res.status(400).json({ message: 'Online payment verification details are required' });
@@ -345,7 +357,10 @@ export const createRoomBooking = async (req, res) => {
       if (!(await paymentService.isDemoMode())) {
         try {
           const payment = await paymentService.getPaymentDetails(razorpayPaymentId);
-          const expectedPaise = Math.round(Number(bookingData.totalAmount || 0) * 100);
+          // Against the SERVER's quote. This compared the payment with
+          // bookingData.totalAmount, which the same caller supplied -- so it
+          // only confirmed they had paid whatever they claimed to owe.
+          const expectedPaise = Math.round(quote.totalAmount * 100);
           const paidPaise = Number(payment?.amount || 0);
           if (payment?.status !== 'captured') {
             return res.status(400).json({ message: 'Payment has not been captured' });
@@ -429,12 +444,14 @@ export const createRoomBooking = async (req, res) => {
       adults: bookingData.adults || 1,
       children: bookingData.children || 0,
       roomCount: Math.max(1, Number(bookingData.roomCount) || 1),
-      totalAmount: bookingData.totalAmount || 0,
-      baseAmount: bookingData.baseAmount || 0,
-      gstAmount: bookingData.gstAmount || 0,
-      paidAmount: bookingData.paidAmount || 0,
-      remainingAmount: bookingData.remainingAmount || 0,
-      paymentStatus: bookingData.paymentMethod === 'online' ? 'Paid' : 'Pending',
+      // Server-priced, not client-supplied. An online booking is paid in full
+      // (the gateway confirmation above enforces that); pay-at-hotel owes it all.
+      totalAmount: quote.totalAmount,
+      baseAmount: quote.baseAmount,
+      gstAmount: quote.gstAmount,
+      paidAmount: isOnline ? quote.totalAmount : 0,
+      remainingAmount: isOnline ? 0 : quote.totalAmount,
+      paymentStatus: isOnline ? 'Paid' : 'Pending',
       paymentMethod: bookingData.paymentMethod || 'pay_at_hotel',
       // Persist the gateway transaction so an online booking can be reconciled
       // against Razorpay settlements and refunded from the record. The frontend
@@ -487,8 +504,11 @@ export const createRoomBooking = async (req, res) => {
       message: 'Booking created successfully',
     });
   } catch (error) {
+    if (error instanceof BookingPricingError) {
+      return res.status(error.status).json({ message: error.message });
+    }
     console.error('Error creating booking:', error);
-    res.status(500).json({ message: 'Error creating booking', error: error.message });
+    res.status(500).json({ message: 'Error creating booking' });
   }
 };
 
@@ -682,6 +702,28 @@ export const getTaxConfig = async (_req, res) => {
   } catch (error) {
     console.error('Error getting tax config:', error);
     res.status(500).json({ message: 'Error getting tax configuration' });
+  }
+};
+
+/**
+ * What a stay will cost, priced by the server.
+ *
+ * The booking page used to do this arithmetic itself (rate x nights x rooms,
+ * plus a hardcoded 5%) and post the result. Now it asks, displays what comes
+ * back, and posts no money at all -- so the figure quoted is by construction
+ * the figure charged.
+ */
+export const getStayQuote = async (req, res) => {
+  try {
+    const { roomId, roomType, checkIn, checkOut, roomCount } = req.query;
+    const quote = await quoteStay({ roomId, roomType, checkIn, checkOut, roomCount });
+    res.json(quote);
+  } catch (error) {
+    if (error instanceof BookingPricingError) {
+      return res.status(error.status).json({ message: error.message });
+    }
+    console.error('Error quoting stay:', error);
+    res.status(500).json({ message: 'Error calculating the price for those dates' });
   }
 };
 
@@ -917,11 +959,13 @@ export const getPaymentConfig = async (_req, res) => {
 
 export const createRazorpayOrder = async (req, res) => {
   try {
-    const { amount, currency = 'INR', receipt } = req.body;
-    if (!amount || amount <= 0) {
-      return res.status(400).json({ message: 'Invalid amount provided' });
-    }
-    const order = await paymentService.createOrder(amount, currency, receipt);
+    const { currency = 'INR', receipt, stay } = req.body;
+
+    // The amount is quoted here, not accepted. Taking it from the request let a
+    // caller open a Rs1 order for a Rs20,000 stay and then present that payment
+    // as settlement in full.
+    const quote = await quoteStay(stay || {});
+    const order = await paymentService.createOrder(quote.totalAmount, currency, receipt);
     res.json({
       id: order.id,
       amount: order.amount,
@@ -929,13 +973,14 @@ export const createRazorpayOrder = async (req, res) => {
       receipt: order.receipt,
       status: order.status,
       created_at: order.created_at,
+      quote,
     });
   } catch (error) {
+    if (error instanceof BookingPricingError) {
+      return res.status(error.status).json({ message: error.message });
+    }
     console.error('Error creating Razorpay order:', error);
-    res.status(500).json({
-      message: error.message || 'Failed to create payment order',
-      error: error.message,
-    });
+    res.status(500).json({ message: 'Failed to create payment order' });
   }
 };
 
