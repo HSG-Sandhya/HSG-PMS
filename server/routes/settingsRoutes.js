@@ -6,6 +6,9 @@ import { requireManage } from '../middleware/requireManage.js';
 
 const router = express.Router();
 
+// '/backup' and '/backup/...', but not '/backupsomething'.
+const isBackupPath = (p) => p === '/backup' || p.startsWith('/backup/');
+
 // Public — declared BEFORE the auth gate. The login page needs the appearance
 // settings (mode, colours, background, darkness) before anyone is signed in.
 router.get('/public/theme', settingsController.getPublicTheme);
@@ -32,6 +35,14 @@ router.use(permissionMiddleware.authenticateToken);
 // accounts. Defaulting to deny means a route added later is guarded on arrival.
 router.use((req, res, next) => {
   if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return next();
+  // /backup carries its own, stricter rules below. Deferring to them keeps
+  // manage_backups meaningful on its own instead of requiring manage_settings
+  // as well, which would make the finer-grained permission unusable.
+  //
+  // Matched exactly the way `router.use('/backup', ...)` matches, so the set of
+  // paths exempted here is the same set that guard covers. A loose prefix test
+  // would exempt a future '/backupsomething' from BOTH and leave it open.
+  if (isBackupPath(req.path)) return next();
   return requireManage('manage_settings')(req, res, next);
 });
 
@@ -47,11 +58,28 @@ router.use((req, res, next) => {
 //     every screen for every user, so a blanket 403 would break the app for
 //     ordinary staff to no benefit.
 //
-//   • The backup endpoints are different: a backup archive is the whole
-//     database, and downloadBackup streams a file straight off disk. Nothing
-//     about those is ordinary staff business, so they are gated outright.
-const requireSettingsRead = requireManage(['view_settings', 'manage_settings']);
-router.use('/backup', requireSettingsRead);
+//   • The backup endpoints are different, and are handled separately below.
+//
+// BACKUPS. Being GETs, these bypassed the mutation guard entirely, so a backup
+// archive — the whole database, guest PII and ID-card scans included — was
+// listable and downloadable by anyone holding a valid hotel login. They are
+// graded by what each endpoint actually exposes:
+//
+//   listing / history / storage stats   view_backups   (metadata: names, sizes, dates)
+//   create / delete                     manage_backups (changes what exists on disk)
+//   download                            system administrator ONLY
+//
+// Download is the strictest because the archive IS the database; holding a copy
+// is equivalent to holding every guest record and every stored credential. That
+// is not something to delegate through an ordinary permission grant.
+//
+// The subtree guard is the baseline and runs first, so a backup route added
+// later is guarded on arrival rather than inheriting nothing.
+const { requireSystemAdmin } = permissionMiddleware;
+const requireBackupRead = requireManage(['view_backups', 'manage_backups']);
+const requireBackupManage = requireManage('manage_backups');
+
+router.use('/backup', requireBackupRead);
 
 const storage = multer.memoryStorage();
 const fileFilter = (req, file, cb) => {
@@ -126,12 +154,12 @@ router.get('/staff/shift-templates', settingsController.getShiftTemplates);
 // === INTEGRATIONS ===
 
 // === BACKUP ===
-router.post('/backup/manual', settingsController.createManualBackup);
+router.post('/backup/manual', requireBackupManage, settingsController.createManualBackup);
 router.get('/backup', settingsController.getAllBackups);
 router.get('/backup/history', settingsController.getAllBackups);
 router.get('/backup/storage-stats', settingsController.getStorageStats);
-router.get('/backup/download/:filename', settingsController.downloadBackup);
-router.delete('/backup/:filename', settingsController.deleteBackup);
+router.get('/backup/download/:filename', requireSystemAdmin, settingsController.downloadBackup);
+router.delete('/backup/:filename', requireBackupManage, settingsController.deleteBackup);
 
 // === LEGACY SECTION ALIASES ===
 router.get('/marriage', sectionHandler('hotelProfile', 'get'));

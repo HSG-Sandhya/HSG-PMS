@@ -175,3 +175,44 @@ test('a backup filename cannot escape the backup directory', async () => {
     assert.equal(resolveBackupPath(ok), `/srv/app/backups/${ok}`);
   }
 });
+
+// ── Backup authorization ─────────────────────────────────────────────────────
+// The /backup endpoints are GETs, so the router's mutation guard never saw
+// them: listing and downloading a backup archive needed nothing but a valid
+// hotel login. The archive is the whole database — guest records, ID-card
+// scans, stored credentials — so the endpoints are now graded by what each one
+// actually exposes, and download is narrower than the rest.
+
+test('the backup permissions exist in the catalogue and can be granted', async () => {
+  const { ALL_PERMISSIONS, PERMISSION_CATALOG } = await import('../config/permissions.js');
+  for (const p of ['view_backups', 'manage_backups']) {
+    assert.equal(ALL_PERMISSIONS.includes(p), true, `${p} cannot be granted to a role`);
+  }
+  // Both belong to the admin group, so they surface together in the Roles UI.
+  const admin = PERMISSION_CATALOG.find((g) => g.name === 'admin');
+  assert.equal(admin.permissions.includes('view_backups'), true);
+  assert.equal(admin.permissions.includes('manage_backups'), true);
+});
+
+test('managing settings does not imply access to backups', async () => {
+  const { ALL_PERMISSIONS } = await import('../config/permissions.js');
+  // A distinct permission is the whole point: someone trusted to edit the GST
+  // rate is not thereby trusted to walk off with a copy of the database.
+  assert.notEqual('manage_settings', 'manage_backups');
+  assert.equal(ALL_PERMISSIONS.includes('manage_settings'), true);
+});
+
+test('the mutation guard defers on /backup and holds everywhere else', () => {
+  // Mirrors routes/settingsRoutes.js. /backup is exempted so manage_backups is
+  // usable without also granting manage_settings; every other path keeps the
+  // original rule.
+  const deferred = (method, path) =>
+    method === 'GET' || method === 'HEAD' || method === 'OPTIONS' || path.startsWith('/backup');
+
+  assert.equal(deferred('POST', '/backup/manual'), true);
+  assert.equal(deferred('DELETE', '/backup/x.json'), true);
+  assert.equal(deferred('PUT', '/section/theme'), false, 'ordinary writes must stay guarded');
+  assert.equal(deferred('POST', '/reset'), false);
+  assert.equal(deferred('PUT', '/payment'), false);
+  assert.equal(deferred('GET', '/section/payment'), true);
+});

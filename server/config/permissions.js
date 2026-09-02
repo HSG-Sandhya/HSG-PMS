@@ -28,7 +28,7 @@ export const PERMISSION_CATALOG = [
   { name: 'attendance', permissions: ['manage_attendance', 'view_attendance', 'mark_attendance', 'edit_attendance', 'delete_attendance', 'bulk_attendance_operations', 'view_attendance_reports', 'view_attendance_calendar', 'manage_staff_attendance'] },
   { name: 'payroll', permissions: ['manage_payroll', 'view_payroll', 'generate_payroll', 'approve_payroll', 'edit_payroll', 'delete_payroll', 'generate_payroll_pdf', 'download_payroll_pdf', 'process_payroll_payments', 'view_payroll_reports', 'view_payroll_summary'] },
   { name: 'settings', permissions: ['manage_settings', 'view_settings', 'edit_system_settings', 'manage_departments'] },
-  { name: 'admin', permissions: ['admin_access', 'manage_roles', 'view_system_logs', 'manage_backups', 'system_administration'] },
+  { name: 'admin', permissions: ['admin_access', 'manage_roles', 'view_system_logs', 'view_backups', 'manage_backups', 'system_administration'] },
 ];
 
 // Flat list of every permission string (handy for "select all" / validation).
