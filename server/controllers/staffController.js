@@ -1,5 +1,12 @@
 import { limitStaffDetail } from '../services/staffVisibility.js';
 import Staff from '../models/Staff.js';
+import {
+  STAFF_STATUS,
+  scopeForRole,
+  levelForRole,
+  adminScope,
+  departmentScope,
+} from '../config/staffConstants.js';
 import Settings from '../models/Settings.js';
 
 const STAFF_ROLES = [
@@ -63,7 +70,10 @@ export const getRolesWithPermissions = async (_req, res) => {
 export const getStaffByRole = async (req, res) => {
   try {
     const { role } = req.params;
-    const staff = await Staff.find({ role, status: 'Active' });
+    // 'Active' is not a stored value — the schema stores 'active' — so this
+    // query used to match nothing and return an empty list for a department
+    // full of active staff.
+    const staff = await Staff.find({ role, status: STAFF_STATUS.ACTIVE });
     res.json({ success: true, data: await limitStaffDetail(req, staff), message: `Staff with role ${role} retrieved successfully` });
   } catch (error) {
     console.error('Error getting staff by role:', error);
@@ -74,7 +84,7 @@ export const getStaffByRole = async (req, res) => {
 export const getStaffByDepartment = async (req, res) => {
   try {
     const { department } = req.params;
-    const staff = await Staff.find({ department, status: 'Active' });
+    const staff = await Staff.find({ department, status: STAFF_STATUS.ACTIVE });
     res.json({ success: true, data: await limitStaffDetail(req, staff), message: `Staff in ${department} department retrieved successfully` });
   } catch (error) {
     console.error('Error getting staff by department:', error);
@@ -168,14 +178,18 @@ export const createStaff = async (req, res) => {
     }
 
     staffData.permissions = Staff.getRolePermissions(staffData.role);
-    if (!staffData.accessLevel) {
-      staffData.accessLevel = {
-        departments: [staffData.department],
-        rooms: 'all',
-        reports: staffData.role === 'Admin' ? 'all' : 'limited',
-      };
+
+    // These used to write the object into `accessLevel`, a String path, which
+    // is a CastError and failed every create that did not supply one. The
+    // object is the SCOPE; the level is the one-word summary of it.
+    if (!staffData.accessScope) {
+      staffData.accessScope = scopeForRole(staffData.role, staffData.department);
     }
-    if (!staffData.status) staffData.status = 'Active';
+    if (!staffData.accessLevel) {
+      staffData.accessLevel = levelForRole(staffData.role);
+    }
+    // The schema defaults this; the setter normalizes whatever a caller sends.
+    if (!staffData.status) staffData.status = STAFF_STATUS.ACTIVE;
 
     const staff = new Staff(staffData);
     const newStaff = await staff.save();
@@ -195,13 +209,12 @@ export const updateStaff = async (req, res) => {
     if (updateData.role && updateData.role !== staff.role) {
       updateData.permissions = Staff.getRolePermissions(updateData.role);
       if (updateData.role === 'Admin') {
-        updateData.accessLevel = { departments: 'all', rooms: 'all', reports: 'all' };
-      } else if (!updateData.accessLevel) {
-        updateData.accessLevel = {
-          departments: [updateData.department || staff.department],
-          rooms: 'limited',
-          reports: 'limited',
-        };
+        updateData.accessScope = adminScope();
+      } else if (!updateData.accessScope) {
+        updateData.accessScope = departmentScope(updateData.department || staff.department);
+      }
+      if (!updateData.accessLevel) {
+        updateData.accessLevel = levelForRole(updateData.role);
       }
     }
 
@@ -235,7 +248,12 @@ export const getStaffPermissions = async (req, res) => {
     if (!staff) return res.status(404).json({ success: false, message: 'Staff not found' });
     res.json({
       success: true,
-      data: { role: staff.role, permissions: staff.permissions, accessLevel: staff.accessLevel },
+      data: {
+        role: staff.role,
+        permissions: staff.permissions,
+        accessLevel: staff.accessLevel,
+        accessScope: staff.accessScope,
+      },
       message: 'Permissions retrieved successfully',
     });
   } catch (error) {
@@ -269,9 +287,8 @@ export const assignRole = async (req, res) => {
 
     staff.role = role;
     staff.permissions = Staff.getRolePermissions(role);
-    staff.accessLevel = role === 'Admin'
-      ? { departments: 'all', rooms: 'all', reports: 'all' }
-      : { departments: [staff.department], rooms: 'limited', reports: 'limited' };
+    staff.accessScope = scopeForRole(role, staff.department);
+    staff.accessLevel = levelForRole(role);
 
     await staff.save();
     res.json({ success: true, data: staff, message: `Role ${role} assigned successfully` });

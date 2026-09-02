@@ -1,6 +1,14 @@
 import mongoose from "mongoose";
 
 import { registerModel } from "../db/modelRegistry.js";
+import {
+  STAFF_STATUS,
+  STAFF_STATUSES,
+  ACCESS_LEVEL,
+  ACCESS_LEVELS,
+  normalizeStaffStatus,
+  levelForScope,
+} from "../config/staffConstants.js";
 const StaffSchema = new mongoose.Schema({
   name: { type: String, required: true, trim: true },
   position: { type: String, required: true, trim: true },
@@ -20,7 +28,27 @@ const StaffSchema = new mongoose.Schema({
 
   permissions: [String],
   pageAccess: [String],
-  accessLevel: { type: String, enum: ["Full", "Limited", "Read Only"], default: "Limited" },
+  // The STRING concept: how much this person may see, in one word.
+  //
+  // The setter exists because controllers used to assign the OBJECT shape that
+  // Role.accessLevel uses — { departments, rooms, reports } — which is a
+  // CastError on a String path and failed the whole save. Rather than reject a
+  // caller that still sends it, reduce it to the word it implies; the object
+  // itself belongs in `accessScope` below.
+  accessLevel: {
+    type: String,
+    enum: ACCESS_LEVELS,
+    default: ACCESS_LEVEL.LIMITED,
+    set: levelForScope,
+  },
+
+  // The OBJECT concept, kept under its own name so the two cannot collide
+  // again. Mirrors Role.accessLevel's shape.
+  accessScope: {
+    departments: [String],
+    rooms: { type: String, default: "limited" },
+    reports: { type: String, default: "limited" },
+  },
   canLogin: { type: Boolean, default: true },
 
   // Contact Info
@@ -46,7 +74,15 @@ const StaffSchema = new mongoose.Schema({
   reportsTo: { type: mongoose.Schema.Types.ObjectId, ref: "Staff" },
   subordinates: [{ type: mongoose.Schema.Types.ObjectId, ref: "Staff" }],
 
-  status: { type: String, enum: ["active", "inactive", "on_leave", "terminated"], default: "active" },
+  // Canonical values are lower_snake_case. The setter accepts what callers
+  // actually send ('Active', 'On Leave') so a capitalised status is stored
+  // correctly instead of failing enum validation.
+  status: {
+    type: String,
+    enum: STAFF_STATUSES,
+    default: STAFF_STATUS.ACTIVE,
+    set: normalizeStaffStatus,
+  },
   performanceRating: { type: Number, min: 1, max: 5, default: 3 },
 
   emergencyContact: {
