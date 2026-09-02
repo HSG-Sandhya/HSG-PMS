@@ -7,6 +7,7 @@ import Housekeeping from '../models/Housekeeping.js';
 import mongoose from 'mongoose';
 import { getBanquetBlockedRoomIds } from './roomController.js';
 import { validateCheckIn } from '../services/checkIn.js';
+import { checkOutBlocker } from '../services/checkOut.js';
 import { getInventorySnapshot, freeCountByType, canReserve, roomIsFree, describeClash } from '../services/inventory.js';
 import { calculateNights } from '../utils/dateHelpers.js';
 import { emitHousekeepingTask } from '../config/socket.js';
@@ -496,6 +497,13 @@ export const updateBooking = async (req, res) => {
     // Presence transitions — occupancy follows checkedIn, not the reservation
     // status. Persist these onto bookingData before the write below.
     if (bookingData.bookingStatus === 'Completed') {
+      // The other door into checkout. It has to answer the same question the
+      // dedicated route does, or the guard there is side-stepped by PUT-ing
+      // { bookingStatus: 'Completed' } instead.
+      const blocked = checkOutBlocker({ booking: existingBooking });
+      if (blocked) {
+        return res.status(blocked.status).json({ success: false, message: blocked.message });
+      }
       bookingData.checkedIn = false;
       bookingData.checkedOutAt = new Date();
 

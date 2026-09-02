@@ -18,6 +18,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ID_CARD_DIR = path.join(__dirname, '../uploads/id-cards');
 fs.mkdirSync(ID_CARD_DIR, { recursive: true }); // ensure the folder exists
+import { checkOutBlocker } from '../services/checkOut.js';
 import { createBooking, getBookings, updateBooking, checkInGuest, getCheckedOutBookings, generateMissingInvoiceNumbers, createGroupBooking, createCompanyBooking, getGroupBookings, assignRoom, updateGroupStatus, addRoomToGroup, transferRoom } from '../controllers/bookingController.js';
 import { objectIdParam } from '../middleware/validateObjectId.js';
 import { verifyUploadedImages } from '../middleware/verifyUploadedImages.js';
@@ -202,6 +203,15 @@ router.put('/:id/checkout', isAuthenticated, requireManage('manage_bookings'), a
       });
     }
     
+    // Nothing about the booking's state was checked here: a future reservation
+    // could be "checked out" -- completed, room dirtied, housekeeping sent to
+    // clean a room nobody had slept in -- and a Cancelled booking could be
+    // turned into a Completed one. See services/checkOut.js.
+    const blocked = checkOutBlocker({ booking });
+    if (blocked) {
+      return res.status(blocked.status).json({ success: false, message: blocked.message });
+    }
+
     // Mark checked out — clears physical presence.
     booking.bookingStatus = 'Completed';
     booking.checkedIn = false;
