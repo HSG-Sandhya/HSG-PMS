@@ -3,6 +3,7 @@ import multer from 'multer';
 import settingsController from '../controllers/settingsController.js';
 import permissionMiddleware from '../middleware/permissionMiddleware.js';
 import { requireManage } from '../middleware/requireManage.js';
+import { verifyUploadedBuffers } from '../middleware/verifyUploadedBuffers.js';
 
 const router = express.Router();
 
@@ -81,10 +82,19 @@ const requireBackupManage = requireManage('manage_backups');
 
 router.use('/backup', requireBackupRead);
 
+// Tagged so the error handler answers 400 rather than 500.
+const uploadRejection = (message) => Object.assign(new Error(message), { isUploadRejection: true });
+
 const storage = multer.memoryStorage();
+// A filename is not evidence. This is a cheap first pass so multer does not
+// buffer an obviously wrong file; verifyUploadedBuffers below reads the actual
+// leading bytes and is what actually decides.
+//
+// .svg is deliberately absent: an SVG is active content, and these images are
+// served from our own origin by /api/images/:id.
 const fileFilter = (req, file, cb) => {
-  if (!file.originalname.match(/\.(jpg|jpeg|png|gif|svg)$/)) {
-    return cb(new Error('Only image files are allowed!'), false);
+  if (!/\.(jpe?g|png|gif|webp|bmp)$/i.test(file.originalname)) {
+    return cb(uploadRejection('Only PNG, JPEG, GIF, WebP or BMP images are allowed'), false);
   }
   cb(null, true);
 };
@@ -100,8 +110,8 @@ router.put('/', settingsController.updateAllSettings);
 router.post('/reset', settingsController.resetSettings);
 
 // === FILE UPLOADS ===
-router.post('/upload-logo', upload.single('logo'), settingsController.uploadLogo);
-router.post('/upload-background', upload.single('background'), settingsController.uploadBackgroundImage);
+router.post('/upload-logo', upload.single('logo'), verifyUploadedBuffers, settingsController.uploadLogo);
+router.post('/upload-background', upload.single('background'), verifyUploadedBuffers, settingsController.uploadBackgroundImage);
 
 // === ROOM CATEGORIES MANAGEMENT ===
 router.get('/room-categories', settingsController.getRoomCategories);

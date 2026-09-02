@@ -346,14 +346,13 @@ const uploadLogo = async (req, res) => {
     // Compress before storing — logos are shown small, so cap at 800px and use a
     // high-quality WebP (near-lossless for graphics/text) to keep the served
     // /api/images payload tiny. Falls back to the raw bytes on any sharp failure.
-    const isImage = req.file.mimetype?.startsWith('image/');
-    const optimized = isImage
-      ? await optimizeImage(req.file.buffer, {
-          maxWidth: 800,
-          quality: 90,
-          contentType: req.file.mimetype,
-        })
-      : { buffer: req.file.buffer, contentType: req.file.mimetype, size: req.file.size };
+    // The type comes from the bytes verifyUploadedBuffers actually read, never
+    // from the client's Content-Type header.
+    const optimized = await optimizeImage(req.file.buffer, {
+      maxWidth: 800,
+      quality: 90,
+      contentType: req.file.safeContentType || 'application/octet-stream',
+    });
 
     // Store the binary in the Image collection (NOT inline as base64) and
     // persist a small URL reference on the Settings document.
@@ -402,9 +401,11 @@ const uploadBackgroundImage = async (req, res) => {
       });
     }
 
-    // Convert to base64
+    // Convert to base64. The media type is the one read from the bytes, not the
+    // client's header — a data: URL carries its type with it, so a wrong one
+    // travels with the image everywhere it is rendered.
     const base64Image = req.file.buffer.toString('base64');
-    const imageDataUrl = `data:${req.file.mimetype};base64,${base64Image}`;
+    const imageDataUrl = `data:${req.file.safeContentType || 'application/octet-stream'};base64,${base64Image}`;
 
     // Update theme with background image
     const settings = await Settings.updateSection('theme', {

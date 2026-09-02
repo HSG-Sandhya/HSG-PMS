@@ -16,8 +16,20 @@ export const errorHandler = (err, req, res, next) => {
     stack: err.stack
   });
 
+  // An upload the filter refused. multer surfaces both its own limits
+  // (LIMIT_FILE_SIZE, LIMIT_UNEXPECTED_FILE) and anything a fileFilter throws
+  // as a plain error, which fell through to a 500 — so a guest being told
+  // "SVG files are not accepted" saw "Internal server error" instead.
+  if (err.name === 'MulterError' || err.isUploadRejection) {
+    const message =
+      err.code === 'LIMIT_FILE_SIZE'
+        ? 'That file is too large.'
+        : err.message || 'That file was not accepted.';
+    error = { message, statusCode: 400 };
+  }
+
   // Mongoose bad ObjectId
-  if (err.name === 'CastError') {
+  else if (err.name === 'CastError') {
     const message = 'Resource not found';
     error = { message, statusCode: 404 };
   }

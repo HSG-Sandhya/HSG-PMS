@@ -4,6 +4,7 @@ import { uploadImage, getImage, deleteImage, listImages } from '../controllers/i
 import imageUpload from '../middleware/uploadMemory.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { requirePermission } from '../middleware/requireManage.js';
+import { verifyUploadedBuffers } from '../middleware/verifyUploadedBuffers.js';
 
 const router = express.Router();
 
@@ -30,7 +31,7 @@ router.get('/', authenticateToken, canManageMedia, listImages);
 // <img src>, which cannot send an Authorization header.
 router.get('/:id', getImage);
 
-router.post('/', authenticateToken, canManageMedia, imageUpload.single('image'), uploadImage);
+router.post('/', authenticateToken, canManageMedia, imageUpload.single('image'), verifyUploadedBuffers, uploadImage);
 router.delete('/:id', authenticateToken, canManageMedia, deleteImage);
 
 export default router;

@@ -1,5 +1,6 @@
 import Image from '../models/Image.js';
 import Settings from '../models/Settings.js';
+import { CONTENT_TYPE_BY_EXT } from '../utils/fileSignature.js';
 import { optimizeImage } from '../utils/imageOptimizer.js';
 
 /**
@@ -39,10 +40,12 @@ export const uploadImage = async (req, res) => {
       return res.status(400).json({ message: 'No file uploaded' });
     }
 
-    const isImage = req.file.mimetype?.startsWith('image/');
-    const optimized = isImage
-      ? await optimizeImage(req.file.buffer, { contentType: req.file.mimetype })
-      : { buffer: req.file.buffer, contentType: req.file.mimetype, size: req.file.size };
+    // verifyUploadedBuffers has read the real leading bytes and put the type it
+    // found on the file. Use THAT, never the client's claim — a GIF-headed
+    // polyglot is inert when served as image/gif, and dangerous when served as
+    // whatever the uploader said it was.
+    const safeType = req.file.safeContentType || 'application/octet-stream';
+    const optimized = await optimizeImage(req.file.buffer, { contentType: safeType });
 
     const image = new Image({
       data: optimized.buffer,
@@ -115,7 +118,15 @@ export const getImage = async (req, res) => {
       ? image.data
       : Buffer.from(image.data.buffer || image.data);
 
-    res.set('Content-Type', image.contentType || 'application/octet-stream');
+    // Serve only a type from the known-safe list. Stored types are written by
+    // the upload path from verified bytes, but this endpoint is public and
+    // predates that check, so anything unrecognised — including an
+    // image/svg+xml left by an older upload — is served as an opaque download
+    // rather than as active content in our own origin.
+    const SAFE = new Set(Object.values(CONTENT_TYPE_BY_EXT));
+    const stored = image.contentType || '';
+    res.set('Content-Type', SAFE.has(stored) ? stored : 'application/octet-stream');
+    res.set('X-Content-Type-Options', 'nosniff');
     res.set('Cache-Control', 'public, max-age=31536000, immutable');
     // Let Express set Content-Length from the buffer it's actually sending.
     res.send(buffer);
