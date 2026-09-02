@@ -13,12 +13,27 @@ import PersonIcon from '@mui/icons-material/Person';
 import QRCode from 'qrcode';
 import FormDialog, { FormSection } from './forms/FormDialog';
 import { buildGuestWelcome } from '../utils/guestWelcome';
+import api from '../api';
 
 const GuestWelcomeDialog = ({ open, onClose, booking, room, settings, onNotify }) => {
   const [phone, setPhone] = useState('');
   const [qr, setQr] = useState('');
 
-  const welcome = booking ? buildGuestWelcome({ booking, room, settings }) : null;
+  // Fetched rather than read off the booking: the token is select:false on the
+  // server so it never travels with ordinary booking reads.
+  const [stayToken, setStayToken] = useState('');
+  useEffect(() => {
+    let alive = true;
+    setStayToken('');
+    if (open && booking?._id) {
+      api.bookings.stayToken(booking._id)
+        .then(({ data }) => { if (alive) setStayToken(data?.token || ''); })
+        .catch(() => { if (alive) setStayToken(''); });
+    }
+    return () => { alive = false; };
+  }, [open, booking?._id]);
+
+  const welcome = booking ? buildGuestWelcome({ booking, room, settings, stayToken }) : null;
 
   // Prefill the editable phone whenever a new booking is checked in.
   useEffect(() => {

@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { toast } from 'react-toastify';
@@ -15,6 +15,14 @@ const STATUS_TONE = {
 
 const RoomService = () => {
   const { roomNumber } = useParams();
+  // The stay's own secret, from the QR code / welcome link. The room number
+  // alone is not enough to order food to a room -- see the server's
+  // findActiveBookingByRoomNumber.
+  const [search] = useSearchParams();
+  const stayToken = search.get('t') || '';
+  // Memoised: a fresh object each render would re-trigger the fetch callback
+  // that depends on it, on every render.
+  const stay = useMemo(() => ({ params: { t: stayToken } }), [stayToken]);
   const navigate = useNavigate();
 
   const [roomData, setRoomData] = useState(null);
@@ -35,19 +43,26 @@ const RoomService = () => {
       // The tax rate is fetched with the menu: pricing a cart without it would
       // mean guessing, and a guessed rate quotes a total we will not charge.
       const [{ data }, rates] = await Promise.all([
-        axios.get(`/api/website/room-service/${roomNumber}`),
+        axios.get(`/api/website/room-service/${roomNumber}`, stay),
         fetchTaxRates(),
       ]);
       setRoomData(data);
       setMenuItems(data.menuItems);
       setCategories(data.categories);
       setTaxRates(rates);
-      const hist = await axios.get(`/api/website/room-service/${roomNumber}/orders`);
+      const hist = await axios.get(`/api/website/room-service/${roomNumber}/orders`, stay);
       setOrderHistory(hist.data);
     } catch (err) {
       console.error('Error fetching room service data:', err);
-      if (err.response?.status === 404) {
-        toast.error('Room not found or no active booking');
+      const status = err.response?.status;
+      if (status === 403 || status === 404) {
+        // The server does not distinguish "no guest here" from "wrong token",
+        // so neither does this: it reports what the guest can act on.
+        toast.error(
+          err.response?.data?.message
+            || 'This menu link is not valid. Please scan the QR code in your room, '
+               + 'or ask reception to resend it.'
+        );
         navigate('/');
       } else {
         toast.error('Failed to load room service');
@@ -55,7 +70,7 @@ const RoomService = () => {
     } finally {
       setLoading(false);
     }
-  }, [roomNumber, navigate]);
+  }, [roomNumber, navigate, stay]);
 
   useEffect(() => { fetchRoomServiceData(); }, [fetchRoomServiceData]);
 
@@ -91,13 +106,13 @@ const RoomService = () => {
         // it resolves for this room, and the endpoint no longer publishes the
         // guest's contact details to anyone who can type a room number.
       };
-      const { data } = await axios.post(`/api/website/room-service/${roomNumber}/order`, orderData);
+      const { data } = await axios.post(`/api/website/room-service/${roomNumber}/order`, orderData, stay);
       if (data.success) {
         toast.success(`Order placed · No. ${data.orderNumber}`);
         setCart([]);
         setSpecialInstructions('');
         setCartOpen(false);
-        const hist = await axios.get(`/api/website/room-service/${roomNumber}/orders`);
+        const hist = await axios.get(`/api/website/room-service/${roomNumber}/orders`, stay);
         setOrderHistory(hist.data);
       } else {
         toast.error('Order could not be placed');

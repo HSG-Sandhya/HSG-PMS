@@ -208,6 +208,8 @@ const api = {
     checkIn: (id) => axiosInstance.put(`/bookings/${id}/checkin`),
     // Physical check-out — clears presence, frees the room (→ cleaning).
     checkOut: (id) => axiosInstance.put(`/bookings/${id}/checkout`),
+    // The stay's room-service secret, for the guest's menu link/QR.
+    stayToken: (id) => axiosInstance.get(`/bookings/${id}/stay-token`),
     getByDateRange: (startDate, endDate) =>
       axiosInstance.get(`/bookings/range?start=${startDate}&end=${endDate}`),
   },

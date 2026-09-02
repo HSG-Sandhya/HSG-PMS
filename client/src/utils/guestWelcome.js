@@ -69,7 +69,7 @@ const roomNumberOf = (booking, room) =>
 const applyTemplate = (tpl, vars) =>
   tpl.replace(/\{(\w+)\}/g, (_, k) => (vars[k] !== undefined && vars[k] !== null ? String(vars[k]) : ''));
 
-export const buildGuestWelcome = ({ booking, room, settings }) => {
+export const buildGuestWelcome = ({ booking, room, settings, stayToken }) => {
   const gm = settings?.guestMessaging || {};
   const hotelName = settings?.hotelProfile?.hotelName || settings?.hotelName || 'our hotel';
   const guestName = (booking?.guestName || '').trim() || 'Guest';
@@ -78,7 +78,12 @@ export const buildGuestWelcome = ({ booking, room, settings }) => {
   const base = String(gm.websiteBaseUrl || '').trim().replace(/\/+$/, '');
   const websiteConfigured = !!base;
   const origin = base || (typeof window !== 'undefined' ? window.location.origin : '');
-  const menuUrl = roomNumber ? `${origin}/room-service/${roomNumber}` : `${origin}/room-service`;
+  // The room-service endpoints require the stay's own token: a room number is
+  // guessable, and these links charge food to the guest's folio. Without a
+  // token the link would 403, so we only build one when we have it.
+  const menuUrl = roomNumber && stayToken
+    ? `${origin}/room-service/${roomNumber}?t=${encodeURIComponent(stayToken)}`
+    : '';
 
   const wifi = pickWifi(roomNumber, gm);
   const wifiSsid = wifi.ssid;

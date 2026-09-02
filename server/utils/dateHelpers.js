@@ -160,3 +160,32 @@ export const getDateRange = (period) => {
       };
   }
 };
+/**
+ * Validate a stay's dates at the API boundary.
+ *
+ * calculateNights() clamps to a minimum of one night, which is right for
+ * BILLING -- a stay should never bill zero -- but it is not input validation.
+ * With only a presence check in front of it, `checkOut` equal to or before
+ * `checkIn` was accepted, priced as one night, and stored as a booking whose
+ * dates say the guest leaves before arriving. Availability then had a range it
+ * could not reason about.
+ *
+ * Returns null when the dates are usable, or { message } describing why not.
+ */
+export const validateStayDates = (checkIn, checkOut) => {
+  if (!checkIn || !checkOut) {
+    return { message: 'Check-in and check-out dates are required' };
+  }
+  const start = new Date(checkIn);
+  const end = new Date(checkOut);
+  if (Number.isNaN(start.getTime())) {
+    return { message: 'The check-in date is not a valid date' };
+  }
+  if (Number.isNaN(end.getTime())) {
+    return { message: 'The check-out date is not a valid date' };
+  }
+  if (end <= start) {
+    return { message: 'Check-out must be after check-in' };
+  }
+  return null;
+};

@@ -192,6 +192,24 @@ router.put('/:id/checkin', isAuthenticated, requireManage('manage_bookings'), ch
  *         description: Booking not found.
  */
 // Check-out booking
+/**
+ * The stay's room-service secret, for building the guest's menu link/QR.
+ *
+ * trackingToken is select:false so it never rides along on ordinary booking
+ * reads; this is the one staff-facing way to obtain it, and it is gated on the
+ * same permission as the rest of the booking desk.
+ */
+router.get('/:id/stay-token', isAuthenticated, requireManage('manage_bookings'), async (req, res) => {
+  try {
+    const booking = await Booking.findById(req.params.id).select('+trackingToken roomId');
+    if (!booking) return res.status(404).json({ success: false, message: 'Booking not found' });
+    res.json({ success: true, token: booking.trackingToken || null });
+  } catch (error) {
+    console.error('Error fetching stay token:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch stay token' });
+  }
+});
+
 router.put('/:id/checkout', isAuthenticated, requireManage('manage_bookings'), async (req, res) => {
   try {
     const bookingId = req.params.id;

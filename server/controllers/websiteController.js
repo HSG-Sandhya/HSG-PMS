@@ -823,7 +823,7 @@ export const createRestaurantOrder = async (req, res) => {
     const rawRoom = orderData.roomNumber || orderData.customerInfo?.roomNumber;
     const roomNumber = rawRoom ? String(rawRoom).trim() : '';
     if (roomNumber) {
-      const result = await findActiveBookingByRoomNumber(roomNumber);
+      const result = await findActiveBookingByRoomNumber(roomNumber, stayTokenOf(req));
       if (result.error) {
         return res.status(result.error.status).json({
           success: false,
@@ -871,7 +871,10 @@ export const createRestaurantOrder = async (req, res) => {
   }
 };
 
-const findActiveBookingByRoomNumber = async (rawNumber) => {
+/** The stay token from the room-service link (?t=…) or an explicit header. */
+const stayTokenOf = (req) => req.query?.t || req.query?.token || req.get('x-stay-token') || null;
+
+const findActiveBookingByRoomNumber = async (rawNumber, stayToken = null) => {
   // Be forgiving about how the guest typed the room number. We first try
   // an exact match (covers "R-304"), then fall back to a case-insensitive
   // suffix match on the digits ("304" → "R-304"). This avoids forcing the
@@ -894,19 +897,45 @@ const findActiveBookingByRoomNumber = async (rawNumber) => {
   // one.  Guest details are flat fields on the Booking doc, so no
   // .populate('guestId') — that path was the cause of an earlier
   // StrictPopulateError.
-  const now = new Date();
+  // Presence is `checkedIn`, not "a reservation whose dates cover today".
+  //
+  // This used to match bookingStatus Confirmed/Pending over today's range and
+  // call that "in residence". They are not the same thing: a Pending booking
+  // for tonight satisfies checkIn <= now <= checkOut from the moment it is
+  // created, so anyone could charge food to a room whose guest had not yet
+  // arrived -- and the folio would carry it. The Booking model has a dedicated
+  // flag for physical presence and the rest of the app derives occupancy from
+  // it; this is now consistent with that.
   const booking = await Booking.findOne({
     roomId: room._id,
-    bookingStatus: { $in: ['Confirmed', 'Pending'] },
-    checkIn:  { $lte: now },
-    checkOut: { $gte: now },
-  }).sort({ checkIn: -1 });
+    checkedIn: true,
+    bookingStatus: { $nin: ['Completed', 'Cancelled', 'Rejected'] },
+  }).select('+trackingToken').sort({ checkedInAt: -1, checkIn: -1 });
+
+  // A room number is not a credential. "304" is guessable by anyone who has
+  // walked the corridor, and these endpoints charge food to a guest's folio, so
+  // the stay's own secret is required -- the same per-booking token the guest
+  // gets in their welcome message, carried by the in-room QR code.
+  //
+  // The reply is identical whether the room is empty or the token is wrong, so
+  // walking room numbers reveals nothing about who is staying.
+  const tokenOk = booking && secretsMatch(stayToken, booking.trackingToken);
+  if (booking && !tokenOk) {
+    return {
+      error: {
+        status: 403,
+        message: 'This room-service link is not valid for the guest currently in this room. '
+          + 'Please scan the QR code in your room, or ask reception to resend your menu link.',
+      },
+    };
+  }
 
   if (!booking) {
     return {
       error: {
         status: 404,
-        message: `No active booking for room ${room.roomNumber} today. If you've just arrived, please ask the front desk to confirm your booking first.`,
+        message: `We can't see a checked-in guest in room ${room.roomNumber}. `
+          + 'If you have just arrived, please ask reception to complete your check-in.',
       },
     };
   }
@@ -915,7 +944,7 @@ const findActiveBookingByRoomNumber = async (rawNumber) => {
 
 export const getRoomServiceContext = async (req, res) => {
   try {
-    const result = await findActiveBookingByRoomNumber(req.params.roomNumber);
+    const result = await findActiveBookingByRoomNumber(req.params.roomNumber, stayTokenOf(req));
     if (result.error) return res.status(result.error.status).json({ message: result.error.message });
 
     const { room, booking } = result;
@@ -957,7 +986,7 @@ export const createRoomServiceOrder = async (req, res) => {
     // the menu says what it costs.
     const { items, subtotal, gst, total } = await priceOrder(orderData.items);
 
-    const result = await findActiveBookingByRoomNumber(req.params.roomNumber);
+    const result = await findActiveBookingByRoomNumber(req.params.roomNumber, stayTokenOf(req));
     if (result.error) return res.status(result.error.status).json({ message: result.error.message });
 
     const { room, booking } = result;
@@ -999,16 +1028,12 @@ export const createRoomServiceOrder = async (req, res) => {
 
 export const getRoomServiceOrders = async (req, res) => {
   try {
-    const room = await Room.findOne({ roomNumber: req.params.roomNumber });
-    if (!room) return res.status(404).json({ message: 'Room not found' });
-
-    const booking = await Booking.findOne({
-      roomId: room._id,
-      checkIn: { $lte: new Date() },
-      checkOut: { $gte: new Date() },
-      bookingStatus: 'Confirmed',
-    });
-    if (!booking) return res.status(404).json({ message: 'No active booking found for this room' });
+    // Was a third variant of the same lookup (Confirmed only, no Pending, date
+    // range). One helper now answers "who is in this room" for all three
+    // room-service endpoints.
+    const result = await findActiveBookingByRoomNumber(req.params.roomNumber, stayTokenOf(req));
+    if (result.error) return res.status(result.error.status).json({ message: result.error.message });
+    const { booking } = result;
 
     const orders = await Order.find({ roomId: booking._id, orderType: 'room' }).sort({
       createdAt: -1,

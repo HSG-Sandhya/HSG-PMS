@@ -11,7 +11,7 @@ import { checkOutBlocker } from '../services/checkOut.js';
 import { reconcileRoomStatus } from '../services/roomStatus.js';
 import { nextSequence } from '../services/sequence.js';
 import { getInventorySnapshot, freeCountByType, canReserve, roomIsFree, describeClash } from '../services/inventory.js';
-import { calculateNights } from '../utils/dateHelpers.js';
+import { calculateNights, validateStayDates } from '../utils/dateHelpers.js';
 import { emitHousekeepingTask } from '../config/socket.js';
 import { sendBookingNotification } from '../services/notificationService.js';
 import { getBilling, getOps } from '../config/operationalConfig.js';
@@ -96,10 +96,15 @@ export const createBooking = async (req, res) => {
       });
     }
 
-    if (!bookingData.checkIn || !bookingData.checkOut) {
-      return res.status(400).json({ 
+    // Presence was the only test, so a reversed or unparseable range reached
+    // pricing and availability. calculateNights() clamps to one night, which is
+    // billing safety, not validation -- it would have quietly stored a stay that
+    // ends before it begins.
+    const stayDateError = validateStayDates(bookingData.checkIn, bookingData.checkOut);
+    if (stayDateError) {
+      return res.status(400).json({
         success: false,
-        message: 'Check-in and check-out dates are required' 
+        message: stayDateError.message
       });
     }
 
@@ -402,6 +407,17 @@ export const updateBooking = async (req, res) => {
     // checking just as much as assigning one does. roomType and roomCount were
     // missing from this list, so changing a group block from 1 room to 10, or
     // switching a hold to a different category, skipped every check below.
+    // An edit can set dates too, so it needs the same validation as creation.
+    if (bookingData.checkIn !== undefined || bookingData.checkOut !== undefined) {
+      const editDateError = validateStayDates(
+        bookingData.checkIn ?? existingBooking.checkIn,
+        bookingData.checkOut ?? existingBooking.checkOut,
+      );
+      if (editDateError) {
+        return res.status(400).json({ success: false, message: editDateError.message });
+      }
+    }
+
     const INVENTORY_FIELDS = ['roomId', 'roomType', 'checkIn', 'checkOut', 'roomCount'];
     const touchesRoomOrDates =
       INVENTORY_FIELDS.some((f) => bookingData[f] !== undefined)
