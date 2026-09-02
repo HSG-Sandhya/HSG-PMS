@@ -6,6 +6,7 @@
 // configured provider (Twilio / Fast2SMS / MSG91) in notificationService.
 
 import { sendEmail, sendSms } from './notificationService.js';
+import { getCurrentTenant } from '../db/tenantContext.js';
 
 const store = new Map(); // key -> { code, expiresAt, attempts, verified, verifiedUntil, lastSentAt }
 
@@ -14,7 +15,15 @@ const VERIFIED_TTL_MS = 20 * 60 * 1000; // "verified" status is good for 20 min 
 const RESEND_COOLDOWN_MS = 30 * 1000; // min gap between sends to the same destination
 const MAX_ATTEMPTS = 5; // wrong-code guesses before a new code is required
 
-const keyOf = (channel, value) => `${channel}:${String(value).trim().toLowerCase()}`;
+// TENANCY: the Map is process-wide, so the key carries the hotel. Without it a
+// code sent by one hotel could be consumed by another's form, one hotel's send
+// would hold the other's 30s resend cooldown, and a "verified" flag earned on
+// one site would silently satisfy the next.
+const keyOf = (channel, value) => {
+  let slug = 'base';
+  try { slug = getCurrentTenant()?.slug || 'base'; } catch { /* no request context */ }
+  return `${slug}:${channel}:${String(value).trim().toLowerCase()}`;
+};
 const genCode = () => String(Math.floor(100000 + Math.random() * 900000)); // 6 digits
 
 const BRAND = 'Hotel Sandhya Grand';

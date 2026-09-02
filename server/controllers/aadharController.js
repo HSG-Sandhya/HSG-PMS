@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import { isConfigured, generateOtp, submitOtp } from '../services/aadhaarKyc.js';
 import { isValidAadhaar, normalizeAadhaar } from '../utils/aadhaar.js';
+import { getCurrentTenant } from '../db/tenantContext.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -49,6 +50,15 @@ const upload = multer({
 // fine here — an OTP session lives ~10 min. Use Redis if you run >1 instance.)
 const otpStorage = new Map();
 
+// TENANCY: the Map is shared by every hotel in the process, and an Aadhaar
+// number is not hotel-specific — so an OTP session opened by one hotel could be
+// verified (or have its attempt budget burned) from another. Key by hotel.
+const otpKey = (aadharNumber) => {
+  let slug = 'base';
+  try { slug = getCurrentTenant()?.slug || 'base'; } catch { /* no request context */ }
+  return `${slug}:${aadharNumber}`;
+};
+
 const generateMockOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
 
 // Send OTP for Aadhaar verification.
@@ -82,7 +92,7 @@ const sendAadharOTP = async (req, res) => {
           message: err.providerMessage || 'Could not send Aadhaar OTP. Please try again.',
         });
       }
-      otpStorage.set(aadharNumber, { clientId, expiry: otpExpiry, attempts: 0, real: true });
+      otpStorage.set(otpKey(aadharNumber), { clientId, expiry: otpExpiry, attempts: 0, real: true });
       return res.json({
         success: true,
         message: `OTP sent to the mobile registered with Aadhaar ****${aadharNumber.slice(-4)}`,
@@ -104,7 +114,7 @@ const sendAadharOTP = async (req, res) => {
     }
 
     const otp = generateMockOTP();
-    otpStorage.set(aadharNumber, { otp, expiry: otpExpiry, attempts: 0, real: false });
+    otpStorage.set(otpKey(aadharNumber), { otp, expiry: otpExpiry, attempts: 0, real: false });
     console.log(`🔐 [DEV/simulated] Aadhaar OTP for ${aadharNumber}: ${otp} (no KYC provider configured)`);
     return res.json({
       success: true,
@@ -132,16 +142,16 @@ const verifyAadharOTP = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Aadhaar number and OTP are required' });
     }
 
-    const stored = otpStorage.get(aadharNumber);
+    const stored = otpStorage.get(otpKey(aadharNumber));
     if (!stored) {
       return res.status(400).json({ success: false, message: 'OTP not found or expired. Please request a new OTP.' });
     }
     if (Date.now() > stored.expiry) {
-      otpStorage.delete(aadharNumber);
+      otpStorage.delete(otpKey(aadharNumber));
       return res.status(400).json({ success: false, message: 'OTP has expired. Please request a new OTP.' });
     }
     if (stored.attempts >= 3) {
-      otpStorage.delete(aadharNumber);
+      otpStorage.delete(otpKey(aadharNumber));
       return res.status(400).json({ success: false, message: 'Maximum verification attempts exceeded. Please request a new OTP.' });
     }
 
@@ -149,7 +159,7 @@ const verifyAadharOTP = async (req, res) => {
       // Real provider verification — returns the UIDAI KYC profile on success.
       try {
         const result = await submitOtp(stored.clientId, otp);
-        otpStorage.delete(aadharNumber);
+        otpStorage.delete(otpKey(aadharNumber));
         return res.json({
           success: true,
           message: 'Aadhaar verified successfully',
@@ -181,7 +191,7 @@ const verifyAadharOTP = async (req, res) => {
         attemptsRemaining: 3 - stored.attempts,
       });
     }
-    otpStorage.delete(aadharNumber);
+    otpStorage.delete(otpKey(aadharNumber));
     return res.json({
       success: true,
       message: 'Aadhaar verified (demo mode)',

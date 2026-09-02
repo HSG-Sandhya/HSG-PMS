@@ -9,6 +9,7 @@
 // update controller so admin edits take effect immediately.
 // ───────────────────────────────────────────────────────────────────────────
 import Settings from '../models/Settings.js';
+import { getCurrentTenant } from '../db/tenantContext.js';
 import {
   BILLING_DEFAULTS,
   OPERATIONS_DEFAULTS,
@@ -16,8 +17,22 @@ import {
 } from './operationalDefaults.js';
 
 const TTL_MS = 15000;
-let cache = null;       // { billing, operations }
-let cachedAt = 0;
+
+// TENANCY: one entry per hotel. A single shared slot meant the first hotel to
+// read settings supplied its GST rates, invoice prefix, currency and discount
+// ceiling to every other hotel for the next 15 seconds — and unlike a stale
+// dashboard number, those values are written into saved bookings and invoices,
+// so the damage outlives the cache. Keyed by tenant slug; the map is bounded by
+// the number of hotels served (one database each), so it cannot grow unbounded.
+const cache = new Map(); // tenantSlug -> { value: { billing, operations }, at: number }
+
+const tenantSlug = () => {
+  try {
+    return getCurrentTenant()?.slug || 'base';
+  } catch {
+    return 'base';
+  }
+};
 
 // Deep-ish merge: spread defaults, then the saved section over them. Operations
 // has one level of nesting (housekeeping/payroll/accounting) so we merge those
@@ -32,20 +47,25 @@ const mergeOps = (saved = {}) => ({
 });
 
 async function load() {
-  if (cache && Date.now() - cachedAt < TTL_MS) return cache;
+  const slug = tenantSlug();
+  const hit = cache.get(slug);
+  if (hit && Date.now() - hit.at < TTL_MS) return hit.value;
+
   let doc = null;
   try {
-    // Lean read — we only need the two plain sub-objects.
+    // Lean read — we only need the two plain sub-objects. Settings resolves
+    // against the current tenant's connection, so this is that hotel's document.
     doc = await Settings.findOne({}, { billing: 1, operations: 1 }).lean();
   } catch {
     doc = null; // DB hiccup → fall back entirely to defaults below
   }
-  cache = {
+
+  const value = {
     billing: mergeBilling(doc?.billing),
     operations: mergeOps(doc?.operations),
   };
-  cachedAt = Date.now();
-  return cache;
+  cache.set(slug, { value, at: Date.now() });
+  return value;
 }
 
 export async function getBilling() {
@@ -56,10 +76,17 @@ export async function getOps() {
   return (await load()).operations;
 }
 
-// Drop the cache so the next read reflects a just-saved Settings change.
-export function invalidateOperationalConfig() {
-  cache = null;
-  cachedAt = 0;
+// Drop the cache so the next read reflects a just-saved Settings change. A
+// settings save belongs to one hotel, so only that hotel's entry is dropped;
+// pass { allTenants: true } for a process-wide flush (tests, maintenance).
+export function invalidateOperationalConfig({ allTenants = false } = {}) {
+  if (allTenants) cache.clear();
+  else cache.delete(tenantSlug());
+}
+
+/** Number of hotels currently cached — for tests and diagnostics. */
+export function configCacheSize() {
+  return cache.size;
 }
 
 // ── Pure helpers (no I/O) — take a resolved billing config ──────────────────

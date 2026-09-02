@@ -1,4 +1,6 @@
 import logger from '../config/logger.js';
+import { getCurrentTenant } from '../db/tenantContext.js';
+import { forEachTenant } from '../db/forEachTenant.js';
 
 /**
  * Session revocation for stateless JWTs.
@@ -20,12 +22,28 @@ import logger from '../config/logger.js';
  * a logout will only bind on the worker that served it.
  */
 
-// userId -> epoch SECONDS. Seconds, not ms, because a JWT's `iat` is in seconds:
-// comparing against a millisecond watermark would revoke a token minted in the
-// same second as the logout, which is exactly the token a fresh re-login holds.
+// 'tenant:userId' -> epoch SECONDS. Seconds, not ms, because a JWT's `iat` is in
+// seconds: comparing against a millisecond watermark would revoke a token minted
+// in the same second as the logout, which is exactly the token a fresh re-login
+// holds.
+//
+// TENANCY: each hotel has its own database and therefore its own user ids, so a
+// bare user id is not a unique key across the process. The tenant prefix keeps
+// hotels' revocations separate — and, more importantly, lets the boot-time prime
+// hold every hotel's watermarks at once instead of only the base database's.
 const watermarks = new Map();
 
 let primed = false;
+
+const tenantSlug = () => {
+  try {
+    return getCurrentTenant()?.slug || 'base';
+  } catch {
+    return 'base';
+  }
+};
+
+const keyFor = (userId) => `${tenantSlug()}:${String(userId)}`;
 
 /** True when this token was issued before its owner's revocation cut-off. */
 export const isTokenRevoked = (decoded) => {
@@ -33,7 +51,7 @@ export const isTokenRevoked = (decoded) => {
   const userId = String(decoded.id || decoded.userId || '');
   if (!userId) return false;
 
-  const cutoff = watermarks.get(userId);
+  const cutoff = watermarks.get(keyFor(userId));
   if (!cutoff) return false;
 
   // No `iat` means we cannot place the token relative to the cut-off. Fail
@@ -45,7 +63,7 @@ export const isTokenRevoked = (decoded) => {
 
 /** Record the cut-off locally. Exported for the boot-time prime. */
 const remember = (userId, when) => {
-  watermarks.set(String(userId), Math.floor(new Date(when).getTime() / 1000));
+  watermarks.set(keyFor(userId), Math.floor(new Date(when).getTime() / 1000));
 };
 
 /**
@@ -69,23 +87,54 @@ export const revokeAllTokens = async (User) => {
   return { at: now, users: result.modifiedCount ?? ids.length };
 };
 
+/** Forget just the current hotel's watermarks, leaving other hotels' intact. */
+const forgetTenant = () => {
+  const prefix = `${tenantSlug()}:`;
+  for (const key of watermarks.keys()) {
+    if (key.startsWith(prefix)) watermarks.delete(key);
+  }
+};
+
 /**
- * Load existing watermarks at startup so revocations outlive a restart.
+ * Load the CURRENT hotel's watermarks so its revocations outlive a restart.
  * Only users that have ever revoked are stored, so this is a small read.
  */
 export const primeRevocations = async (User) => {
+  const slug = tenantSlug();
   try {
     const rows = await User.find({ tokenValidFrom: { $ne: null } })
       .select('_id tokenValidFrom')
       .lean();
-    watermarks.clear();
+    forgetTenant();
     for (const r of rows) remember(r._id, r.tokenValidFrom);
-    primed = true;
-    logger.info(`Token revocation list primed (${rows.length} user(s) with revoked sessions)`);
+    logger.info(
+      `Token revocation list primed for "${slug}" (${rows.length} user(s) with revoked sessions)`
+    );
+    return rows.length;
   } catch (error) {
     // Never block startup: an unprimed list fails OPEN (tokens keep working),
     // which is the pre-existing behaviour rather than a new outage.
-    logger.warn('Could not prime token revocation list', { error: error.message });
+    logger.warn(`Could not prime token revocation list for "${slug}"`, { error: error.message });
+    return 0;
+  }
+};
+
+/**
+ * Prime every hotel served by this process.
+ *
+ * Priming only the base database left tenant hotels unprimed: a logout recorded
+ * its watermark in memory, but a restart dropped it and the revoked token
+ * started working again for the rest of its 30-day life. Each hotel is primed
+ * inside its own tenant context, so `User` resolves to that hotel's collection.
+ */
+export const primeAllRevocations = async (User) => {
+  try {
+    const counts = await forEachTenant(() => primeRevocations(User));
+    primed = true;
+    return counts.reduce((a, b) => a + (b || 0), 0);
+  } catch (error) {
+    logger.warn('Could not prime token revocation lists', { error: error.message });
+    return 0;
   }
 };
 
