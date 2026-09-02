@@ -562,9 +562,19 @@ export const getBookingStatus = async (req, res) => {
       ? { _id: id }
       : { invoiceNumber: String(id).toUpperCase() };
     const booking = await Booking.findOne(query).select(
-      '+trackingToken invoiceNumber bookingStatus checkIn checkOut roomType'
+      '+trackingToken invoiceNumber bookingStatus checkIn checkOut roomType roomId'
     );
     if (!booking || !secretsMatch(token, booking.trackingToken)) return deny();
+
+    // A booking assigned to a specific room carries roomId and leaves roomType
+    // blank, so the guest would be shown an empty "Room" line. Fall back to the
+    // room's category -- the type only, never the room NUMBER, which says where
+    // a current guest is sleeping.
+    let roomType = booking.roomType;
+    if (!roomType && booking.roomId) {
+      const room = await Room.findById(booking.roomId).select('type');
+      roomType = room?.type || '';
+    }
 
     // A strict DTO. Fields are listed explicitly so that adding a column to the
     // Booking schema can never widen what this endpoint discloses.
@@ -573,7 +583,7 @@ export const getBookingStatus = async (req, res) => {
       bookingStatus: booking.bookingStatus,
       checkIn: booking.checkIn,
       checkOut: booking.checkOut,
-      roomType: booking.roomType,
+      roomType,
     });
   } catch (error) {
     console.error('Error getting booking status:', error);
