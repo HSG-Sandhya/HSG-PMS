@@ -20,11 +20,44 @@ import nodemailer from 'nodemailer';
 import axios from 'axios';
 import { format } from 'date-fns';
 import Room from '../models/Room.js';
+import Booking from '../models/Booking.js';
+import Settings from '../models/Settings.js';
 
 const HOTEL = 'Hotel Sandhya Grand';
 const RECEPTION = '+91 94314 19196';
 
 /* ───────────────────────────── helpers ───────────────────────────── */
+
+/**
+ * Where the guest can check their own booking.
+ *
+ * The link carries the booking's tracking token, which is the credential the
+ * public status endpoint requires -- see getBookingStatus in
+ * websiteController.js. Without a configured base URL there is nowhere to point
+ * them, so the email simply omits the link rather than shipping a broken one.
+ */
+const trackingUrl = async (booking) => {
+  if (!booking?.trackingToken || !booking?.invoiceNumber) return null;
+  let base = process.env.WEBSITE_BASE_URL || '';
+  if (!base) {
+    try {
+      const settings = await Settings.findOne({}, { guestWelcome: 1, website: 1 }).lean();
+      base = settings?.guestWelcome?.websiteBaseUrl || settings?.website || '';
+    } catch { base = ''; }
+  }
+  return buildTrackingUrl(base, booking.invoiceNumber, booking.trackingToken);
+};
+
+/**
+ * Assemble the link. Pure and exported so the exact shape guests receive is
+ * testable without a database or a mail server.
+ */
+export const buildTrackingUrl = (base, reference, token) => {
+  if (!base || !reference || !token) return null;
+  const origin = /^https?:\/\//i.test(base) ? base : `https://${base}`;
+  const params = new URLSearchParams({ ref: reference, token });
+  return `${origin.replace(/\/+$/, '')}/booking-status?${params}`;
+};
 
 const fmtDate = (d) => {
   try { return format(new Date(d), 'EEE, d MMM yyyy'); } catch { return String(d || ''); }
@@ -59,12 +92,23 @@ const hydrate = async (booking) => {
   }
   b.roomType = room?.type || b.roomType || 'Room';
   b.roomNumber = room?.roomNumber || '';
+
+  // trackingToken is select:false, so a booking loaded by the back office (the
+  // confirmed / rejected events) arrives without one. Fetch it explicitly --
+  // this is the one place it is legitimately needed outside the guest's own
+  // booking response.
+  if (!b.trackingToken && b._id) {
+    try {
+      const withToken = await Booking.findById(b._id).select('+trackingToken').lean();
+      if (withToken?.trackingToken) b.trackingToken = withToken.trackingToken;
+    } catch { /* the link is optional; never fail a notification over it */ }
+  }
   return b;
 };
 
 /* ─────────────────────────── message content ─────────────────────────── */
 
-const buildMessages = (event, b) => {
+const buildMessages = (event, b, track = null) => {
   const name = b.guestName || 'Guest';
   const stay = `${b.roomType}${b.roomNumber ? ` (${b.roomNumber})` : ''}`;
   const dates = `${fmtDate(b.checkIn)} → ${fmtDate(b.checkOut)}`;
@@ -81,6 +125,7 @@ const buildMessages = (event, b) => {
         ${b.totalAmount ? `<tr><td style="padding:4px 16px 4px 0;color:#777">Total</td><td>${money(b.totalAmount)}</td></tr>` : ''}
         ${ref ? `<tr><td style="padding:4px 16px 4px 0;color:#777">Reference</td><td>${ref}</td></tr>` : ''}
       </table>
+      ${track ? `<p style="margin:20px 0"><a href="${track}" style="background:#1a1a1a;color:#fff;padding:11px 20px;text-decoration:none;border-radius:4px;font-family:Helvetica,Arial,sans-serif;font-size:14px">Check your booking</a></p><p style="color:#777;font-size:12px">Keep this link private — it is how we recognise your booking.</p>` : ''}
       <p style="color:#777;font-size:13px">${HOTEL} · Bari Bazaar Road, Munger, Bihar 811201 · ${RECEPTION}</p>
     </div>`;
 
@@ -267,8 +312,10 @@ const safe = (channel, p) =>
 export async function sendBookingNotification(event, bookingInput) {
   try {
     const booking = await hydrate(bookingInput);
-    const msg = buildMessages(event, booking);
+    const track = await trackingUrl(booking);
+    const msg = buildMessages(event, booking, track);
     if (!msg) return;
+    if (track) msg.text = `${msg.text} Track it: ${track}`;
 
     const tasks = [];
     if (booking.email) tasks.push(safe('email', sendEmail(booking.email, msg)));

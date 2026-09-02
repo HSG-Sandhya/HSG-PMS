@@ -12,6 +12,7 @@ import Contact from './pages/Contact';
 import Restaurant from './pages/Restaurant';
 import RoomService from './pages/RoomService';
 import Banquet from './pages/Banquet';
+import BookingStatus from './pages/BookingStatus';
 import Refund from './pages/legal/Refund';
 import Privacy from './pages/legal/Privacy';
 import Terms from './pages/legal/Terms';
@@ -104,6 +105,7 @@ function AnimatedRoutes() {
           <Route path="/restaurant" element={<Restaurant />} />
           <Route path="/banquet" element={<Banquet />} />
           <Route path="/room-service/:roomNumber" element={<RoomService />} />
+          <Route path="/booking-status" element={<BookingStatus />} />
           <Route path="/refund-policy" element={<Refund />} />
           <Route path="/privacy" element={<Privacy />} />
           <Route path="/terms" element={<Terms />} />
