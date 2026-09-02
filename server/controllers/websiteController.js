@@ -1,3 +1,4 @@
+import { publicRoomView, storefrontRoomView, PUBLIC_ROOM_FIELDS } from '../services/publicRoom.js';
 import crypto from 'crypto';
 import mongoose from 'mongoose';
 import Room from '../models/Room.js';
@@ -13,7 +14,7 @@ import paymentService from '../services/paymentService.js';
 import { sendBookingNotification } from '../services/notificationService.js';
 import { syncRoomBookingIncome } from '../services/accountingSync.js';
 import { emitNewWebsiteBooking } from '../config/socket.js';
-import { getBilling, roomGst } from '../config/operationalConfig.js';
+import { getBilling } from '../config/operationalConfig.js';
 import { priceOrder, OrderPricingError } from '../services/orderPricing.js';
 import { quoteStay, BookingPricingError } from '../services/bookingPricing.js';
 import { secretsMatch } from '../utils/secretCompare.js';
@@ -244,9 +245,12 @@ export const getRoomTypes = async (req, res) => {
 
 export const getRoomTypeById = async (req, res) => {
   try {
-    const room = await Room.findById(req.params.id);
+    // Only the fields the public view needs are fetched, so operational data —
+    // housekeeping state, maintenanceHistory with its fault descriptions,
+    // repair costs and resolver names — never leaves the database.
+    const room = await Room.findById(req.params.id).select(PUBLIC_ROOM_FIELDS).lean();
     if (!room) return res.status(404).json({ message: 'Room not found' });
-    res.json(room);
+    res.json(publicRoomView(room, await getBilling()));
   } catch (error) {
     console.error('Error getting room details:', error);
     res.status(500).json({ message: 'Error getting room details' });
@@ -723,35 +727,11 @@ export const getRoomsForWebsite = async (_req, res) => {
     // rooms — so the storefront can display every room. The client renders
     // non-available rooms as view-only (booking disabled), so guests can see a
     // room exists even when it can't be booked right now.
-    const rooms = await Room.find({}).select(
-      'roomNumber type capacity pricePerNight totalPrice amenities description floor status'
-    );
+    const rooms = await Room.find({}).select(PUBLIC_ROOM_FIELDS).lean();
     const billing = await getBilling();
-    const formatted = rooms.map((room) => {
-      // Expose the *base* nightly price to the website; the storefront adds
-      // GST on top so it can show the breakdown to the guest.
-      const basePrice = room.pricePerNight || 0;
-      const isAvailable = room.status === 'available';
-      return {
-        _id: room._id,
-        roomNumber: room.roomNumber,
-        type: room.type.charAt(0).toUpperCase() + room.type.slice(1),
-        capacity: room.capacity.adults + room.capacity.children,
-        price: basePrice,
-        pricePerNight: basePrice,
-        totalPrice: room.totalPrice || basePrice + roomGst(basePrice, billing),
-        amenities: room.amenities,
-        description: room.description,
-        floor: room.floor,
-        // Pass the real status through (capitalised) plus an explicit flag so
-        // the website can gate booking without re-deriving it from the string.
-        status: room.status
-          ? room.status.charAt(0).toUpperCase() + room.status.slice(1)
-          : 'Available',
-        isAvailable,
-      };
-    });
-    res.json(formatted);
+    // Same serializer as the single-room view, plus the room number the card is
+    // labelled with and the availability flag the site gates booking on.
+    res.json(rooms.map((room) => storefrontRoomView(room, billing)));
   } catch (error) {
     console.error('Error getting rooms for website:', error);
     res.status(500).json({ message: 'Error getting rooms' });
