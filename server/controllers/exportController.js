@@ -55,7 +55,7 @@ export const exportBookings = async (req, res) => {
       bookingStatus: b.bookingStatus || '',
     }));
 
-    const workbook = createWorkbook();
+    const workbook = await createWorkbook();
     addSheet(
       workbook,
       'Bookings',
@@ -109,7 +109,7 @@ export const exportRestaurantSales = async (req, res) => {
       customer: o.customerName || '',
     }));
 
-    const workbook = createWorkbook();
+    const workbook = await createWorkbook();
     const sheet = addSheet(
       workbook,
       'Restaurant Sales',
@@ -164,7 +164,7 @@ export const exportTransactions = async (req, res) => {
     const totalIncome = transactions.filter((t) => t.type === 'income').reduce((s, t) => s + t.amount, 0);
     const totalExpense = transactions.filter((t) => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
 
-    const workbook = createWorkbook();
+    const workbook = await createWorkbook();
     const sheet = addSheet(
       workbook,
       'Transactions',
@@ -241,7 +241,7 @@ export const exportHousekeeping = async (req, res) => {
       notes: t.notes || '',
     }));
 
-    const workbook = createWorkbook();
+    const workbook = await createWorkbook();
     addSheet(
       workbook,
       'Housekeeping',

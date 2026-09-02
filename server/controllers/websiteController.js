@@ -1,3 +1,11 @@
+import {
+  getWebsiteContent,
+  publicAmenities,
+  publicServices,
+  publicGallery,
+  publicOffers,
+  publicHotelInfo,
+} from '../services/websiteContent.js';
 import ContactEnquiry from '../models/ContactEnquiry.js';
 import { sendEmail } from '../services/notificationService.js';
 import { publicRoomView, storefrontRoomView, PUBLIC_ROOM_FIELDS } from '../services/publicRoom.js';
@@ -710,99 +718,56 @@ export const submitContact = async (req, res) => {
 
 export const getSpecialOffers = async (_req, res) => {
   try {
-    const offers = [
-      {
-        id: 1,
-        title: 'Weekend Special',
-        description: 'Get 20% off on weekend stays',
-        discount: 20,
-        validUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-      },
-      {
-        id: 2,
-        title: 'Extended Stay Discount',
-        description: 'Stay for 7+ days and get 15% off',
-        discount: 15,
-        validUntil: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000),
-      },
-    ];
-    res.json(offers);
+    // Offers are this hotel's own, and one whose validUntil has passed drops
+    // out on its own rather than advertising a promotion that has ended.
+    res.json(publicOffers(await getWebsiteContent()));
   } catch (error) {
-    console.error('Error getting special offers:', error);
+    console.error('Error getting special offers:', error.message);
     res.status(500).json({ message: 'Error getting special offers' });
   }
 };
 
 export const getHotelInfo = async (_req, res) => {
   try {
-    const settings = await Settings.findOne();
-    const hotelInfo = {
-      name: 'Hotel Sandhya Grand',
-      description: 'A luxurious hotel offering world-class amenities and exceptional service.',
-      address: settings?.address || '123 Main Street, City, State 12345',
-      phone: settings?.phone || '+1 (555) 123-4567',
-      email: settings?.email || 'reservations@sandhyagrand.in',
-      website: settings?.website || 'www.sandhyagrand.in',
-      checkIn: '3:00 PM',
-      checkOut: '11:00 AM',
-      policies: [
-        'Free WiFi throughout the hotel',
-        'Complimentary breakfast',
-        '24/7 front desk service',
-        'Free parking available',
-        'Pet-friendly rooms available',
-      ],
-    };
-    res.json(hotelInfo);
+    // Every field comes from this hotel's Settings. Anything unset comes back
+    // empty: the endpoint used to publish a US placeholder phone number for an
+    // Indian hotel because it read settings.phone, while the real number lives
+    // at hotelProfile.contact.phone.
+    const [settings, content, billing] = await Promise.all([
+      Settings.findOne({}, { hotelProfile: 1, contact: 1, policies: 1, hotelName: 1, description: 1, address: 1 }).lean(),
+      getWebsiteContent(),
+      getBilling(),
+    ]);
+    res.json(publicHotelInfo(settings, content, billing));
   } catch (error) {
-    console.error('Error getting hotel info:', error);
+    console.error('Error getting hotel info:', error.message);
     res.status(500).json({ message: 'Error getting hotel info' });
   }
 };
 
 export const getGallery = async (_req, res) => {
   try {
-    const gallery = [
-      { id: 1, title: 'Luxury Suite', image: '/images/Room101.jpg', category: 'rooms' },
-      { id: 2, title: 'Hotel Lobby', image: '/images/lobby.jpg', category: 'common-areas' },
-      { id: 3, title: 'Restaurant', image: '/images/restaurant.jpg', category: 'dining' },
-    ];
-    res.json(gallery);
+    res.json(publicGallery(await getWebsiteContent()));
   } catch (error) {
-    console.error('Error getting gallery:', error);
+    console.error('Error getting gallery:', error.message);
     res.status(500).json({ message: 'Error getting gallery' });
   }
 };
 
 export const getAmenities = async (_req, res) => {
   try {
-    const amenities = [
-      { id: 1, name: 'Free WiFi', description: 'High-speed internet access throughout the hotel', icon: 'wifi' },
-      { id: 2, name: 'Swimming Pool', description: 'Outdoor swimming pool with sun loungers', icon: 'pool' },
-      { id: 3, name: 'Fitness Center', description: '24/7 fitness center with modern equipment', icon: 'fitness' },
-      { id: 4, name: 'Restaurant', description: 'Fine dining restaurant serving local and international cuisine', icon: 'restaurant' },
-      { id: 5, name: 'Spa', description: 'Relaxing spa services and treatments', icon: 'spa' },
-      { id: 6, name: 'Conference Room', description: 'Business meeting and conference facilities', icon: 'meeting' },
-    ];
-    res.json(amenities);
+    res.json(publicAmenities(await getWebsiteContent()));
   } catch (error) {
-    console.error('Error getting amenities:', error);
+    console.error('Error getting amenities:', error.message);
     res.status(500).json({ message: 'Error getting amenities' });
   }
 };
 
 export const getServices = async (_req, res) => {
   try {
-    const services = [
-      { id: 1, name: 'Room Service', description: '24/7 room service with a wide variety of options', available: true },
-      { id: 2, name: 'Laundry Service', description: 'Professional laundry and dry cleaning services', available: true },
-      { id: 3, name: 'Airport Shuttle', description: 'Complimentary airport shuttle service', available: true },
-      { id: 4, name: 'Tour Guide', description: 'Local tour guide services for sightseeing', available: true },
-      { id: 5, name: 'Car Rental', description: 'Car rental service with delivery to hotel', available: true },
-    ];
-    res.json(services);
+    res.json(publicServices(await getWebsiteContent()));
   } catch (error) {
-    console.error('Error getting services:', error);
+    console.error('Error getting services:', error.message);
     res.status(500).json({ message: 'Error getting services' });
   }
 };

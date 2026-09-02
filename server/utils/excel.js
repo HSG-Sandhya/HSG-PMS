@@ -1,4 +1,6 @@
 import ExcelJS from 'exceljs';
+import Settings from '../models/Settings.js';
+import { currentTenantName } from '../db/tenantContext.js';
 
 /**
  * Thin helpers around exceljs so report controllers stay declarative:
@@ -6,9 +8,22 @@ import ExcelJS from 'exceljs';
  * stream the result back as an .xlsx download.
  */
 
-export const createWorkbook = () => {
+/**
+ * The creator recorded in the file's metadata is the hotel the export belongs
+ * to, not whoever the code was written for. Read from this tenant's settings,
+ * falling back to the tenant registry name and then to a generic label — never
+ * to another hotel's name.
+ */
+export const createWorkbook = async () => {
   const workbook = new ExcelJS.Workbook();
-  workbook.creator = 'Hotel Sandhya Grand';
+  let name = '';
+  try {
+    const settings = await Settings.findOne({}, { hotelProfile: 1, hotelName: 1 }).lean();
+    name = settings?.hotelProfile?.hotelName || settings?.hotelName || '';
+  } catch {
+    name = ''; // a database hiccup must not fail an export over metadata
+  }
+  workbook.creator = name || currentTenantName() || 'Hotel PMS';
   workbook.created = new Date();
   return workbook;
 };

@@ -18,6 +18,8 @@ import TaxSchema from './settings/subSchemas/TaxSchema.js';
 import UpiSchema from './settings/subSchemas/UpiSchema.js';
 import NotificationSchema from './settings/subSchemas/NotificationSchema.js';
 import PolicySchema from './settings/subSchemas/PolicySchema.js';
+import WebsiteContentSchema from './settings/subSchemas/WebsiteContentSchema.js';
+import { currentTenantName } from '../db/tenantContext.js';
 import BillingSchema from './settings/subSchemas/BillingSchema.js';
 import OperationsSchema from './settings/subSchemas/OperationsSchema.js';
 
@@ -73,6 +75,9 @@ const SettingsSchema = new Schema(
 
     // Policies
     policies: PolicySchema,
+
+    // Public-website copy, per hotel. See the schema for why it is not in code.
+    websiteContent: { type: WebsiteContentSchema, default: () => ({}) },
 
     // Guest messaging — WiFi + food-menu link sent to guests on check-in
     guestMessaging: {
@@ -479,7 +484,7 @@ SettingsSchema.statics.getSettings = async function() {
     // Create default settings if none exist
     if (!settings) {
       settings = new this({
-        hotelName: 'Hotel Sandhya Grand',
+        hotelName: currentTenantName(),
         // Other default values will be set by the schema
       });
       await settings.save();
@@ -674,7 +679,7 @@ SettingsSchema.statics.updateSection = async function(section, data) {
     // Create default settings if none exist
     if (!settings) {
       settings = new this({
-        hotelName: 'Hotel Sandhya Grand',
+        hotelName: currentTenantName(),
       });
     }
     
@@ -839,7 +844,7 @@ SettingsSchema.statics.resetSettings = async function() {
     await this.deleteOne({ _id: settings._id });
     
     const newSettings = new this({
-      hotelName: 'Hotel Sandhya Grand',
+      hotelName: currentTenantName(),
       // Other default values will be set by the schema
     });
     

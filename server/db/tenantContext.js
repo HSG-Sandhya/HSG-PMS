@@ -63,3 +63,13 @@ export const tenantSlugOfToken = (decoded) => decoded?.tenant || "base";
 
 export const tokenMatchesCurrentTenant = (decoded) =>
   tenantSlugOfToken(decoded) === getCurrentTenant().slug;
+
+// The hotel's own name, for defaults and generated documents. Falls back to the
+// tenant registry entry, then to nothing — never to another hotel's name. A
+// literal here is how every new hotel on the platform ends up called
+// "Hotel Sandhya Grand".
+export const currentTenantName = () => {
+  const t = getCurrentTenant();
+  if (!t || t.slug === BASE_TENANT.slug) return process.env.HOTEL_NAME || "";
+  return t.name || "";
+};

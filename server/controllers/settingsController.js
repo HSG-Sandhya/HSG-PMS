@@ -29,6 +29,7 @@ import { resolveLogo } from '../utils/resolveLogo.js';
 import paymentService from '../services/paymentService.js';
 import { invalidateOperationalConfig } from '../config/operationalConfig.js';
 import { callerHasAnyPermission } from '../middleware/requireManage.js';
+import { currentTenantName } from '../db/tenantContext.js';
 import {
   serializeSettings,
   preserveSecrets,
@@ -375,7 +376,7 @@ const uploadLogo = async (req, res) => {
       );
     } else {
       await Settings.create({
-        hotelName: 'Hotel Sandhya Grand',
+        hotelName: currentTenantName(),
         hotelProfile: { logo: logoUrl },
       });
     }
@@ -432,7 +433,7 @@ const getRoomCategories = async (req, res) => {
     let settingsDoc = await Settings.findOne({});
     if (!settingsDoc) {
       settingsDoc = new Settings({
-        hotelName: 'Hotel Sandhya Grand',
+        hotelName: currentTenantName(),
       });
       await settingsDoc.save();
     }
@@ -490,7 +491,7 @@ const initializeRoomCategories = async (req, res) => {
     // Create settings document if it doesn't exist
     if (!settingsDoc) {
       settingsDoc = new Settings({
-        hotelName: 'Hotel Sandhya Grand',
+        hotelName: currentTenantName(),
       });
     }
     
@@ -589,7 +590,7 @@ const addRoomCategory = async (req, res) => {
 
     let settingsDoc = await Settings.findOne({});
     if (!settingsDoc) {
-      settingsDoc = new Settings({ hotelName: 'Hotel Sandhya Grand' });
+      settingsDoc = new Settings({ hotelName: currentTenantName() });
     }
     if (!Array.isArray(settingsDoc.categories)) settingsDoc.categories = [];
 
@@ -882,7 +883,7 @@ const persistHotelProfile = async (body) => {
 
   if (!existing) {
     const initialDoc = buildNestedDoc($set);
-    if (!initialDoc.hotelName) initialDoc.hotelName = 'Hotel Sandhya Grand';
+    if (!initialDoc.hotelName) initialDoc.hotelName = currentTenantName();
     await Settings.create(initialDoc);
   } else {
     await Settings.updateOne(
@@ -1057,7 +1058,7 @@ const previewBanquetTemplate = async (req, res) => {
     const { templateId, docType = 'invoice' } = req.body || {};
     const hotelSection = await Settings.getSection('hotelProfile');
     const hotel = {
-      name: hotelSection?.hotelName || 'Hotel Sandhya Grand & Marriage Hall',
+      name: hotelSection?.hotelName || currentTenantName(),
       logo: await resolveLogo(hotelSection?.logo || ''),
       address: [
         hotelSection?.address?.line1,
@@ -1421,7 +1422,7 @@ const previewInvoice = async (req, res) => {
     const { templateId, type = 'hotel' } = req.body || {};
     const hotelSection = await Settings.getSection('hotelProfile');
     const hotel = {
-      name: hotelSection?.hotelName || 'Hotel Sandhya Grand & Marriage Hall',
+      name: hotelSection?.hotelName || currentTenantName(),
       logo: await resolveLogo(hotelSection?.logo || ''),
       address: [
         hotelSection?.address?.line1,
