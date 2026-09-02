@@ -8,6 +8,7 @@ import mongoose from 'mongoose';
 import { getBanquetBlockedRoomIds } from './roomController.js';
 import { validateCheckIn } from '../services/checkIn.js';
 import { checkOutBlocker } from '../services/checkOut.js';
+import { reconcileRoomStatus } from '../services/roomStatus.js';
 import { getInventorySnapshot, freeCountByType, canReserve, roomIsFree, describeClash } from '../services/inventory.js';
 import { calculateNights } from '../utils/dateHelpers.js';
 import { emitHousekeepingTask } from '../config/socket.js';
@@ -571,7 +572,9 @@ export const updateBooking = async (req, res) => {
       }
       await Room.findByIdAndUpdate(roomId, { status: 'cleaning', isAvailable: false });
     } else if (roomId && (effStatus === 'Cancelled' || effStatus === 'Rejected')) {
-      await Room.findByIdAndUpdate(roomId, { status: 'available', isAvailable: true });
+      // Cancelling one booking says nothing about the room: another guest may
+      // be checked in, or it may be under maintenance. Derive, do not assign.
+      await reconcileRoomStatus(roomId, { excludeBookingId: bookingId });
     } else if (roomId && effCheckedIn) {
       // In-house guest → occupied.
       await Room.findByIdAndUpdate(roomId, { status: 'occupied', isAvailable: false });

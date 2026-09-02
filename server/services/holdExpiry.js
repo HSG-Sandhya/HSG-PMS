@@ -8,6 +8,7 @@ import Booking from '../models/Booking.js';
 import Room from '../models/Room.js';
 import { getOps } from '../config/operationalConfig.js';
 import { forEachTenant } from '../db/forEachTenant.js';
+import { reconcileRoomStatus } from './roomStatus.js';
 
 export const releaseExpiredHolds = async () => {
   const { frontDesk } = await getOps();
@@ -28,15 +29,10 @@ export const releaseExpiredHolds = async () => {
   // Free each held room, unless someone is actually checked into it.
   const roomIds = [...new Set(expired.filter((b) => b.roomId).map((b) => String(b.roomId)))];
   for (const rid of roomIds) {
-    // Presence is `checkedIn`, not the reservation status — a booking stays
-    // 'Confirmed' for the whole stay, so the old bookingStatus: 'Checked-In'
-    // test matched nothing and this sweep would happily free an occupied room.
-    const occupied = await Booking.exists({
-      roomId: rid,
-      checkedIn: true,
-      bookingStatus: { $nin: ['Completed', 'Cancelled', 'Rejected'] },
-    });
-    if (!occupied) await Room.findByIdAndUpdate(rid, { status: 'available', isAvailable: true });
+    // This checked for an in-house guest but still forced 'available'
+    // otherwise, flattening a room under maintenance or with an open cleaning
+    // task. The shared reconciler covers all three.
+    await reconcileRoomStatus(rid);
   }
   return { released: ids.length };
 };

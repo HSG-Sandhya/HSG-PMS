@@ -19,6 +19,7 @@ const __dirname = path.dirname(__filename);
 const ID_CARD_DIR = path.join(__dirname, '../uploads/id-cards');
 fs.mkdirSync(ID_CARD_DIR, { recursive: true }); // ensure the folder exists
 import { checkOutBlocker } from '../services/checkOut.js';
+import { reconcileRoomStatus } from '../services/roomStatus.js';
 import { createBooking, getBookings, updateBooking, checkInGuest, getCheckedOutBookings, generateMissingInvoiceNumbers, createGroupBooking, createCompanyBooking, getGroupBookings, assignRoom, updateGroupStatus, addRoomToGroup, transferRoom } from '../controllers/bookingController.js';
 import { objectIdParam } from '../middleware/validateObjectId.js';
 import { verifyUploadedImages } from '../middleware/verifyUploadedImages.js';
@@ -278,19 +279,20 @@ router.delete('/:id', isAuthenticated, requireManage('manage_bookings'), async (
       return res.status(404).json({ message: 'Booking not found' });
     }
 
-    // Get the room associated with this booking
-    const room = await Room.findById(booking.roomId);
-    if (room) {
-      // Update room status to available
-      room.status = 'available';
-      room.isAvailable = true;
-      await room.save();
-    }
-
+    const roomId = booking.roomId;
     await Booking.findByIdAndDelete(req.params.id);
-    res.json({ 
+
+    // Deleting a reservation must not decide the room's physical state. This
+    // used to force `available`, so removing a FUTURE booking marked the room
+    // free while a different guest was checked into it -- and flattened
+    // deliberate 'maintenance' and 'cleaning' states on the way. Reconcile
+    // against what is actually left instead. See services/roomStatus.js.
+    const reconciled = await reconcileRoomStatus(roomId);
+
+    res.json({
       message: 'Booking deleted successfully',
-      roomUpdated: !!room
+      roomStatus: reconciled?.status ?? null,
+      roomUpdated: Boolean(reconciled?.changed),
     });
   } catch (error) {
     console.error('Error deleting booking:', error);

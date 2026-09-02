@@ -2,6 +2,7 @@ import Housekeeping from '../models/Housekeeping.js';
 import Room from '../models/Room.js';
 import { emitHousekeepingTask } from '../config/socket.js';
 import { getOps } from '../config/operationalConfig.js';
+import { reconcileRoomStatus } from '../services/roomStatus.js';
 
 // Room effect when a task is completed. With "require inspection" on (Settings →
 // Operations → Housekeeping), finishing a CLEANING task raises an Inspection
@@ -35,7 +36,10 @@ const applyCompletionRoomEffect = async (task) => {
     return;
   }
 
-  await Room.findByIdAndUpdate(task.roomId._id || task.roomId, { status: 'available', isAvailable: true });
+  // Not 'available' unconditionally: housekeeping also services OCCUPIED rooms,
+  // and finishing that task used to mark a room with a guest asleep in it free
+  // to sell. The reconciler derives the truth (and leaves maintenance alone).
+  await reconcileRoomStatus(task.roomId._id || task.roomId);
 };
 
 // Get all tasks
