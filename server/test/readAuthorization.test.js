@@ -15,13 +15,26 @@ const routesDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 
 // transactions. The UI hid those pages, but the UI is not the security
 // boundary.
 
-const AUTHZ = /requireManage|requirePermission|requireAdmin|requireSystemAdmin|requireAdminOrManager|checkPermission|canView|canCreate|canSettle/;
+const AUTHZ = /requireManage|requirePermission|requireAdmin|requireSystemAdmin|requireAdminOrManager|checkPermission/;
+
+// Routers often name their guard once and reuse it —
+// `const canManageMedia = requirePermission([...])`. Resolve those, so a guard
+// counts however it is spelled at the call site.
+const localGuardNames = (src) =>
+  [...src.matchAll(/const\s+(\w+)\s*=\s*([^;]+);/g)]
+    .filter((m) => AUTHZ.test(m[2]))
+    .map((m) => m[1]);
+
+const isGuarded = (body, src) =>
+  AUTHZ.test(body) || localGuardNames(src).some((n) => new RegExp(`\\b${n}\\b`).test(body));
 
 // Reads that are deliberately open, each with the reason it has to be.
 const INTENTIONALLY_OPEN = {
   'websiteRoutes.js': 'the public guest-facing site; it has no authentication at all',
   'authRoutes.js': 'sign-in and first-run setup must work before anyone has a session',
-  'imageRoutes.js': 'images are fetched by <img src>, which cannot send an Authorization header',
+  // Per-route, not per-file: only the CDN-style fetch is open here. The
+  // metadata list, upload and delete now require manage_media/manage_settings.
+  'imageRoutes.js': { routes: ['/:id'], reason: 'rendered by <img src>, which cannot send an Authorization header' },
   'userRoutes.js': 'the roster behind assignment pickers; the RECORD is reduced instead',
   'staffRoutes.js': 'same roster; staffController reduces the record via limitStaffDetail',
   'dashboardRoutes.js': 'only /role-based and /permissions, which report the caller\'s own identity',
@@ -37,15 +50,17 @@ const getRoutes = (src) =>
 test('every read of guest, staff, financial or operational data is authorized', () => {
   const unexplained = [];
   for (const file of fs.readdirSync(routesDir).filter((f) => f.endsWith('.js'))) {
-    if (INTENTIONALLY_OPEN[file]) continue;
+    const exempt = INTENTIONALLY_OPEN[file];
+    if (typeof exempt === 'string') continue; // whole file
+    const exemptRoutes = exempt?.routes ?? [];
     const src = fs.readFileSync(path.join(routesDir, file), 'utf8');
     // A guard applied to the whole router counts for every route on it. Check
     // EVERY router.use, not just the first — several files authenticate on one
     // line and authorize on another.
     const blanket = [...src.matchAll(/router\.use\(([^;]*?)\);/g)]
-      .some((m) => !/^\s*['"`]/.test(m[1]) && AUTHZ.test(m[1]));
+      .some((m) => !/^\s*['"`]/.test(m[1]) && isGuarded(m[1], src));
     for (const { route, body } of getRoutes(src)) {
-      if (blanket || AUTHZ.test(body)) continue;
+      if (blanket || isGuarded(body, src) || exemptRoutes.includes(route)) continue;
       unexplained.push(`${file} GET ${route}`);
     }
   }
@@ -54,9 +69,14 @@ test('every read of guest, staff, financial or operational data is authorized', 
 
 test('the reads left open are only the ones with a documented reason', () => {
   // A tripwire: if someone adds a file to the open list, this makes them say why.
-  for (const [file, reason] of Object.entries(INTENTIONALLY_OPEN)) {
+  for (const [file, entry] of Object.entries(INTENTIONALLY_OPEN)) {
     assert.equal(fs.existsSync(path.join(routesDir, file)), true, `${file} no longer exists`);
-    assert.ok(reason.length > 20, `${file} needs a real reason, not "${reason}"`);
+    const reason = typeof entry === 'string' ? entry : entry.reason;
+    assert.ok(reason && reason.length > 20, `${file} needs a real reason, not "${reason}"`);
+    if (typeof entry !== 'string') {
+      assert.ok(Array.isArray(entry.routes) && entry.routes.length,
+        `${file} exempts specific routes, so it must list them`);
+    }
   }
 });
 

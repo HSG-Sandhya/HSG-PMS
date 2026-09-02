@@ -1,5 +1,37 @@
 import Image from '../models/Image.js';
+import Settings from '../models/Settings.js';
 import { optimizeImage } from '../utils/imageOptimizer.js';
+
+/**
+ * Settings fields that hold an image reference, as '/api/images/<id>'.
+ *
+ * An image id is rendered on the public site and the sign-in screen, so
+ * deleting one that is still referenced breaks something a guest can see. The
+ * check is a courtesy, not a lock: `?force=true` deletes anyway, for the case
+ * where replacing the reference is the whole point.
+ */
+const IMAGE_REFERENCE_PATHS = [
+  ['theme', 'backgroundImage'],
+  ['hotelProfile', 'logo'],
+  ['branding', 'logoUrl'],
+  ['hotelProfile', 'signatureUrl'],
+];
+
+const readPath = (obj, parts) =>
+  parts.reduce((cur, part) => (cur && typeof cur === 'object' ? cur[part] : undefined), obj);
+
+const settingsReferencing = async (imageId) => {
+  let doc = null;
+  try {
+    doc = await Settings.findOne({}).lean();
+  } catch {
+    return []; // a database hiccup must not block a legitimate delete
+  }
+  const id = String(imageId);
+  return IMAGE_REFERENCE_PATHS
+    .filter((parts) => String(readPath(doc, parts) || '').includes(id))
+    .map((parts) => parts.join('.'));
+};
 
 export const uploadImage = async (req, res) => {
   try {
@@ -96,6 +128,20 @@ export const getImage = async (req, res) => {
 
 export const deleteImage = async (req, res) => {
   try {
+    const force = String(req.query.force || '').toLowerCase() === 'true';
+
+    if (!force) {
+      const used = await settingsReferencing(req.params.id);
+      if (used.length) {
+        return res.status(409).json({
+          message:
+            'This image is still in use and deleting it would break how the site renders. ' +
+            'Point the setting at a different image first, or repeat with ?force=true.',
+          referencedBy: used,
+        });
+      }
+    }
+
     const image = await Image.findByIdAndDelete(req.params.id);
     if (!image) {
       return res.status(404).json({ message: 'Image not found' });
