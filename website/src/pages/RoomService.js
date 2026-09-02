@@ -74,8 +74,8 @@ const RoomService = () => {
     setPlacingOrder(true);
     try {
       const orderData = {
-        items: cart.map((i) => ({ itemId: i._id, name: i.name, price: i.price, quantity: i.quantity })),
-        totalAmount: subtotal,
+        // Dish and count only -- the server prices the order from the menu.
+        items: cart.map((i) => ({ itemId: i._id, quantity: i.quantity })),
         specialInstructions,
         // Name and phone are NOT sent: the server reads them from the booking
         // it resolves for this room, and the endpoint no longer publishes the

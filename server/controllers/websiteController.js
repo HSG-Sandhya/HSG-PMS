@@ -12,7 +12,8 @@ import paymentService from '../services/paymentService.js';
 import { sendBookingNotification } from '../services/notificationService.js';
 import { syncRoomBookingIncome } from '../services/accountingSync.js';
 import { emitNewWebsiteBooking } from '../config/socket.js';
-import { getBilling, posGst } from '../config/operationalConfig.js';
+import { getBilling } from '../config/operationalConfig.js';
+import { priceOrder, OrderPricingError } from '../services/orderPricing.js';
 import { getBanquetBlockedRoomIds } from './roomController.js';
 import { getInventorySnapshot, availabilityByType, canReserve } from '../services/inventory.js';
 
@@ -663,9 +664,11 @@ export const getRoomsForWebsite = async (_req, res) => {
 export const createRestaurantOrder = async (req, res) => {
   try {
     const orderData = req.body;
-    if (!orderData.items || orderData.items.length === 0) {
-      return res.status(400).json({ message: 'Order must contain at least one item' });
-    }
+
+    // Names, prices, availability and tax are resolved from the live menu. The
+    // request body only gets to say WHICH items and HOW MANY -- see
+    // services/orderPricing.js for why nothing else in it is trusted.
+    const { items, subtotal, gst, total } = await priceOrder(orderData.items);
 
     // If the customer is staying with us and entered a room number, attach the
     // order to that active booking so it surfaces alongside room-service orders.
@@ -684,13 +687,11 @@ export const createRestaurantOrder = async (req, res) => {
       ({ room, booking } = result);
     }
 
-    const gst = posGst(orderData.totalAmount, await getBilling());
-
     const order = new Order({
       orderType: booking ? 'room' : 'pos',
       ...(booking ? { roomId: booking._id } : {}),
-      items: orderData.items,
-      totalAmount: orderData.totalAmount,
+      items,
+      totalAmount: total,
       gst,
       status: 'Pending',
       specialInstructions: orderData.specialInstructions || '',
@@ -708,12 +709,19 @@ export const createRestaurantOrder = async (req, res) => {
         ? `Order placed for Room ${room.roomNumber}`
         : 'Order placed successfully',
       orderId: order._id,
+      // The authoritative figures, so the guest is shown what they will actually
+      // be charged rather than the browser's own arithmetic.
+      subtotal,
       gst: order.gst,
+      totalAmount: order.totalAmount,
       ...(room ? { roomNumber: room.roomNumber, guestName: booking.guestName } : {}),
     });
   } catch (error) {
+    if (error instanceof OrderPricingError) {
+      return res.status(error.status).json({ success: false, message: error.message });
+    }
     console.error('Error creating restaurant order:', error);
-    res.status(500).json({ message: 'Error creating order', error: error.message });
+    res.status(500).json({ message: 'Error creating order' });
   }
 };
 
@@ -798,21 +806,21 @@ export const getRoomServiceContext = async (req, res) => {
 export const createRoomServiceOrder = async (req, res) => {
   try {
     const orderData = req.body;
-    if (!orderData.items || orderData.items.length === 0) {
-      return res.status(400).json({ message: 'Order must contain at least one item' });
-    }
+
+    // Same rule as the restaurant endpoint: the cart says what and how many,
+    // the menu says what it costs.
+    const { items, subtotal, gst, total } = await priceOrder(orderData.items);
 
     const result = await findActiveBookingByRoomNumber(req.params.roomNumber);
     if (result.error) return res.status(result.error.status).json({ message: result.error.message });
 
     const { room, booking } = result;
-    const gst = posGst(orderData.totalAmount, await getBilling());
 
     const order = new Order({
       orderType: 'room',
       roomId: booking._id,
-      items: orderData.items,
-      totalAmount: orderData.totalAmount,
+      items,
+      totalAmount: total,
       gst,
       status: 'Pending',
       specialInstructions: orderData.specialInstructions || '',
@@ -830,11 +838,16 @@ export const createRoomServiceOrder = async (req, res) => {
       orderId: order._id,
       roomNumber: room.roomNumber,
       guestName: booking.guestName,
+      subtotal,
       gst: order.gst,
+      totalAmount: order.totalAmount,
     });
   } catch (error) {
+    if (error instanceof OrderPricingError) {
+      return res.status(error.status).json({ success: false, message: error.message });
+    }
     console.error('Error creating room service order:', error);
-    res.status(500).json({ message: 'Error creating room service order', error: error.message });
+    res.status(500).json({ message: 'Error creating room service order' });
   }
 };
 

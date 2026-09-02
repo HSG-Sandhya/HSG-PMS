@@ -82,8 +82,10 @@ const Restaurant = () => {
       const trimmedRoom = roomNumber.trim();
       const orderData = {
         orderType: 'website',
-        items: cart.map((i) => ({ itemId: i._id, name: i.name, price: i.price, quantity: i.quantity })),
-        totalAmount: subtotal,
+        // Only the dish and the count. Name, price and total are read from the
+        // menu server-side, so sending them here would be decorative at best
+        // and misleading at worst -- the server ignores them either way.
+        items: cart.map((i) => ({ itemId: i._id, quantity: i.quantity })),
         status: 'Pending',
         specialInstructions,
         customerInfo: { name: 'Website Customer', phone: 'N/A', email: 'website@hotel.com' },
