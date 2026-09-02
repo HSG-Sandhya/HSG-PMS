@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import crypto from "node:crypto";
 import { balanceOf } from '../utils/money.js';
 import { registerModel } from "../db/modelRegistry.js";
 import { BILLING_DEFAULTS } from "../config/operationalDefaults.js";
@@ -289,7 +290,25 @@ const bookingSchema = new mongoose.Schema({
   },
 
   // Customer
-  customerId: { type: String, unique: true, required: true }
+  customerId: { type: String, unique: true, required: true },
+
+  // Secret the guest quotes to look their own booking up on the public site.
+  //
+  // The status endpoint used to accept the booking's ObjectId as its only
+  // credential. An ObjectId is an identifier, not a secret: it is a timestamp,
+  // a machine id and an incrementing counter, so holding one makes its
+  // neighbours guessable -- and the endpoint answered with the whole document
+  // (ID-card number, ID scans, phone, email, address, Razorpay ids).
+  //
+  // 128 bits of randomness, generated for EVERY booking whatever created it
+  // (website, front desk, group block), and `select: false` so it is never
+  // returned by the many endpoints that hand back a booking.
+  trackingToken: {
+    type: String,
+    default: () => crypto.randomBytes(16).toString("hex"),
+    select: false,
+    index: true
+  }
 }, { timestamps: true });
 
 // Indexes — keep the common list/lookup queries fast.

@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import mongoose from 'mongoose';
 import Room from '../models/Room.js';
 import Booking from '../models/Booking.js';
 import Guest from '../models/Guest.js';
@@ -15,6 +16,7 @@ import { emitNewWebsiteBooking } from '../config/socket.js';
 import { getBilling, roomGst } from '../config/operationalConfig.js';
 import { priceOrder, OrderPricingError } from '../services/orderPricing.js';
 import { quoteStay, BookingPricingError } from '../services/bookingPricing.js';
+import { secretsMatch } from '../utils/secretCompare.js';
 import { getBanquetBlockedRoomIds } from './roomController.js';
 import { getInventorySnapshot, availabilityByType, canReserve } from '../services/inventory.js';
 
@@ -108,7 +110,18 @@ export const createBanquetBooking = async (req, res) => {
     });
 
     await booking.save();
-    res.status(201).json({ success: true, data: booking, message: 'Banquet booking created successfully' });
+    res.status(201).json({
+      success: true,
+      // A DTO rather than the saved document, so server-side fields cannot be
+      // widened into this public reply by a later schema change.
+      data: {
+        id: booking._id,
+        eventDate: booking.eventDate,
+        status: booking.status,
+        totalAmount: booking.totalAmount,
+      },
+      message: 'Banquet booking created successfully',
+    });
   } catch (error) {
     console.error('Error creating banquet booking:', error);
     res.status(500).json({ message: 'Error creating banquet booking', error: error.message });
@@ -501,6 +514,11 @@ export const createRoomBooking = async (req, res) => {
     res.status(201).json({
       success: true,
       bookingId: booking._id,
+      // What the guest needs to check their booking later. The reference is the
+      // human-readable half; the token is the secret that authorises the
+      // lookup, and this response is the only place it is ever disclosed.
+      bookingReference: booking.invoiceNumber,
+      trackingToken: booking.trackingToken,
       message: 'Booking created successfully',
     });
   } catch (error) {
@@ -512,11 +530,51 @@ export const createRoomBooking = async (req, res) => {
   }
 };
 
+/**
+ * Let a guest check their own booking, and nothing else.
+ *
+ * This used to be `res.json({ status: booking.status, booking })` -- the entire
+ * Mongoose document, on a public route, to anyone holding an ObjectId. That
+ * shipped the guest's name, email, phone, address, age, gender, nationality,
+ * ID-card type and number, the stored paths of their ID scans, company and GST
+ * details, special requests and the Razorpay payment/order/signature ids. An
+ * ObjectId is not a secret -- it encodes a timestamp and a counter, so one
+ * leaked booking link made its neighbours guessable.
+ *
+ * `booking.status` was also undefined: the field is `bookingStatus`. The
+ * endpoint's headline value had never once been populated.
+ *
+ * Now: a per-booking tracking token is required, and the reply is a fixed DTO.
+ */
 export const getBookingStatus = async (req, res) => {
   try {
-    const booking = await Booking.findById(req.params.id);
-    if (!booking) return res.status(404).json({ message: 'Booking not found' });
-    res.json({ status: booking.status, booking });
+    const { id } = req.params;
+    const token = req.query.token || req.get('x-booking-token');
+
+    // One reply for "no such booking", "wrong token" and "legacy booking with
+    // no token", so this cannot be used to probe which ObjectIds are real.
+    const deny = () => res.status(404).json({ message: 'Booking not found' });
+    if (!token) return deny();
+
+    // Accept either the booking reference the guest was given or its id; the
+    // token is what actually authorises, so neither needs to be unguessable.
+    const query = mongoose.Types.ObjectId.isValid(id)
+      ? { _id: id }
+      : { invoiceNumber: String(id).toUpperCase() };
+    const booking = await Booking.findOne(query).select(
+      '+trackingToken invoiceNumber bookingStatus checkIn checkOut roomType'
+    );
+    if (!booking || !secretsMatch(token, booking.trackingToken)) return deny();
+
+    // A strict DTO. Fields are listed explicitly so that adding a column to the
+    // Booking schema can never widen what this endpoint discloses.
+    res.json({
+      bookingReference: booking.invoiceNumber,
+      bookingStatus: booking.bookingStatus,
+      checkIn: booking.checkIn,
+      checkOut: booking.checkOut,
+      roomType: booking.roomType,
+    });
   } catch (error) {
     console.error('Error getting booking status:', error);
     res.status(500).json({ message: 'Error getting booking status' });
@@ -1041,49 +1099,15 @@ export const verifyRazorpayPayment = async (req, res) => {
   }
 };
 
-export const processPayment = async (req, res) => {
-  try {
-    const {
-      bookingData,
-      razorpay_payment_id,
-      razorpay_order_id,
-      razorpay_signature,
-    } = req.body;
-
-    const isValid = await paymentService.verifyPaymentSignature(
-      razorpay_order_id,
-      razorpay_payment_id,
-      razorpay_signature
-    );
-
-    if (!isValid) {
-      return res.status(400).json({ success: false, message: 'Payment verification failed' });
-    }
-
-    const booking = new Booking({
-      ...bookingData,
-      paymentStatus: 'Paid',
-      paymentMethod: 'online',
-      razorpayPaymentId: razorpay_payment_id,
-      razorpayOrderId: razorpay_order_id,
-      paidAmount: bookingData.totalAmount,
-    });
-    await booking.save();
-
-    // Online payment settled → record it in accounting as income.
-    await syncRoomBookingIncome(booking);
-
-    res.json({
-      success: true,
-      message: 'Payment processed and booking created successfully',
-      bookingId: booking._id,
-      paymentId: razorpay_payment_id,
-    });
-  } catch (error) {
-    console.error('Error processing payment:', error);
-    res.status(500).json({ success: false, message: 'Failed to process payment', error: error.message });
-  }
-};
+// processPayment (POST /process-payment) was removed. It was an unused, public
+// second path into booking creation that did `new Booking({ ...bookingData })`
+// -- spreading the request body straight into the document, so a caller set
+// their own totalAmount, paidAmount, bookingStatus and invoiceNumber -- with no
+// tariff calculation and no availability check. It verified the Razorpay
+// signature and nothing else, and recorded `paidAmount: bookingData.totalAmount`
+// from that same body. createRoomBooking covers the online flow properly:
+// server-priced via quoteStay, inventory-checked via canReserve, and the
+// captured payment confirmed against the server's own total.
 
 // refundPayment / getPaymentDetails moved to controllers/paymentController.js —
 // they are staff-only gateway operations, not part of the public website API.
