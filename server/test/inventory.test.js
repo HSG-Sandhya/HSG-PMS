@@ -69,3 +69,28 @@ test('freeRoomsForRange ignores holds but honours blocked rooms', () => {
   const free = freeRoomsForRange(deluxe, snapshot(['Deluxe-2'], { Deluxe: 3 }));
   assert.deepEqual(free.map((r) => r._id), ['Deluxe-1', 'Deluxe-3']);
 });
+
+// ── Editing a booking ────────────────────────────────────────────────────────
+// updateBooking had no availability check at all, so the guard on createBooking
+// could be walked past by editing an existing booking instead of making a new
+// one. The subtlety: the booking being edited already consumes inventory, so it
+// must be excluded from its own check or every edit of a full category fails.
+test('a booking excluded from its own check does not block its own edit', () => {
+  const deluxe = rooms('Deluxe', 2);
+
+  // Category is full because of THIS booking's own hold for 2.
+  const includingSelf = availabilityByType(deluxe, snapshot([], { Deluxe: 2 })).get('Deluxe');
+  assert.equal(includingSelf.available, 0, 'counting itself, the edit looks impossible');
+
+  // Excluding it (what getInventorySnapshot({ excludeBookingId }) produces),
+  // the same edit is fine.
+  const excludingSelf = availabilityByType(deluxe, snapshot([], {})).get('Deluxe');
+  assert.equal(excludingSelf.available, 2);
+});
+
+test('an edit still sees OTHER bookings', () => {
+  const deluxe = rooms('Deluxe', 3);
+  // Someone else holds 3; excluding our own booking changes nothing here.
+  const cat = availabilityByType(deluxe, snapshot([], { Deluxe: 3 })).get('Deluxe');
+  assert.equal(cat.available, 0, 'another party holding the category must still block');
+});

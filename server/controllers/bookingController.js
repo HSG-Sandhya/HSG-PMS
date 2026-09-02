@@ -410,6 +410,53 @@ export const updateBooking = async (req, res) => {
           });
         }
       }
+
+      // An edit could move a booking onto a room and window another booking
+      // already holds. createBooking has always guarded this; updateBooking did
+      // not check availability at all, so the guard could be walked straight
+      // past by editing an existing booking instead of making a new one.
+      //
+      // The booking being edited is excluded from every check below — it already
+      // occupies its own slot, and counting it against itself would block any
+      // edit of a full room or category.
+      const { frontDesk: fd } = await getOps();
+      if (!fd.allowOverbooking) {
+        if (effRoomId) {
+          const clash = await Booking.findOne({
+            _id: { $ne: bookingId },
+            roomId: effRoomId,
+            bookingStatus: { $in: ACTIVE_HOLD_STATUSES },
+            checkIn: { $lt: effCheckOut },
+            checkOut: { $gt: effCheckIn },
+          }).select('invoiceNumber customerId guestName');
+          if (clash) {
+            return res.status(409).json({
+              success: false,
+              message: `This room is already booked for overlapping dates (${clash.invoiceNumber || clash.customerId || clash.guestName || 'existing booking'}). Turn on "Allow overbooking" in Operations settings to override.`,
+            });
+          }
+        }
+
+        // A category hold names no room, so a room-level clash check cannot see
+        // it. Re-check the category whenever the dates, type or count move.
+        const effType = bookingData.roomType || existingBooking.roomType;
+        if (!effRoomId && effType) {
+          const capacity = await canReserve(Room, {
+            roomType: effType,
+            count: bookingData.roomCount ?? existingBooking.roomCount ?? 1,
+            checkIn: effCheckIn,
+            checkOut: effCheckOut,
+            statuses: ACTIVE_HOLD_STATUSES,
+            excludeBookingId: bookingId,
+          });
+          if (!capacity.ok) {
+            return res.status(409).json({
+              success: false,
+              message: `Only ${capacity.available} "${effType}" room(s) available for these dates (this booking needs ${capacity.requested}).`,
+            });
+          }
+        }
+      }
     }
 
     // Generate invoice number if not present and booking is being completed

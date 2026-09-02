@@ -56,13 +56,22 @@ const ACTIVE = ['Confirmed', 'Pending'];
  * Everything blocking inventory across a date range, fetched once.
  * @returns {{ blockedRoomIds: Set<string>, holdsByType: Map<string, number> }}
  */
-export const getInventorySnapshot = async (checkIn, checkOut, { statuses = ACTIVE } = {}) => {
+export const getInventorySnapshot = async (
+  checkIn,
+  checkOut,
+  { statuses = ACTIVE, excludeBookingId = null } = {},
+) => {
   const from = new Date(checkIn);
   const to = new Date(checkOut);
 
   // Half-open overlap: a stay ending on the 5th does not clash with one starting
   // on the 5th.
   const overlap = { checkIn: { $lt: to }, checkOut: { $gt: from }, bookingStatus: { $in: statuses } };
+
+  // When EDITING a booking, that booking already consumes inventory. Counting it
+  // against itself would make any edit of a full category look like an overbook,
+  // so it is excluded from its own check.
+  if (excludeBookingId) overlap._id = { $ne: excludeBookingId };
 
   const [assigned, holds, banquetBlocked] = await Promise.all([
     Booking.find({ ...overlap, roomId: { $ne: null } }).select('roomId').lean(),
@@ -157,10 +166,16 @@ export const freeCountByType = (rooms, snapshot) => {
  *
  * @returns {{ ok: boolean, available: number, requested: number }}
  */
-export const canReserve = async (Room, { roomType, count = 1, checkIn, checkOut, statuses }) => {
+export const canReserve = async (
+  Room,
+  { roomType, count = 1, checkIn, checkOut, statuses, excludeBookingId },
+) => {
   const requested = Math.max(1, Number(count) || 1);
   const rooms = await Room.find({ status: { $ne: 'maintenance' } }).lean();
-  const snapshot = await getInventorySnapshot(checkIn, checkOut, statuses ? { statuses } : {});
+  const snapshot = await getInventorySnapshot(checkIn, checkOut, {
+    ...(statuses ? { statuses } : {}),
+    ...(excludeBookingId ? { excludeBookingId } : {}),
+  });
   const available = availabilityByType(rooms, snapshot).get(roomType || 'Room')?.available ?? 0;
   return { ok: available >= requested, available, requested };
 };
