@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 
 import { registerModel } from "../db/modelRegistry.js";
+import { nextSequence } from "../services/sequence.js";
 const orderItemSchema = new mongoose.Schema({
   itemId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -124,20 +125,25 @@ orderSchema.pre('save', async function() {
     const year = date.getFullYear().toString().substr(-2);
     const month = (date.getMonth() + 1).toString().padStart(2, '0');
     const day = date.getDate().toString().padStart(2, '0');
-    
-    const lastOrder = await this.constructor.findOne({
-      orderNumber: new RegExp(`^ORD-${year}${month}${day}-`)
-    }).sort({ orderNumber: -1 });
-    
-    let sequence = 1;
-    if (lastOrder && lastOrder.orderNumber) {
-      const lastSequence = parseInt(lastOrder.orderNumber.split('-')[2]);
-      if (!isNaN(lastSequence)) {
-        sequence = lastSequence + 1;
-      }
-    }
-    
-    this.orderNumber = `ORD-${year}${month}${day}-${sequence.toString().padStart(3, '0')}`;
+    const dayKey = `${year}${month}${day}`;
+
+    // A restaurant fires several orders at once at service time. Reading the
+    // last order number and adding one gave two of them the same number, and
+    // the second to save died on the unique index. One atomic $inc per day
+    // instead; the counter is seeded from the day's highest existing number the
+    // first time that day is used.
+    const sequence = await nextSequence(`order:${dayKey}`, {
+      seed: async () => {
+        const lastOrder = await this.constructor
+          .findOne({ orderNumber: new RegExp(`^ORD-${dayKey}-`) })
+          .sort({ orderNumber: -1 })
+          .lean();
+        const n = parseInt(String(lastOrder?.orderNumber || '').split('-')[2], 10);
+        return Number.isFinite(n) ? n : 0;
+      },
+    });
+
+    this.orderNumber = `ORD-${dayKey}-${sequence.toString().padStart(3, '0')}`;
   }
   
   if (this.items && this.items.length > 0) {

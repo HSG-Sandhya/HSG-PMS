@@ -60,7 +60,27 @@ const assertUtensilStock = async (utensilItems = [], excludeBookingId = null) =>
 // same floor/hall (duration-priced events share a notional 'duration' main-hall
 // slot). Rooms/floors picked with no real selection ('none') don't reserve a slot.
 const FRIENDLY_FLOOR = { first: 'First floor', second: 'Grand Hall (2nd floor)', third: 'Third floor', fourth: 'Crystal Hall (4th floor)', duration: 'the hall' };
-const floorTokens = (b) => new Set((b?.floorSelection || []).filter((f) => f && f !== 'none'));
+/**
+ * The resources a booking actually claims.
+ *
+ * Reception bookings claim FLOORS (floorSelection); the public website claims a
+ * HALL (hallId) and no floor at all. Keying the conflict check on floors alone
+ * meant a website booking claimed nothing, so `wanted.size === 0` short-circuited
+ * and two visitors could reserve the same hall for the same day.
+ *
+ * A booking now claims whatever it names, and a clash is a shared claim. That
+ * catches hall-vs-hall and floor-vs-floor without inventing conflicts between
+ * resources we cannot know overlap physically.
+ */
+const slotTokens = (b) => {
+  const tokens = new Set((b?.floorSelection || []).filter((f) => f && f !== 'none'));
+  const hallId = b?.hallId?._id || b?.hallId;
+  if (hallId) tokens.add(`hall:${String(hallId)}`);
+  return tokens;
+};
+
+const slotLabel = (token) =>
+  (token.startsWith('hall:') ? 'This hall' : FRIENDLY_FLOOR[token] || 'This slot');
 
 const fmtRange = (start, end) => {
   const o = { day: '2-digit', month: 'short', year: 'numeric' };
@@ -69,35 +89,49 @@ const fmtRange = (start, end) => {
   return s === e ? s : `${s} – ${e}`;
 };
 
-// Returns the first conflicting booking, or null. Blank/invalid dates skip the
-// check. Exported so other creation paths (e.g. converting a quotation into a
-// booking) enforce the same slot rules instead of writing their own.
-export const findSlotConflict = async (data, excludeId = null) => {
-  if (!data?.eventDate) return null;
+/** Every booking clashing with `data`, as { booking, token }. Never throws. */
+export const findSlotConflicts = async (data, excludeId = null) => {
+  if (!data?.eventDate) return [];
   const start = new Date(data.eventDate);
   const end = data.endDate ? new Date(data.endDate) : start;
-  if (Number.isNaN(start.getTime())) return null;
-  const wanted = floorTokens(data);
-  if (wanted.size === 0) return null; // no real slot claimed → nothing to clash with
+  if (Number.isNaN(start.getTime())) return [];
+  const wanted = slotTokens(data);
+  if (wanted.size === 0) return []; // no real slot claimed → nothing to clash with
 
   const q = { status: { $nin: ['Cancelled'] }, eventDate: { $lte: end } };
   if (excludeId) q._id = { $ne: excludeId };
   const candidates = await BanquetBooking.find(q)
-    .select('eventDate endDate floorSelection customerName eventType')
+    .select('eventDate endDate floorSelection hallId customerName eventType')
     .lean();
 
+  const clashes = [];
   for (const c of candidates) {
     const cStart = new Date(c.eventDate);
     const cEnd = c.endDate ? new Date(c.endDate) : cStart;
     if (cEnd < start || cStart > end) continue; // no true date overlap
-    const shared = [...wanted].find((t) => floorTokens(c).has(t));
-    if (shared) {
-      const err = new Error(`${FRIENDLY_FLOOR[shared] || 'This slot'} is already booked for ${fmtRange(cStart, cEnd)}${c.customerName ? ` (${c.customerName}${c.eventType ? ` — ${c.eventType}` : ''})` : ''}.`);
-      err.statusCode = 409;
-      throw err;
-    }
+    const token = [...wanted].find((t) => slotTokens(c).has(t));
+    if (token) clashes.push({ booking: c, token });
   }
-  return null;
+  return clashes;
+};
+
+/** How a clash reads to whoever hit it. */
+export const describeSlotConflict = ({ booking: c, token }) => {
+  const cStart = new Date(c.eventDate);
+  const cEnd = c.endDate ? new Date(c.endDate) : cStart;
+  const who = c.customerName ? ` (${c.customerName}${c.eventType ? ` — ${c.eventType}` : ''})` : '';
+  return `${slotLabel(token)} is already booked for ${fmtRange(cStart, cEnd)}${who}.`;
+};
+
+// Returns null, or throws a 409. Exported so other creation paths (e.g.
+// converting a quotation into a booking) enforce the same slot rules instead of
+// writing their own.
+export const findSlotConflict = async (data, excludeId = null) => {
+  const [first] = await findSlotConflicts(data, excludeId);
+  if (!first) return null;
+  const err = new Error(describeSlotConflict(first));
+  err.statusCode = 409;
+  throw err;
 };
 
 export const getAllHalls = async (_req, res) => {

@@ -9,6 +9,7 @@ import { getBanquetBlockedRoomIds } from './roomController.js';
 import { validateCheckIn } from '../services/checkIn.js';
 import { checkOutBlocker } from '../services/checkOut.js';
 import { reconcileRoomStatus } from '../services/roomStatus.js';
+import { nextSequence } from '../services/sequence.js';
 import { getInventorySnapshot, freeCountByType, canReserve, roomIsFree, describeClash } from '../services/inventory.js';
 import { calculateNights } from '../utils/dateHelpers.js';
 import { emitHousekeepingTask } from '../config/socket.js';
@@ -38,22 +39,22 @@ const generateInvoiceNumber = async (guestName, checkIn) => {
   // the same date + guest-initials group. The regex pins prefix/date/initials
   // so sorting by the whole string sorts by the 4-digit sequence.
   const regex = new RegExp(`^${invoicePrefix}-${dateStr}-${initials}-\\d{4}$`);
-  const latestBooking = await Booking.findOne(
-    { invoiceNumber: { $regex: regex } },
-    { invoiceNumber: 1 },
-    { sort: { invoiceNumber: -1 } }
-  );
-
-  let sequenceNumber = 1001;
-  if (latestBooking && latestBooking.invoiceNumber) {
-    const parts = latestBooking.invoiceNumber.split('-');
-    if (parts.length === 4) {
-      const lastSeq = parseInt(parts[3], 10);
-      if (!isNaN(lastSeq)) {
-        sequenceNumber = lastSeq + 1;
-      }
-    }
-  }
+  // One atomic $inc per date+initials group. Reading the latest and adding one
+  // handed the same number to two bookings created in the same moment, and the
+  // loser hit a duplicate-key error on save.
+  const sequenceNumber = await nextSequence(`invoice:${invoicePrefix}-${dateStr}-${initials}`, {
+    start: 1000,
+    seed: async () => {
+      const latestBooking = await Booking.findOne(
+        { invoiceNumber: { $regex: regex } },
+        { invoiceNumber: 1 },
+        { sort: { invoiceNumber: -1 } }
+      ).lean();
+      const parts = String(latestBooking?.invoiceNumber || '').split('-');
+      const lastSeq = parts.length === 4 ? parseInt(parts[3], 10) : NaN;
+      return Number.isFinite(lastSeq) ? lastSeq : 1000;
+    },
+  });
 
   return `${invoicePrefix}-${dateStr}-${initials}-${String(sequenceNumber).padStart(4, '0')}`;
 };

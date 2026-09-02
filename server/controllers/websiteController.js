@@ -18,6 +18,8 @@ import { priceOrder, OrderPricingError } from '../services/orderPricing.js';
 import { quoteStay, BookingPricingError } from '../services/bookingPricing.js';
 import { secretsMatch } from '../utils/secretCompare.js';
 import { getBanquetBlockedRoomIds } from './roomController.js';
+import { findSlotConflict, findSlotConflicts, describeSlotConflict } from './banquetController.js';
+import { nextSequence } from '../services/sequence.js';
 import { getInventorySnapshot, availabilityByType, canReserve } from '../services/inventory.js';
 
 // ── Public restaurant ─────────────────────────────────────────────────────────
@@ -82,6 +84,14 @@ export const createBanquetBooking = async (req, res) => {
     if (!hall) return res.status(404).json({ message: 'Banquet hall not found' });
 
     const eventDuration = 5;
+    const startTime = '10:00 AM';
+    const endTime = '03:00 PM';
+
+    // The public flow never checked whether the hall was already taken, so two
+    // visitors could reserve the same hall on the same day. The reception path
+    // has always enforced this via findSlotConflict; it now understands halls as
+    // well as floors, so both paths ask the same question. It throws a 409.
+    await findSlotConflict({ hallId, eventDate: new Date(eventDate), startTime, endTime });
     const totalAmount = hall.pricePerHour * eventDuration;
 
     const VALID_EVENT_TYPES = ['Wedding', 'Engagement', 'Reception', 'Anniversary', 'Birthday', 'Meeting', 'Corporate', 'Conference', 'Party', 'Other'];
@@ -100,8 +110,8 @@ export const createBanquetBooking = async (req, res) => {
       totalAmount,
       advanceAmount: 0,
       remainingAmount: totalAmount,
-      startTime: '10:00 AM',
-      endTime: '03:00 PM',
+      startTime,
+      endTime,
       eventDuration,
       specialRequirements: notes || '',
       status: 'Pending',
@@ -110,6 +120,24 @@ export const createBanquetBooking = async (req, res) => {
     });
 
     await booking.save();
+
+    // Insert-then-verify. The check above is a read followed by a write, so two
+    // visitors submitting in the same moment both pass it -- measured at 10 of
+    // 10 getting through before this. Re-checking after the insert makes the
+    // race decidable: everyone now sees everyone, and the booking with the
+    // lowest _id (created first) keeps the slot while the rest withdraw. Mongo
+    // cannot express "no overlapping range" as a unique index, so the guarantee
+    // has to be built rather than declared.
+    const clashes = await findSlotConflicts(
+      { hallId, eventDate: new Date(eventDate) },
+      booking._id
+    );
+    const lost = clashes.find((c) => String(c.booking._id) < String(booking._id));
+    if (lost) {
+      await BanquetBooking.deleteOne({ _id: booking._id });
+      return res.status(409).json({ success: false, message: describeSlotConflict(lost) });
+    }
+
     res.status(201).json({
       success: true,
       // A DTO rather than the saved document, so server-side fields cannot be
@@ -123,8 +151,12 @@ export const createBanquetBooking = async (req, res) => {
       message: 'Banquet booking created successfully',
     });
   } catch (error) {
+    // findSlotConflict throws a 409 carrying a guest-readable reason.
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({ success: false, message: error.message });
+    }
     console.error('Error creating banquet booking:', error);
-    res.status(500).json({ message: 'Error creating banquet booking', error: error.message });
+    res.status(500).json({ message: 'Error creating banquet booking' });
   }
 };
 
@@ -233,65 +265,43 @@ const generateUniqueCustomerId = async (guestName, checkInDate) => {
   const dd = String(checkIn.getDate()).padStart(2, '0');
   const dateStr = `${yyyy}${mm}${dd}`;
 
-  let seq = 1001;
-  for (let attempt = 0; attempt < 10; attempt++) {
-    const dayStart = new Date(checkIn);
-    dayStart.setHours(0, 0, 0, 0);
-    const dayEnd = new Date(checkIn);
-    dayEnd.setHours(23, 59, 59, 999);
-
-    const bookingsForDay = await Booking.find({
-      checkIn: { $gte: dayStart, $lte: dayEnd },
-    }).sort({ createdAt: -1 });
-
-    if (bookingsForDay.length > 0) {
-      let maxSeq = 1000;
-      for (const b of bookingsForDay) {
-        const m = b.customerId?.match(/(\d{4})$/);
-        if (m) {
-          const currentSeq = parseInt(m[1]);
-          if (!isNaN(currentSeq) && currentSeq > maxSeq) maxSeq = currentSeq;
-        }
-      }
-      seq = maxSeq + 1;
-    }
-
-    const customerId = `${initials}${dateStr}${seq}`;
-    const exists = await Booking.findOne({ customerId });
-    if (!exists) return customerId;
-    seq++;
-  }
-
+  // The sequence runs per arrival day, so that is the counter's scope.
+  const seq = await nextSequence(`customer:${dateStr}`, {
+    start: 1000,
+    seed: async () => {
+      const dayStart = new Date(checkIn); dayStart.setHours(0, 0, 0, 0);
+      const dayEnd = new Date(checkIn); dayEnd.setHours(23, 59, 59, 999);
+      const sameDay = await Booking.find({ checkIn: { $gte: dayStart, $lte: dayEnd } })
+        .select('customerId').lean();
+      // Existing ids are INITIALS + YYYYMMDD + sequence, e.g. "SK202607301002".
+      return sameDay.reduce((max, b) => {
+        const n = parseInt(String(b.customerId || '').match(/^[A-Z]*\d{8}(\d+)$/)?.[1], 10);
+        return Number.isFinite(n) && n > max ? n : max;
+      }, 1000);
+    },
+  });
   return `${initials}${dateStr}${seq}`;
 };
 
 const generateUniqueInvoiceNumber = async () => {
   const { invoicePrefix } = await getBilling();
   const seqRegex = new RegExp(`^${invoicePrefix}-(\\d+)$`);
-  let invoiceSeq = 1001;
-  for (let attempt = 0; attempt < 10; attempt++) {
-    const latest = await Booking.find({ invoiceNumber: { $regex: seqRegex } })
-      .sort({ invoiceNumber: -1 })
-      .limit(10);
 
-    if (latest.length > 0) {
-      let maxSeq = 1000;
-      for (const b of latest) {
-        const m = b.invoiceNumber?.match(seqRegex);
-        if (m) {
-          const s = parseInt(m[1]);
-          if (!isNaN(s) && s > maxSeq) maxSeq = s;
-        }
-      }
-      invoiceSeq = maxSeq + 1;
-    }
-
-    const invoiceNumber = `${invoicePrefix}-${invoiceSeq}`;
-    const exists = await Booking.findOne({ invoiceNumber });
-    if (!exists) return invoiceNumber;
-    invoiceSeq++;
-  }
-  return `${invoicePrefix}-${invoiceSeq}`;
+  // One atomic $inc instead of read-latest-then-add-one, which handed the same
+  // number to two simultaneous bookings. Seeded once from the highest number
+  // already in the collection so it continues the existing series.
+  const seq = await nextSequence(`invoice:${invoicePrefix}`, {
+    start: 1000,
+    seed: async () => {
+      const latest = await Booking.find({ invoiceNumber: { $regex: seqRegex } })
+        .select('invoiceNumber').sort({ invoiceNumber: -1 }).limit(25).lean();
+      return latest.reduce((max, b) => {
+        const n = parseInt(b.invoiceNumber?.match(seqRegex)?.[1], 10);
+        return Number.isFinite(n) && n > max ? n : max;
+      }, 1000);
+    },
+  });
+  return `${invoicePrefix}-${seq}`;
 };
 
 export const createRoomBooking = async (req, res) => {
