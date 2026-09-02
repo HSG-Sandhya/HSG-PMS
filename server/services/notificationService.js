@@ -65,8 +65,11 @@ const fmtDate = (d) => {
 
 const money = (n) => `₹${Number(n || 0).toLocaleString('en-IN')}`;
 
+// Returns false so a caller can tell "nothing was sent" from "sent". Anything
+// that records having notified someone must not record it on a skip.
 const logSkip = (channel) => {
   console.log(`[notify] ${channel} skipped (not configured)`);
+  return false;
 };
 
 // Normalise an Indian phone number to E.164 (+91XXXXXXXXXX).
@@ -178,6 +181,7 @@ const getTransporter = () => {
   return _transporter;
 };
 
+/** @returns {Promise<boolean>} true only when a message actually went out. */
 export const sendEmail = async (to, msg) => {
   const t = getTransporter();
   if (!t) return logSkip('email');
@@ -186,6 +190,7 @@ export const sendEmail = async (to, msg) => {
     to, subject: msg.subject, html: msg.html, text: msg.text,
   });
   console.log(`[notify] email sent → ${to}`);
+  return true;
 };
 
 /* ───────────────────────────── SMS ───────────────────────────── */

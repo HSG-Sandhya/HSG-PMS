@@ -1,4 +1,5 @@
 import express from 'express';
+import rateLimit from 'express-rate-limit';
 import {
   getPublicMenu,
   getPublicCategories,
@@ -49,7 +50,22 @@ router.post('/bookings', createRoomBooking);
 router.get('/bookings/:id/status', getBookingStatus);
 
 // Marketing
-router.post('/contact', submitContact);
+// The contact form is public and now has side effects — a database write and
+// an email to reception — so it gets a tighter limit than the global one. Five
+// enquiries per address per hour is far above what a genuine visitor needs and
+// far below what makes the endpoint worth abusing.
+const contactLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: 'That is a lot of messages in a short time. Please try again later, or call us.',
+  },
+});
+
+router.post('/contact', contactLimiter, submitContact);
 router.get('/special-offers', getSpecialOffers);
 router.get('/hotel-info', getHotelInfo);
 router.get('/gallery', getGallery);

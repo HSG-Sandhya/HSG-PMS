@@ -1,3 +1,5 @@
+import ContactEnquiry from '../models/ContactEnquiry.js';
+import { sendEmail } from '../services/notificationService.js';
 import { publicRoomView, storefrontRoomView, PUBLIC_ROOM_FIELDS } from '../services/publicRoom.js';
 import crypto from 'crypto';
 import mongoose from 'mongoose';
@@ -607,12 +609,101 @@ export const getBookingStatus = async (req, res) => {
 
 // ── Marketing / informational endpoints ───────────────────────────────────────
 
+// Escape before interpolating a stranger's text into the notification email.
+const escapeHtml = (v) =>
+  String(v ?? '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
+const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/**
+ * Public contact form.
+ *
+ * This used to console.log the request body and reply "we will get back to you
+ * soon". Nothing stored it, nobody was told, and the one thing it did do was
+ * copy a member of the public's name, email and phone into the log files.
+ *
+ * Now the enquiry is persisted first and reception is emailed second: if the
+ * mail fails, the record still exists and `notified: false` says so, which is
+ * what to look for when someone says they never heard back. The guest is only
+ * promised a reply once the enquiry is actually saved.
+ */
 export const submitContact = async (req, res) => {
   try {
-    console.log('Contact form submission:', req.body);
+    const { firstName, lastName, email, phone, subject, message } = req.body || {};
+
+    const clean = (v, max) => String(v ?? '').trim().slice(0, max);
+    const enquiry = {
+      firstName: clean(firstName, 100),
+      lastName: clean(lastName, 100),
+      email: clean(email, 200).toLowerCase(),
+      phone: clean(phone, 30),
+      subject: clean(subject, 200),
+      message: clean(message, 5000),
+    };
+
+    if (!enquiry.firstName || !enquiry.email || !enquiry.message) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please give your name, an email address and a message.',
+      });
+    }
+    if (!EMAIL_SHAPE.test(enquiry.email)) {
+      return res.status(400).json({
+        success: false,
+        message: 'That email address does not look right. Please check it.',
+      });
+    }
+
+    // Stored before anything else, so a mail outage cannot lose the enquiry.
+    const saved = await ContactEnquiry.create({
+      ...enquiry,
+      sourceIp: req.ip || '',
+    });
+
+    // Tell reception. A failure here is logged and recorded on the enquiry, but
+    // never fails the request — the message is safely stored either way.
+    try {
+      const settings = await Settings.findOne({}, { hotelProfile: 1, contact: 1 }).lean();
+      const to =
+        settings?.hotelProfile?.contact?.email ||
+        settings?.contact?.email ||
+        process.env.CONTACT_NOTIFY_EMAIL ||
+        process.env.EMAIL_USER;
+
+      if (to) {
+        const name = [enquiry.firstName, enquiry.lastName].filter(Boolean).join(' ');
+        const sent = await sendEmail(to, {
+          subject: `Website enquiry: ${enquiry.subject || 'No subject'} — ${name}`,
+          text:
+            `From: ${name} <${enquiry.email}>\n` +
+            `Phone: ${enquiry.phone || 'not given'}\n` +
+            `Subject: ${enquiry.subject || 'not given'}\n\n${enquiry.message}\n`,
+          html:
+            `<p><strong>${escapeHtml(name)}</strong> &lt;${escapeHtml(enquiry.email)}&gt;` +
+            `${enquiry.phone ? ` · ${escapeHtml(enquiry.phone)}` : ''}</p>` +
+            `<p><em>${escapeHtml(enquiry.subject || 'No subject')}</em></p>` +
+            `<p style="white-space:pre-wrap">${escapeHtml(enquiry.message)}</p>`,
+        });
+        // Only true when mail actually went out. With no SMTP configured
+        // sendEmail skips silently, and recording a notification that never
+        // happened would hide exactly the enquiries nobody has seen.
+        if (sent) {
+          saved.notified = true;
+          saved.notifiedAt = new Date();
+          await saved.save();
+        }
+      }
+    } catch (mailError) {
+      // Identify the enquiry, not the person who sent it.
+      console.error(`Contact enquiry ${saved._id}: reception email failed:`, mailError.message);
+    }
+
     res.json({ success: true, message: 'Thank you for your message. We will get back to you soon!' });
   } catch (error) {
-    console.error('Error submitting contact form:', error);
+    // No req.body here: it holds a member of the public's contact details.
+    console.error('Error submitting contact form:', error.message);
     res.status(500).json({ message: 'Error submitting contact form' });
   }
 };

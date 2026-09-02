@@ -319,6 +319,7 @@ app.use(
 // Core system
 import authRoutes from "./routes/authRoutes.js";
 import dashboardRoutes from "./routes/dashboardRoutes.js";
+import contactEnquiryRoutes from "./routes/contactEnquiryRoutes.js";
 import settingsRoutes from "./routes/settingsRoutes.js";
 import websiteRoutes from "./routes/websiteRoutes.js";
 import paymentRoutes from "./routes/paymentRoutes.js";
@@ -383,6 +384,7 @@ const apiRoutes = [
   ["/api/dashboard", dashboardRoutes],
   ["/api/settings", settingsRoutes],
   ["/api/website", websiteRoutes],
+  ["/api/contact-enquiries", contactEnquiryRoutes],
 
   // User & staff
   ["/api/users", userRoutes],
