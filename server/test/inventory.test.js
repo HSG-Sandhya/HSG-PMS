@@ -94,3 +94,67 @@ test('an edit still sees OTHER bookings', () => {
   const cat = availabilityByType(deluxe, snapshot([], { Deluxe: 3 })).get('Deluxe');
   assert.equal(cat.available, 0, 'another party holding the category must still block');
 });
+
+// ── roomIsFree: the overlap test both the create and edit paths now share ────
+import { roomIsFree, describeClash } from '../services/inventory.js';
+
+// A stand-in for the Booking model: records the query it was handed and answers
+// with whatever the test wants found.
+const fakeBooking = (found) => {
+  const calls = [];
+  return {
+    calls,
+    findOne(query) {
+      calls.push(query);
+      return { select: () => Promise.resolve(found) };
+    },
+  };
+};
+
+test('an overlapping booking on the same room is reported as a clash', async () => {
+  const Booking = fakeBooking({ invoiceNumber: 'HSG-A' });
+  const { free, clash } = await roomIsFree(Booking, {
+    roomId: 'r1', checkIn: '2026-09-06', checkOut: '2026-09-09',
+  });
+  assert.equal(free, false);
+  assert.equal(describeClash(clash), 'HSG-A');
+});
+
+test('the overlap window is half-open, so back-to-back stays do not clash', async () => {
+  const Booking = fakeBooking(null);
+  await roomIsFree(Booking, { roomId: 'r1', checkIn: '2026-09-08', checkOut: '2026-09-10' });
+  const q = Booking.calls[0];
+  // checkIn < theirCheckOut AND checkOut > theirCheckIn -- a guest arriving the
+  // day another leaves must not be refused.
+  assert.deepEqual(q.checkIn, { $lt: new Date('2026-09-10') });
+  assert.deepEqual(q.checkOut, { $gt: new Date('2026-09-08') });
+});
+
+test('an edit excludes the booking being edited from its own check', async () => {
+  const Booking = fakeBooking(null);
+  await roomIsFree(Booking, {
+    roomId: 'r1', checkIn: '2026-09-06', checkOut: '2026-09-09', excludeBookingId: 'b7',
+  });
+  assert.deepEqual(Booking.calls[0]._id, { $ne: 'b7' });
+});
+
+test('a create passes no exclusion, so nothing is skipped', async () => {
+  const Booking = fakeBooking(null);
+  await roomIsFree(Booking, { roomId: 'r1', checkIn: '2026-09-06', checkOut: '2026-09-09' });
+  assert.equal('_id' in Booking.calls[0], false);
+});
+
+test('a booking with no room assigned is not room-clashable', async () => {
+  // A category hold names no room; capacity is canReserve's job, not this one.
+  const Booking = fakeBooking({ invoiceNumber: 'SHOULD-NOT-BE-QUERIED' });
+  const { free } = await roomIsFree(Booking, { roomId: null, checkIn: 'x', checkOut: 'y' });
+  assert.equal(free, true);
+  assert.equal(Booking.calls.length, 0, 'must not query at all');
+});
+
+test('describeClash falls back through the identifiers a guest would recognise', () => {
+  assert.equal(describeClash({ invoiceNumber: 'HSG-1', customerId: 'C', guestName: 'G' }), 'HSG-1');
+  assert.equal(describeClash({ customerId: 'C', guestName: 'G' }), 'C');
+  assert.equal(describeClash({ guestName: 'G' }), 'G');
+  assert.equal(describeClash(null), 'existing booking');
+});

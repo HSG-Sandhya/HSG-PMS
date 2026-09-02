@@ -6,11 +6,7 @@ import Company from '../models/Company.js';
 import Housekeeping from '../models/Housekeeping.js';
 import mongoose from 'mongoose';
 import { getBanquetBlockedRoomIds } from './roomController.js';
-import {
-  getInventorySnapshot,
-  freeCountByType,
-  canReserve,
-} from '../services/inventory.js';
+import { getInventorySnapshot, freeCountByType, canReserve, roomIsFree, describeClash } from '../services/inventory.js';
 import { calculateNights } from '../utils/dateHelpers.js';
 import { emitHousekeepingTask } from '../config/socket.js';
 import { sendBookingNotification } from '../services/notificationService.js';
@@ -162,16 +158,16 @@ export const createBooking = async (req, res) => {
     // unless overbooking is explicitly allowed (Settings → Operations → Front
     // desk). Overlap = existing active booking whose stay intersects this one.
     if (!frontDesk.allowOverbooking) {
-      const clash = await Booking.findOne({
+      const { free, clash } = await roomIsFree(Booking, {
         roomId: bookingData.roomId,
-        bookingStatus: { $in: ACTIVE_HOLD_STATUSES },
-        checkIn: { $lt: bookingData.checkOut },
-        checkOut: { $gt: bookingData.checkIn },
-      }).select('invoiceNumber customerId guestName');
-      if (clash) {
+        checkIn: bookingData.checkIn,
+        checkOut: bookingData.checkOut,
+        statuses: ACTIVE_HOLD_STATUSES,
+      });
+      if (!free) {
         return res.status(409).json({
           success: false,
-          message: `This room is already booked for overlapping dates (${clash.invoiceNumber || clash.customerId || clash.guestName || 'existing booking'}). Turn on "Allow overbooking" in Operations settings to override.`,
+          message: `This room is already booked for overlapping dates (${describeClash(clash)}). Turn on "Allow overbooking" in Operations settings to override.`,
         });
       }
 
@@ -396,9 +392,22 @@ export const updateBooking = async (req, res) => {
     }
 
     // Block updates that would put a guest into a room reserved for a banquet event
-    const touchesRoomOrDates = bookingData.roomId || bookingData.checkIn || bookingData.checkOut || bookingData.bookingStatus === 'Confirmed';
+    // Any field that changes WHICH rooms this booking consumes, or WHEN, has to
+    // re-run the availability checks. Presence, not truthiness: `roomId: null`
+    // unassigns a room and turns the booking into a category hold, which needs
+    // checking just as much as assigning one does. roomType and roomCount were
+    // missing from this list, so changing a group block from 1 room to 10, or
+    // switching a hold to a different category, skipped every check below.
+    const INVENTORY_FIELDS = ['roomId', 'roomType', 'checkIn', 'checkOut', 'roomCount'];
+    const touchesRoomOrDates =
+      INVENTORY_FIELDS.some((f) => bookingData[f] !== undefined)
+      || bookingData.bookingStatus === 'Confirmed';
     if (touchesRoomOrDates) {
-      const effRoomId = bookingData.roomId || existingBooking.roomId?._id || existingBooking.roomId;
+      // An explicit null means "unassign this room", so honour it rather than
+      // falling back to the room the booking is being moved off.
+      const effRoomId = bookingData.roomId !== undefined
+        ? bookingData.roomId
+        : (existingBooking.roomId?._id || existingBooking.roomId);
       const effCheckIn = new Date(bookingData.checkIn || existingBooking.checkIn);
       const effCheckOut = new Date(bookingData.checkOut || existingBooking.checkOut);
       if (effRoomId) {
@@ -421,20 +430,18 @@ export const updateBooking = async (req, res) => {
       // edit of a full room or category.
       const { frontDesk: fd } = await getOps();
       if (!fd.allowOverbooking) {
-        if (effRoomId) {
-          const clash = await Booking.findOne({
-            _id: { $ne: bookingId },
-            roomId: effRoomId,
-            bookingStatus: { $in: ACTIVE_HOLD_STATUSES },
-            checkIn: { $lt: effCheckOut },
-            checkOut: { $gt: effCheckIn },
-          }).select('invoiceNumber customerId guestName');
-          if (clash) {
-            return res.status(409).json({
-              success: false,
-              message: `This room is already booked for overlapping dates (${clash.invoiceNumber || clash.customerId || clash.guestName || 'existing booking'}). Turn on "Allow overbooking" in Operations settings to override.`,
-            });
-          }
+        const { free, clash } = await roomIsFree(Booking, {
+          roomId: effRoomId,
+          checkIn: effCheckIn,
+          checkOut: effCheckOut,
+          statuses: ACTIVE_HOLD_STATUSES,
+          excludeBookingId: bookingId,
+        });
+        if (!free) {
+          return res.status(409).json({
+            success: false,
+            message: `This room is already booked for overlapping dates (${describeClash(clash)}). Turn on "Allow overbooking" in Operations settings to override.`,
+          });
         }
 
         // A category hold names no room, so a room-level clash check cannot see

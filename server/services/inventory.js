@@ -166,6 +166,43 @@ export const freeCountByType = (rooms, snapshot) => {
  *
  * @returns {{ ok: boolean, available: number, requested: number }}
  */
+/**
+ * The booking, if any, that already holds this room over this window.
+ *
+ * createBooking and updateBooking each had their own copy of this query. Two
+ * copies of an overlap test is one too many: the update path's copy was missing
+ * entirely until recently, which is exactly how an edit could move a booking on
+ * top of another one.
+ *
+ * Overlap is half-open -- `checkIn < theirCheckOut && checkOut > theirCheckIn`
+ * -- so a guest arriving the day another leaves does NOT count as a clash.
+ *
+ * `excludeBookingId` is required when checking an edit: the booking being
+ * changed already occupies its own slot, and counting it against itself would
+ * block every edit of an already-full room.
+ */
+export const roomIsFree = async (
+  Booking,
+  { roomId, checkIn, checkOut, statuses = ACTIVE, excludeBookingId = null } = {}
+) => {
+  if (!roomId) return { free: true, clash: null };
+
+  const query = {
+    roomId,
+    bookingStatus: { $in: statuses },
+    checkIn: { $lt: new Date(checkOut) },
+    checkOut: { $gt: new Date(checkIn) },
+  };
+  if (excludeBookingId) query._id = { $ne: excludeBookingId };
+
+  const clash = await Booking.findOne(query).select('invoiceNumber customerId guestName');
+  return { free: !clash, clash };
+};
+
+/** How a clash reads to the person who hit it. */
+export const describeClash = (clash) =>
+  clash?.invoiceNumber || clash?.customerId || clash?.guestName || 'existing booking';
+
 export const canReserve = async (
   Room,
   { roomType, count = 1, checkIn, checkOut, statuses, excludeBookingId },
