@@ -8,6 +8,7 @@ import { useLocation } from 'react-router-dom';
 import PaymentGateway from '../components/PaymentGateway';
 import OptionSelect from '../components/OptionSelect';
 import { roomImage } from '../lib/roomImages';
+import { fetchTaxRates, taxOn, taxLabel } from '../lib/tax';
 
 const EASE = [0.22, 1, 0.36, 1];
 
@@ -246,6 +247,7 @@ const Field = ({ label, error, children }) => (
 
 const Booking = () => {
   const [rooms, setRooms] = useState([]);
+  const [taxRates, setTaxRates] = useState(null);
   const [loading, setLoading] = useState(false);
   const [selectedRoom, setSelectedRoom] = useState(null);
   const [nights, setNights] = useState(1);
@@ -274,8 +276,14 @@ const Booking = () => {
   useEffect(() => {
     (async () => {
       try {
-        const { data } = await axios.get('/api/website/rooms');
+        // Rooms and the tax rate together: a tariff cannot be quoted without
+        // the rate the server will actually apply to it.
+        const [{ data }, rates] = await Promise.all([
+          axios.get('/api/website/rooms'),
+          fetchTaxRates(),
+        ]);
         setRooms(data.filter((r) => r.status && r.status.toLowerCase() === 'available'));
+        setTaxRates(rates);
       } catch (err) {
         console.error('Error fetching rooms:', err);
         toast.error('Failed to load available rooms');
@@ -359,7 +367,10 @@ const Booking = () => {
   // selection and the number of rooms so the summary and payment reconcile.
   const perRoomBase = selectedRoom && nights > 0 ? selectedRoom.price * nights : 0;
   const baseAmount = perRoomBase * roomCount;
-  const gstAmount = Math.round(baseAmount * 0.05);
+  // Accommodation uses roomGstRate, which is configured separately from the
+  // restaurant's posGstRate -- both came from the same hardcoded 5% before.
+  const gstRate = taxRates?.roomGstRate;
+  const gstAmount = gstRate == null ? 0 : taxOn(baseAmount, gstRate, taxRates.roundAmounts);
   const grandTotal = baseAmount + gstAmount;
 
   useEffect(() => {
@@ -372,6 +383,12 @@ const Booking = () => {
   }, []);
 
   const onSubmit = async (data) => {
+    // Without the rate we would post a total with no GST on it. Better to ask
+    // the guest to retry than to book a tariff neither side agrees on.
+    if (gstRate == null) {
+      toast.error('Could not load current tax rates. Please refresh and try again.');
+      return;
+    }
     setLoading(true);
     try {
       const origin = (data.origin || '').trim();
@@ -785,7 +802,10 @@ const Booking = () => {
                       value={`₹${baseAmount.toLocaleString('en-IN')}`}
                     />
                   )}
-                  <Row label="GST (5%)" value={`₹${gstAmount.toLocaleString('en-IN')}`} />
+                  <Row
+                    label={taxLabel(gstRate)}
+                    value={gstRate == null ? '—' : `₹${gstAmount.toLocaleString('en-IN')}`}
+                  />
                 </>
               )}
 

@@ -31,7 +31,8 @@ import {
 } from '@mui/icons-material';
 import api from '../../../api';
 import { broadcastSettingsChange } from '../settingsEvents';
-import { currencySym, liveRoomGstFraction } from '../../../utils/billing';
+import { currencySym, liveRoomGstFraction, calcGst } from '../../../utils/billing';
+import { useBilling } from '../../../hooks/useBilling';
 import RoomsManager from './RoomsManager';
 import {
   dialogPaperSx,
@@ -41,8 +42,6 @@ import {
   primaryButtonSx,
   secondaryButtonSx,
 } from '../../forms/formStyles';
-
-const GST_RATE = 0.05;
 
 const emptyForm = {
   name: '',
@@ -218,6 +217,11 @@ const CategoryCard = ({ category, onEdit, onDelete, isDarkMode }) => {
 };
 
 const RoomCategoriesSection = ({ onNotify }) => {
+  // The room GST rate is configured in Billing & Tariff. This panel hardcoded
+  // 5% while the category list two hundred lines below already used the
+  // configured rate via liveRoomGstFraction() -- so the editor and the list
+  // could disagree with each other on the same screen.
+  const billing = useBilling();
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === 'dark';
   const [categories, setCategories] = useState([]);
@@ -259,7 +263,7 @@ const RoomCategoriesSection = ({ onNotify }) => {
   };
 
   const basePriceNum = Number(form.basePrice) || 0;
-  const gstAmount = basePriceNum * GST_RATE;
+  const gstAmount = calcGst(basePriceNum, billing);
   const totalPrice = basePriceNum + gstAmount;
 
   const handleSave = async () => {
@@ -489,7 +493,7 @@ const RoomCategoriesSection = ({ onNotify }) => {
             <motion.div variants={fieldItem}>
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
                 <TextField
-                  label="GST (5%)"
+                  label={`GST (${billing.roomGstRate}%)`}
                   value={gstAmount.toFixed(2)}
                   fullWidth
                   disabled

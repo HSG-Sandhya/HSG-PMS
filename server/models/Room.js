@@ -22,18 +22,21 @@ const roomSchema = new mongoose.Schema({
 
   pricePerNight: { type: Number, required: true, min: 0 },
 
+  // Denormalised tariff figures, seeded from the CONFIGURED room GST rate by
+  // roomController.applyGstDefaults() on create and update.
+  //
+  // These used to carry schema defaults of `pricePerNight * 0.05` and
+  // `* 1.05`. A schema default cannot await Settings, so it could only ever
+  // hardcode a rate -- and it silently overrode the configured one for any
+  // document that reached the field without going through the controller.
+  // Left unset, a legacy room falls back to a rate-aware calculation at the
+  // point of display instead.
   gstAmount: {
-    type: Number,
-    default: function () {
-      return this.pricePerNight ? this.pricePerNight * 0.05 : 0;
-    }
+    type: Number
   },
 
   totalPrice: {
-    type: Number,
-    default: function () {
-      return this.pricePerNight ? this.pricePerNight * 1.05 : 0;
-    }
+    type: Number
   },
 
   // Amenities are driven by the selected category, so any string is allowed.

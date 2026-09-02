@@ -11,6 +11,7 @@ import { meta as marigoldMeta, render as renderMarigold } from './banquet/marigo
 import { meta as corporateMeta, render as renderCorporate } from './banquet/corporate.js';
 import QRCode from 'qrcode';
 import { normalizeInvoiceContext } from './normalize.js';
+import { getBilling } from '../../config/operationalConfig.js';
 import { getOps } from '../../config/operationalConfig.js';
 
 // Build the UPI "scan & pay" QR for the invoice. Encodes a standard UPI intent
@@ -109,7 +110,7 @@ const FIT_TO_PAGE_SCRIPT = `<script>
 // Render a banquet document. docType is 'invoice' or 'quotation'.
 export const renderBanquetDocument = async ({ booking, hotel, templateId, docType = 'invoice', bankAccount = null }) => {
   const template = getBanquetTemplate(templateId);
-  const context = normalizeInvoiceContext({ booking, hotel, type: 'banquet' });
+  const context = normalizeInvoiceContext({ booking, hotel, type: 'banquet', billing: await getBilling() });
   // Surface the configurable banquet rules (advance %, quotation validity) so
   // the quotation reflects Settings → Operations instead of hardcoded values.
   try {

@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { toast } from 'react-toastify';
 import { FOOD_PLACEHOLDER, menuImage } from '../lib/foodImages';
+import { fetchTaxRates, taxOn, taxLabel } from '../lib/tax';
 
 const STATUS_TONE = {
   Pending:      'text-brass-500',
@@ -19,6 +20,7 @@ const RoomService = () => {
   const [roomData, setRoomData] = useState(null);
   const [menuItems, setMenuItems] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [taxRates, setTaxRates] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [cart, setCart] = useState([]);
@@ -30,10 +32,16 @@ const RoomService = () => {
   const fetchRoomServiceData = useCallback(async () => {
     try {
       setLoading(true);
-      const { data } = await axios.get(`/api/website/room-service/${roomNumber}`);
+      // The tax rate is fetched with the menu: pricing a cart without it would
+      // mean guessing, and a guessed rate quotes a total we will not charge.
+      const [{ data }, rates] = await Promise.all([
+        axios.get(`/api/website/room-service/${roomNumber}`),
+        fetchTaxRates(),
+      ]);
       setRoomData(data);
       setMenuItems(data.menuItems);
       setCategories(data.categories);
+      setTaxRates(rates);
       const hist = await axios.get(`/api/website/room-service/${roomNumber}/orders`);
       setOrderHistory(hist.data);
     } catch (err) {
@@ -65,8 +73,10 @@ const RoomService = () => {
     q <= 0 ? removeFromCart(id) : setCart(cart.map((i) => (i._id === id ? { ...i, quantity: q } : i)));
 
   const subtotal = cart.reduce((s, i) => s + i.price * i.quantity, 0);
-  const gst = Math.round(subtotal * 0.05);
-  const total = subtotal + gst;
+  // Server-supplied rate, so the quote and the charge cannot drift apart.
+  const gstRate = taxRates?.posGstRate;
+  const gst = gstRate == null ? null : taxOn(subtotal, gstRate, taxRates.roundAmounts);
+  const total = subtotal + (gst || 0);
   const itemCount = cart.reduce((s, i) => s + i.quantity, 0);
 
   const placeOrder = async () => {
@@ -232,7 +242,7 @@ const RoomService = () => {
                     <p className="mt-1 text-xs text-ink-400">{new Date(order.createdAt).toLocaleString('en-IN')}</p>
                     <div className="mt-3 text-sm text-ink-600 font-light space-y-1">
                       <div className="flex justify-between"><span>Subtotal</span><span>₹{order.totalAmount - (order.gst || 0)}</span></div>
-                      <div className="flex justify-between"><span>GST</span><span>₹{order.gst || Math.round(order.totalAmount * 0.05)}</span></div>
+                      <div className="flex justify-between"><span>GST</span><span>₹{order.gst || 0}</span></div>
                       <div className="flex justify-between font-serif text-ink-900 pt-1"><span>Total</span><span>₹{order.totalAmount}</span></div>
                     </div>
                   </li>
@@ -311,8 +321,8 @@ const RoomService = () => {
 
                   <div className="space-y-2 text-sm pt-4">
                     <div className="flex justify-between text-ink-500 font-light"><span>Subtotal</span><span>₹{subtotal}</span></div>
-                    <div className="flex justify-between text-ink-500 font-light"><span>GST (5%)</span><span>₹{gst}</span></div>
-                    <div className="flex justify-between font-serif text-2xl text-ink-900 pt-3 border-t border-ink-100"><span>Total</span><span>₹{total}</span></div>
+                    <div className="flex justify-between text-ink-500 font-light"><span>{taxLabel(gstRate)}</span><span>{gst == null ? '—' : `₹${gst}`}</span></div>
+                    <div className="flex justify-between font-serif text-2xl text-ink-900 pt-3 border-t border-ink-100"><span>Total</span><span>{gst == null ? 'Calculated at checkout' : `₹${total}`}</span></div>
                   </div>
 
                   <button onClick={placeOrder} disabled={placingOrder} className="btn-primary w-full mt-4 disabled:opacity-50">

@@ -1,6 +1,5 @@
 import { balanceOf } from '../../utils/money.js';
-
-const GST_RATE = 0.05; // 5% (2.5 CGST + 2.5 SGST) — base inclusive (hotel/restaurant)
+import { BILLING_DEFAULTS, pctToFraction } from '../../config/operationalDefaults.js';
 
 // Banquet services are taxed at 18% (9% CGST + 9% SGST). Catering is priced
 // pre-GST (tax added on top); every other banquet line is priced GST-inclusive.
@@ -337,7 +336,7 @@ const buildBanquetItems = (booking) => {
   });
 };
 
-const computeTotals = (items, booking, isBanquet = false) => {
+const computeTotals = (items, booking, isBanquet = false, billing = BILLING_DEFAULTS) => {
   const round2 = (n) => Math.round(n * 100) / 100;
   const paid = Number(booking.paidAmount || booking.amountPaid || booking.advanceAmount || 0);
 
@@ -380,10 +379,20 @@ const computeTotals = (items, booking, isBanquet = false) => {
   }
 
   const itemsTotal = items.reduce((sum, item) => sum + Number(item.amount || 0), 0);
-  const declaredTotal = Number(booking.totalAmount || 0)
-    + Number(booking.restaurantCharges || 0);
+  const roomPortion = Number(booking.totalAmount || 0);
+  const foodPortion = Number(booking.restaurantCharges || 0);
+  const declaredTotal = roomPortion + foodPortion;
   const grandTotal = declaredTotal || itemsTotal;
-  const taxable = grandTotal / (1 + GST_RATE);
+
+  // Accommodation and food carry separately configurable GST rates. This split
+  // the combined total at one hardcoded 5%, which is correct only while the two
+  // rates happen to be equal -- and prints a wrong taxable value, and wrong
+  // CGST/SGST, on a tax invoice the moment they are not.
+  const roomDivisor = 1 + pctToFraction(billing.roomGstRate);
+  const posDivisor = 1 + pctToFraction(billing.posGstRate);
+  const taxable = declaredTotal
+    ? roomPortion / roomDivisor + foodPortion / posDivisor
+    : grandTotal / roomDivisor;
   const taxAmount = grandTotal - taxable;
   const cgst = taxAmount / 2;
   const sgst = taxAmount / 2;
@@ -410,11 +419,16 @@ const buildInvoiceNumber = (booking, type) => {
   return `${prefix}-${year}-${seed}`;
 };
 
-export const normalizeInvoiceContext = ({ booking, hotel, type, payment = null }) => {
+export const normalizeInvoiceContext = ({
+  booking, hotel, type, payment = null,
+  // Resolved billing config from the async callers. Defaults to the canonical
+  // defaults module so this stays a pure function with no rate of its own.
+  billing = BILLING_DEFAULTS,
+}) => {
   const safeBooking = booking || {};
   const isBanquet = type === 'banquet';
   const items = isBanquet ? buildBanquetItems(safeBooking) : buildHotelItems(safeBooking);
-  const totals = computeTotals(items, safeBooking, isBanquet);
+  const totals = computeTotals(items, safeBooking, isBanquet, billing);
 
   const customerName = safeBooking.customerName
     || safeBooking.guestName

@@ -3,6 +3,7 @@ import Order from '../models/Order.js';
 import Room from '../models/Room.js';
 import Settings from '../models/Settings.js';
 import GuestPrintFormTemplate from './templates/GuestPrintFormTemplate.js';
+import { getBilling } from '../config/operationalConfig.js';
 
 class GuestPrintService {
   /**
@@ -79,7 +80,10 @@ class GuestPrintService {
       const guestTemplate = new GuestPrintFormTemplate();
       const templateOptions = {
         ...options,
-        restaurantOrders
+        restaurantOrders,
+        // The configured GST rates, so the form backs base amounts out of
+        // tax-inclusive totals at the rate we actually charged.
+        billing: await getBilling(),
       };
       
       const guestFormHtml = guestTemplate.generateHTML(booking, room, templateOptions, hotelInfo);
@@ -140,9 +144,12 @@ class GuestPrintService {
       // Try to fetch hotel info from database
       const hotelInfo = await this.getHotelInfo();
       const guestTemplate = new GuestPrintFormTemplate();
-      return guestTemplate.generateHTML(booking, room, options, hotelInfo);
+      return guestTemplate.generateHTML(
+        booking, room, { ...options, billing: await getBilling() }, hotelInfo
+      );
     } catch (error) {
-      // Fallback to template default hotel info
+      // Fallback to template default hotel info. The template resolves its own
+      // billing defaults when none is passed.
       const guestTemplate = new GuestPrintFormTemplate();
       return guestTemplate.generateHTML(booking, room, options);
     }

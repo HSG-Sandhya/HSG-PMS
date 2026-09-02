@@ -17,6 +17,7 @@ import {
   getAmenities,
   getServices,
   getRoomsForWebsite,
+  getTaxConfig,
   createRestaurantOrder,
   getRoomServiceContext,
   createRoomServiceOrder,
@@ -54,6 +55,9 @@ router.get('/gallery', getGallery);
 router.get('/amenities', getAmenities);
 router.get('/services', getServices);
 router.get('/rooms', getRoomsForWebsite);
+
+// Tax rates the storefront must quote with (see getTaxConfig)
+router.get('/tax-config', getTaxConfig);
 
 // Restaurant / room service
 router.post('/restaurant-order', createRestaurantOrder);

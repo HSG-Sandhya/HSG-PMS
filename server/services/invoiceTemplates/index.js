@@ -12,6 +12,7 @@ import { meta as monogramMeta, render as renderMonogram } from './monogram.js';
 import { meta as complianceGridMeta, render as renderComplianceGrid } from './complianceGrid.js';
 import { meta as folioStatementMeta, render as renderFolioStatement } from './folioStatement.js';
 import { normalizeInvoiceContext } from './normalize.js';
+import { getBilling } from '../../config/operationalConfig.js';
 
 // The decorative set (fiscal, luxe, atelier, aurora, mono, ledger, quiet,
 // formal) was replaced by the detailed house set below: Hotel Standard plus
@@ -89,7 +90,7 @@ const FIT_TO_PAGE_SNIPPET = `
 
 export const renderInvoice = async ({ booking, hotel, type, templateId, payment = null }) => {
   const template = getTemplate(templateId);
-  const context = normalizeInvoiceContext({ booking, hotel, type, payment });
+  const context = normalizeInvoiceContext({ booking, hotel, type, payment, billing: await getBilling() });
   const html = await template.render(context, { booking, hotel, type });
   if (typeof html === 'string' && html.includes('</body>')) {
     return html.replace('</body>', `${FIT_TO_PAGE_SNIPPET}</body>`);

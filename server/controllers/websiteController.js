@@ -12,7 +12,7 @@ import paymentService from '../services/paymentService.js';
 import { sendBookingNotification } from '../services/notificationService.js';
 import { syncRoomBookingIncome } from '../services/accountingSync.js';
 import { emitNewWebsiteBooking } from '../config/socket.js';
-import { getBilling } from '../config/operationalConfig.js';
+import { getBilling, roomGst } from '../config/operationalConfig.js';
 import { priceOrder, OrderPricingError } from '../services/orderPricing.js';
 import { getBanquetBlockedRoomIds } from './roomController.js';
 import { getInventorySnapshot, availabilityByType, canReserve } from '../services/inventory.js';
@@ -628,6 +628,7 @@ export const getRoomsForWebsite = async (_req, res) => {
     const rooms = await Room.find({}).select(
       'roomNumber type capacity pricePerNight totalPrice amenities description floor status'
     );
+    const billing = await getBilling();
     const formatted = rooms.map((room) => {
       // Expose the *base* nightly price to the website; the storefront adds
       // GST on top so it can show the breakdown to the guest.
@@ -640,7 +641,7 @@ export const getRoomsForWebsite = async (_req, res) => {
         capacity: room.capacity.adults + room.capacity.children,
         price: basePrice,
         pricePerNight: basePrice,
-        totalPrice: room.totalPrice || Math.round(basePrice * 1.05),
+        totalPrice: room.totalPrice || basePrice + roomGst(basePrice, billing),
         amenities: room.amenities,
         description: room.description,
         floor: room.floor,
@@ -656,6 +657,31 @@ export const getRoomsForWebsite = async (_req, res) => {
   } catch (error) {
     console.error('Error getting rooms for website:', error);
     res.status(500).json({ message: 'Error getting rooms' });
+  }
+};
+
+/**
+ * The tax rates the server will actually charge.
+ *
+ * The storefront has to show a running total as the guest builds a cart or picks
+ * dates, so it needs the rate client-side. It used to hardcode 5%, which is
+ * merely the current default -- change posGstRate or roomGstRate in Settings and
+ * the site would quote one figure and the server would charge another.
+ *
+ * Publishing the rate is not a disclosure: it is printed on every invoice and
+ * required to be. What stays server-side is the arithmetic that binds money to
+ * an order -- see services/orderPricing.js.
+ */
+export const getTaxConfig = async (_req, res) => {
+  try {
+    const { roomGstRate, posGstRate, roundAmounts, currencyCode, currencySymbol } = await getBilling();
+    // Short cache: rates change about never, but a settings edit should reach
+    // the storefront within a few minutes without a redeploy.
+    res.set('Cache-Control', 'public, max-age=300');
+    res.json({ roomGstRate, posGstRate, roundAmounts, currencyCode, currencySymbol });
+  } catch (error) {
+    console.error('Error getting tax config:', error);
+    res.status(500).json({ message: 'Error getting tax configuration' });
   }
 };
 

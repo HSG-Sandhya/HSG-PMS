@@ -2,9 +2,14 @@
  * Restaurant Calculation Utilities
  * Common calculation logic for restaurant orders across all invoice templates
  */
-// POS GST on food — 5% (2.5 CGST + 2.5 SGST), the same rate the rest of the
-// invoice stack uses for restaurant lines.
-const GST_RATE = 0.05;
+import { BILLING_DEFAULTS, pctToFraction } from '../../config/operationalDefaults.js';
+
+// POS GST on food is configured in Billing & Tariff (posGstRate). This module
+// hardcoded 5% and used it to back the taxable value out of GST-inclusive
+// totals -- so raising or lowering the rate would have printed a wrong taxable
+// value on a GST invoice, silently and in the hotel's own favour or against it.
+// Callers pass the resolved billing config; the canonical defaults module is
+// the only fallback.
 
 class RestaurantCalculationUtils {
   /**
@@ -13,7 +18,8 @@ class RestaurantCalculationUtils {
    * @param {number} restaurantCharges - Total restaurant charges from booking
    * @returns {Object} Calculation results
    */
-  static calculateRestaurantTotals(restaurantOrders = [], restaurantCharges = 0) {
+  static calculateRestaurantTotals(restaurantOrders = [], restaurantCharges = 0, billing = BILLING_DEFAULTS) {
+    const GST_RATE = pctToFraction(billing.posGstRate);
     let calculatedSubtotal = 0;
     let totalItems = 0;
     let itemsBreakdown = [];
@@ -185,7 +191,8 @@ class RestaurantCalculationUtils {
    * @param {Object} calculation - Calculation results
    * @returns {Object} Validation results
    */
-  static validateCalculation(calculation) {
+  static validateCalculation(calculation, billing = BILLING_DEFAULTS) {
+    const GST_RATE = pctToFraction(billing.posGstRate);
     const errors = [];
     const warnings = [];
     
@@ -195,7 +202,7 @@ class RestaurantCalculationUtils {
     if (calculation.total < 0) errors.push('Total cannot be negative');
     
     // Check GST calculation accuracy
-    const expectedGst = Math.round(calculation.subtotal * 0.05 * 100) / 100;
+    const expectedGst = Math.round(calculation.subtotal * GST_RATE * 100) / 100;
     if (Math.abs(calculation.gstAmount - expectedGst) > 0.01) {
       warnings.push(`GST calculation may be inaccurate. Expected: ${expectedGst}, Got: ${calculation.gstAmount}`);
     }
@@ -210,7 +217,7 @@ class RestaurantCalculationUtils {
     if (calculation.originalRestaurantCharges > 0 && calculation.calculationMethod === 'calculated') {
       const difference = Math.abs(calculation.total - calculation.originalRestaurantCharges);
       // Only warn if the difference is significant and not explainable by GST
-      const expectedGstDifference = Math.round(calculation.originalRestaurantCharges * 0.05);
+      const expectedGstDifference = Math.round(calculation.originalRestaurantCharges * GST_RATE);
       if (difference > 5 && Math.abs(difference - expectedGstDifference) > 2) {
         warnings.push(`Calculated total (${calculation.total}) differs significantly from restaurant charges (${calculation.originalRestaurantCharges}) by ₹${difference}`);
       }

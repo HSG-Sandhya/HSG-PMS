@@ -1,4 +1,5 @@
 import BaseInvoiceTemplate from './BaseInvoiceTemplate.js';
+import { BILLING_DEFAULTS, pctToFraction } from '../../config/operationalDefaults.js';
 
 /**
  * Guest Details & Checkout Form — editorial / modern.
@@ -354,13 +355,21 @@ class GuestPrintFormTemplate extends BaseInvoiceTemplate {
     const {
       additionalNotes = '',
       restaurantOrders = [],
+      // Resolved billing config, supplied by guestPrintService. Falls back to
+      // the canonical defaults module rather than to a literal rate, so this
+      // template never invents a percentage of its own.
+      billing = BILLING_DEFAULTS,
     } = options;
 
     const restaurantCharges = restaurantOrders.reduce((t, o) => t + (o.totalAmount || 0), 0);
     const roomTotal = booking.totalAmount || 0;
-    const baseTariff = booking.baseAmount || (roomTotal / 1.05);
+    // Accommodation and food are taxed at separately configurable rates; both
+    // were hardcoded to 5% here via `/ 1.05`.
+    const roomDivisor = 1 + pctToFraction(billing.roomGstRate);
+    const posDivisor = 1 + pctToFraction(billing.posGstRate);
+    const baseTariff = booking.baseAmount || (roomTotal / roomDivisor);
     const roomGst = roomTotal - baseTariff;
-    const restBase = restaurantCharges / 1.05;
+    const restBase = restaurantCharges / posDivisor;
     const restGst = restaurantCharges - restBase;
     const grandTotal = roomTotal + restaurantCharges;
 

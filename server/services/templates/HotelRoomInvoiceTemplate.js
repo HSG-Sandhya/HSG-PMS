@@ -1,6 +1,7 @@
 import BaseInvoiceTemplate from './BaseInvoiceTemplate.js';
 import { balanceOf } from '../../utils/money.js';
 import RestaurantCalculationUtils from './RestaurantCalculationUtils.js';
+import { getBilling } from '../../config/operationalConfig.js';
 
 /**
  * Hotel Room Invoice Template — editorial / modern.
@@ -504,7 +505,17 @@ class HotelRoomInvoiceTemplate extends BaseInvoiceTemplate {
     const restaurantOrders = booking.restaurantOrders || [];
     if (restaurantCharges === 0 && restaurantOrders.length === 0) return '';
 
-    const calc = RestaurantCalculationUtils.calculateRestaurantTotals(restaurantOrders, restaurantCharges);
+    // A tax invoice has to state -- and compute at -- the rate it actually
+    // charged. Both the figures and the "GST @ 5% / CGST 2.5% + SGST 2.5%"
+    // caption were hardcoded, so changing posGstRate would have printed a
+    // compliant-looking but wrong invoice.
+    const billing = await getBilling();
+    const posGstRate = billing.posGstRate;
+    const halfGstRate = posGstRate / 2;
+
+    const calc = RestaurantCalculationUtils.calculateRestaurantTotals(
+      restaurantOrders, restaurantCharges, billing
+    );
     const { subtotal, gstAmount, total, itemsBreakdown, totalItems } = calc;
 
     const foodBillNumber = invoiceNumber
@@ -648,7 +659,7 @@ class HotelRoomInvoiceTemplate extends BaseInvoiceTemplate {
         <tbody>${itemsRows}</tbody>
         <tfoot>
           <tr class="sub"><td class="lbl" colspan="2">Taxable value</td><td class="amt">${RestaurantCalculationUtils.formatCurrency(subtotal)}</td></tr>
-          <tr class="sub"><td class="lbl">GST @ 5%</td><td class="detail">CGST 2.5% + SGST 2.5%${calc.pricesIncludeGst ? ', included above' : ''}</td><td class="amt">${RestaurantCalculationUtils.formatCurrency(gstAmount)}</td></tr>
+          <tr class="sub"><td class="lbl">GST @ ${posGstRate}%</td><td class="detail">CGST ${halfGstRate}% + SGST ${halfGstRate}%${calc.pricesIncludeGst ? ', included above' : ''}</td><td class="amt">${RestaurantCalculationUtils.formatCurrency(gstAmount)}</td></tr>
           <tr class="total"><td class="lbl" colspan="2">Food bill total</td><td class="amt">${RestaurantCalculationUtils.formatCurrency(total)}</td></tr>
         </tfoot>
       </table>
@@ -677,7 +688,9 @@ class HotelRoomInvoiceTemplate extends BaseInvoiceTemplate {
 
     const restaurantOrders = booking.restaurantOrders || [];
     const restaurantCharges = booking.restaurantCharges || 0;
-    const restaurantCalc = RestaurantCalculationUtils.calculateRestaurantTotals(restaurantOrders, restaurantCharges);
+    const restaurantCalc = RestaurantCalculationUtils.calculateRestaurantTotals(
+      restaurantOrders, restaurantCharges, await getBilling()
+    );
     const finalRestaurantCharges = restaurantCalc.total;
     // Food is billed on its OWN document (the Food Bill that follows), so this
     // invoice covers accommodation alone — the two are added up once, at the
