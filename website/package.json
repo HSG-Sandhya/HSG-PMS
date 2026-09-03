@@ -16,8 +16,8 @@
   },
   "scripts": {
     "start": "cross-env PORT=3002 react-scripts start",
-    "build": "react-scripts build",
-    "build:prod": "cross-env REACT_APP_API_URL=https://admin.sandhyagrand.in react-scripts build",
+    "build": "cross-env GENERATE_SOURCEMAP=false react-scripts build",
+    "build:prod": "cross-env GENERATE_SOURCEMAP=false REACT_APP_API_URL=https://admin.sandhyagrand.in react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
   },
