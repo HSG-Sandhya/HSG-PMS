@@ -12,7 +12,7 @@ import { startDb, stopDb, clearDb, skipReason, silenceOutbound } from './helpers
 import Booking from '../models/Booking.js';
 import Room from '../models/Room.js';
 import Settings from '../models/Settings.js';
-import { createBooking } from '../controllers/bookingController.js';
+import { createBooking, updateBooking } from '../controllers/bookingController.js';
 import { quoteDeskStay } from '../services/bookingPricing.js';
 import { resetSequenceCache } from '../services/sequence.js';
 import { invalidateOperationalConfig } from '../config/operationalConfig.js';
@@ -29,6 +29,14 @@ const call = async (body) => {
   res.status = (c) => { res.statusCode = c; return res; };
   res.json = (b) => { res.body = b; return res; };
   await createBooking({ body, params: {}, query: {}, user: { _id: new mongoose.Types.ObjectId() } }, res);
+  return res;
+};
+
+const put = async (id, body) => {
+  const res = { statusCode: 200, body: null };
+  res.status = (c) => { res.statusCode = c; return res; };
+  res.json = (b) => { res.body = b; return res; };
+  await updateBooking({ params: { id: String(id) }, body, query: {}, user: { _id: new mongoose.Types.ObjectId() } }, res);
   return res;
 };
 
@@ -185,6 +193,150 @@ test('front-desk pricing', { skip: ready ? false : skipReason, timeout: 120_000 
     await seedRoom();
     const res = await call(booking(new mongoose.Types.ObjectId()));
     assert.equal(res.statusCode, 404);
+  });
+
+  // ── Editing is the same door ──────────────────────────────────────────────
+  // Fixing createBooking alone fixed nothing: a correctly-priced booking could
+  // be rewritten with a PUT.
+  await t.test('an edit cannot rewrite the money', async () => {
+    const room = await seedRoom();
+    await call(booking(room._id));
+    const before = await Booking.findOne().lean();
+    assert.equal(before.totalAmount, RATE * NIGHTS * 1.05);
+
+    const res = await put(before._id, {
+      totalAmount: 1, baseAmount: 1, gstAmount: 0, paidAmount: 1, paymentStatus: 'Paid',
+    });
+    assert.equal(res.statusCode, 200, res.body?.message);
+
+    const after = await Booking.findOne().lean();
+    assert.equal(after.totalAmount, before.totalAmount, 'the caller rewrote the total');
+    assert.equal(after.paidAmount, 1, 'a genuine 1-rupee payment is still recorded');
+    assert.equal(after.paymentStatus, 'Partial', 'the booking was marked settled without the money');
+    assert.equal(after.remainingAmount, before.totalAmount - 1);
+  });
+
+  await t.test('an edit that changes nothing priceable leaves the money alone', async () => {
+    const room = await seedRoom();
+    await call(booking(room._id));
+    const before = await Booking.findOne().lean();
+
+    const res = await put(before._id, { bookingStatus: 'Confirmed', specialRequests: 'high floor' });
+    assert.equal(res.statusCode, 200, res.body?.message);
+
+    const after = await Booking.findOne().lean();
+    assert.equal(after.totalAmount, before.totalAmount);
+    assert.equal(after.baseAmount, before.baseAmount);
+    assert.equal(after.gstAmount, before.gstAmount);
+  });
+
+  await t.test('extending the stay re-prices it', async () => {
+    const room = await seedRoom();
+    await call(booking(room._id));
+    const before = await Booking.findOne().lean();
+
+    const res = await put(before._id, { checkOut: '2027-05-15' });   // 3 -> 5 nights
+    assert.equal(res.statusCode, 200, res.body?.message);
+
+    const after = await Booking.findOne().lean();
+    assert.equal(after.baseAmount, RATE * 5);
+    assert.equal(after.totalAmount, RATE * 5 * 1.05);
+  });
+
+  await t.test('a rate bargained at the edit is honoured and priced from', async () => {
+    const room = await seedRoom();
+    await call(booking(room._id));
+    const before = await Booking.findOne().lean();
+
+    const res = await put(before._id, { roomRate: 1200 });
+    assert.equal(res.statusCode, 200, res.body?.message);
+
+    const after = await Booking.findOne().lean();
+    assert.equal(after.roomRate, 1200);
+    assert.equal(after.baseAmount, 1200 * NIGHTS);
+    assert.equal(after.totalAmount, 1200 * NIGHTS * 1.05);
+  });
+
+  await t.test('a booking predating roomRate is not zeroed out when re-priced', async () => {
+    const room = await seedRoom();
+    await call(booking(room._id));
+    const created = await Booking.findOne().lean();
+    // Every booking written before the desk recorded a rate has roomRate: 0.
+    await Booking.updateOne({ _id: created._id }, { $set: { roomRate: 0 } });
+
+    const res = await put(created._id, { checkOut: '2027-05-14' });   // 4 nights
+    assert.equal(res.statusCode, 200, res.body?.message);
+
+    const after = await Booking.findOne().lean();
+    assert.equal(after.baseAmount, RATE * 4, 'a stored rate of 0 was read as a complimentary tariff');
+    assert.equal(after.totalAmount, RATE * 4 * 1.05);
+  });
+
+  // ── Checkout ──────────────────────────────────────────────────────────────
+  await t.test('checkout settles on the nights actually stayed, with the late fee on top', async () => {
+    const room = await seedRoom();
+    await call(booking(room._id, { checkedIn: true }));   // walk-in, in house
+    const created = await Booking.findOne().lean();
+
+    // Guest leaves a night early, and pays a late-checkout charge on the last day.
+    const res = await put(created._id, {
+      bookingStatus: 'Completed',
+      actualNights: 2,
+      lateCheckoutFee: 500,
+      checkOut: '2027-05-12',
+      paidAmount: 2 * RATE * 1.05 + 500,
+    });
+    assert.equal(res.statusCode, 200, res.body?.message);
+
+    const after = await Booking.findOne().lean();
+    const roomBase = RATE * 2;
+    assert.equal(after.baseAmount, roomBase, 'the stay was not re-priced to the nights stayed');
+    assert.equal(after.gstAmount, roomBase * 0.05, 'the late fee must not be taxed as room nights');
+    assert.equal(after.lateCheckoutFee, 500, 'the fee is its own invoice line');
+    assert.equal(after.totalAmount, roomBase * 1.05 + 500, 'the guest must be billed the fee');
+    assert.equal(after.remainingAmount, 0);
+    assert.equal(after.paymentStatus, 'Paid');
+  });
+
+  await t.test('a late fee is never counted twice', async () => {
+    const room = await seedRoom();
+    await call(booking(room._id));
+    const created = await Booking.findOne().lean();
+
+    await put(created._id, { actualNights: 3, lateCheckoutFee: 500 });
+    const once = (await Booking.findOne().lean()).totalAmount;
+    // A second edit that names no new fee must not add it again.
+    await put(created._id, { specialRequests: 'late departure' });
+    const twice = (await Booking.findOne().lean()).totalAmount;
+
+    assert.equal(once, RATE * NIGHTS * 1.05 + 500);
+    assert.equal(twice, once, 'the late fee was applied a second time');
+  });
+
+  await t.test('an overpayment covering restaurant charges is not clamped away', async () => {
+    const room = await seedRoom();
+    await call(booking(room._id, { checkedIn: true }));   // walk-in, in house
+    const created = await Booking.findOne().lean();
+
+    // Paid = room bill + a food bill settled on the same invoice.
+    const paid = RATE * NIGHTS * 1.05 + 1200;
+    const res = await put(created._id, { bookingStatus: 'Completed', paidAmount: paid });
+    assert.equal(res.statusCode, 200, res.body?.message);
+
+    const after = await Booking.findOne().lean();
+    assert.equal(after.paidAmount, paid, 'money actually collected was discarded');
+    assert.equal(after.remainingAmount, 0);
+    assert.equal(after.paymentStatus, 'Paid');
+  });
+
+  await t.test('a refund status is preserved, not derived away', async () => {
+    const room = await seedRoom();
+    await call(booking(room._id));
+    const created = await Booking.findOne().lean();
+
+    const res = await put(created._id, { paymentStatus: 'Refunded', paidAmount: 0 });
+    assert.equal(res.statusCode, 200, res.body?.message);
+    assert.equal((await Booking.findOne().lean()).paymentStatus, 'Refunded');
   });
 
   // ── The desk screen and the server must agree, figure for figure ──────────

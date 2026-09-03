@@ -1,5 +1,5 @@
 import Booking from '../models/Booking.js';
-import { balanceOf } from '../utils/money.js';
+import { balanceOf, roundMoney } from '../utils/money.js';
 import Room from '../models/Room.js';
 import Guest from '../models/Guest.js';
 import Company from '../models/Company.js';
@@ -23,6 +23,10 @@ import { quoteDeskStay, BookingPricingError } from '../services/bookingPricing.j
 // How an availability conflict reads at the front desk. The override hint is
 // added only when the setting could actually have allowed it: a banquet hold
 // cannot be overbooked, so offering the toggle there would just be wrong.
+// The folio's extra-charge lines, in one place so the create and edit paths
+// cannot total up different sets of them.
+const EXTRA_CHARGE_KEYS = ['extraBed', 'extraPerson', 'foodPackage', 'laundry', 'transport', 'other'];
+
 const deskMessage = (conflict) =>
   conflict.waivable
     ? `${conflict.message} Turn on "Allow overbooking" in Operations settings to override.`
@@ -220,7 +224,7 @@ export const createBooking = async (req, res) => {
     // they are not part of a new booking's total -- but the running total must
     // agree with its own components rather than being asserted by the caller.
     const extras = bookingData.extraCharges || {};
-    bookingData.extraChargesTotal = ['extraBed', 'extraPerson', 'foodPackage', 'laundry', 'transport', 'other']
+    bookingData.extraChargesTotal = EXTRA_CHARGE_KEYS
       .reduce((sum, k) => sum + Math.max(0, Number(extras[k]) || 0), 0);
     bookingData.lateCheckoutFee = 0; // a checkout-time charge; never present at creation
 
@@ -444,25 +448,110 @@ export const updateBooking = async (req, res) => {
       bookingData.invoiceNumber = await generateInvoiceNumber(existingBooking.guestName, existingBooking.checkIn);
     }
 
-    // A tariff bargained at the desk arrives as an explicit roomRate with its own
-    // baseAmount — which may legitimately be 0 for a complimentary stay — so it
-    // must never be re-priced off the room's list price below.
+    // ── Money, decided here ──────────────────────────────────────────────────
+    //
+    // createBooking was fixed to price on the server; this path was the same
+    // hole one HTTP verb away. A correctly-priced ₹6,300 stay could be rewritten
+    // with PUT { totalAmount: 1, paidAmount: 1, paymentStatus: 'Paid' }, so
+    // closing only the create path closed nothing.
+    //
+    // Every DERIVED figure is stripped from the request unconditionally, whether
+    // or not anything is re-priced. That is what shuts the door: a request that
+    // names no pricing input simply cannot move the money.
+    const DERIVED_MONEY = [
+      'baseAmount', 'breakfastAmount', 'gstAmount', 'discountAmount',
+      'totalAmount', 'extraChargesTotal', 'remainingAmount',
+    ];
+    for (const field of DERIVED_MONEY) delete bookingData[field];
+
+    // What the desk legitimately decides. A bargained tariff may be 0 for a
+    // complimentary stay, so this tests for a usable number, not truthiness;
+    // a negative one falls back to the room's published rate.
     if (bookingData.roomRate !== undefined) {
       const negotiated = Number(bookingData.roomRate);
-      bookingData.roomRate = Number.isFinite(negotiated) && negotiated > 0
+      bookingData.roomRate = Number.isFinite(negotiated) && negotiated >= 0
         ? Math.round(negotiated * 100) / 100
-        : 0;
+        : undefined;
+      if (bookingData.roomRate === undefined) delete bookingData.roomRate;
+    }
+    if (bookingData.lateCheckoutFee !== undefined) {
+      const manualFee = Number(bookingData.lateCheckoutFee);
+      bookingData.lateCheckoutFee = Number.isFinite(manualFee) && manualFee > 0 ? Math.round(manualFee) : 0;
+    }
+    if (bookingData.extraCharges !== undefined) {
+      const ex = bookingData.extraCharges || {};
+      bookingData.extraChargesTotal = EXTRA_CHARGE_KEYS
+        .reduce((sum, k) => sum + Math.max(0, Number(ex[k]) || 0), 0);
     }
 
-    // Calculate and store baseAmount if not provided and room data is available
-    if (bookingData.roomRate === undefined && !bookingData.baseAmount && existingBooking.roomId?.pricePerNight) {
-      const { defaultCheckOutTime } = await getBilling();
-      const nights = calculateNights(
-        bookingData.checkIn || existingBooking.checkIn,
-        bookingData.checkOut || existingBooking.checkOut,
-        bookingData.checkOutTime || existingBooking.checkOutTime || defaultCheckOutTime
-      );
-      bookingData.baseAmount = existingBooking.roomId.pricePerNight * nights;
+    // Re-price only when something that DETERMINES the price is in the request.
+    // A status flip or a payment must not silently re-run the tariff against
+    // settings that may have changed since the guest checked in.
+    const PRICING_INPUTS = [
+      'roomId', 'checkIn', 'checkOut', 'roomRate', 'tariffType',
+      'discount', 'actualNights', 'lateCheckoutFee', 'extraCharges',
+    ];
+    const priceRoomId = bookingData.roomId !== undefined
+      ? bookingData.roomId
+      : (existingBooking.roomId?._id || existingBooking.roomId);
+
+    // Category holds (group and company blocks) carry no room and are priced by
+    // their own flows, so there is no per-room tariff to derive here.
+    if (priceRoomId && PRICING_INPUTS.some((f) => bookingData[f] !== undefined)) {
+      // A rate of 0 stored on a booking means "never negotiated" -- roomRate
+      // defaults to 0 and every booking written before the desk started
+      // recording it has that. Re-pricing off it would zero out real bills, so
+      // only a positive stored rate counts as a negotiated one.
+      const storedRate = Number(existingBooking.roomRate) || 0;
+      const effRate = bookingData.roomRate !== undefined
+        ? bookingData.roomRate
+        : (storedRate > 0 ? storedRate : undefined);
+
+      const quote = await quoteDeskStay({
+        roomId: priceRoomId,
+        checkIn: bookingData.checkIn || existingBooking.checkIn,
+        checkOut: bookingData.checkOut || existingBooking.checkOut,
+        roomRate: effRate,
+        tariffType: bookingData.tariffType ?? existingBooking.tariffType,
+        discountPercent: bookingData.discount ?? existingBooking.discount,
+        // Checkout settles on the nights actually stayed.
+        nights: bookingData.actualNights,
+      });
+
+      const lateFee = bookingData.lateCheckoutFee ?? existingBooking.lateCheckoutFee ?? 0;
+      const extras = bookingData.extraChargesTotal ?? existingBooking.extraChargesTotal ?? 0;
+
+      bookingData.roomRate = quote.ratePerNight;
+      bookingData.tariffType = quote.tariffType || '';
+      bookingData.baseAmount = quote.baseAmount;
+      bookingData.breakfastAmount = quote.breakfastAmount;
+      bookingData.gstAmount = quote.gstAmount;
+      bookingData.discount = quote.discountPercent;
+      bookingData.discountAmount = quote.discountAmount;
+      // The late fee stays its own invoice line -- baseAmount and gstAmount
+      // exclude it, exactly as the checkout dialog presents it -- but the guest
+      // is billed for it, so it belongs in the total. Extras posted to the folio
+      // during the stay are settled here too.
+      bookingData.totalAmount = roundMoney(quote.totalAmount + lateFee + extras);
+    }
+
+    // Balance and status are derived from whatever the total now is, every time.
+    // paidAmount is money genuinely collected and is the desk's to record -- but
+    // it is not clamped to the room total here, because at checkout it also
+    // covers restaurant charges billed to the room.
+    const effectiveTotal = bookingData.totalAmount ?? existingBooking.totalAmount ?? 0;
+    const effectivePaid = bookingData.paidAmount !== undefined
+      ? Math.max(0, Number(bookingData.paidAmount) || 0)
+      : (Number(existingBooking.paidAmount) || 0);
+    bookingData.paidAmount = effectivePaid;
+    bookingData.remainingAmount = balanceOf(effectiveTotal, effectivePaid);
+
+    // Refunded and Failed are outcomes the desk records and no amount implies.
+    const statusNow = bookingData.paymentStatus ?? existingBooking.paymentStatus;
+    if (!['Refunded', 'Failed'].includes(statusNow)) {
+      if (effectivePaid <= 0) bookingData.paymentStatus = 'Pending';
+      else if (bookingData.remainingAmount <= 0) bookingData.paymentStatus = 'Paid';
+      else bookingData.paymentStatus = 'Partial';
     }
 
     // Presence transitions — occupancy follows checkedIn, not the reservation
@@ -482,15 +571,8 @@ export const updateBooking = async (req, res) => {
       // the checkout dialog — never computed here. The automatic tiered fee that
       // used to run on this transition billed an overstay twice (the re-priced
       // nights already covered it) and landed on the bill with nothing on screen
-      // to explain it. `lateCheckoutFee` now arrives from the client already
-      // included in the `totalAmount` it sends, so this only sanitises it; adding
-      // it again here would double-charge.
-      if (bookingData.lateCheckoutFee !== undefined) {
-        const manualFee = Number(bookingData.lateCheckoutFee);
-        bookingData.lateCheckoutFee = Number.isFinite(manualFee) && manualFee > 0
-          ? Math.round(manualFee)
-          : 0;
-      }
+      // to explain it. The fee is sanitised and added to the total by the pricing
+      // block above, which is now the only place the money is decided.
     } else if (bookingData.bookingStatus === 'Cancelled' || bookingData.bookingStatus === 'Rejected') {
       bookingData.checkedIn = false;
     } else if (bookingData.checkedIn === true && !existingBooking.checkedIn) {

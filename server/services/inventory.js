@@ -309,6 +309,17 @@ export const availabilityConflict = async (
   // Category holds name no room, so the room-level test above cannot see them.
   // A type can be fully spoken for while every individual room still looks
   // free — taking one here would leave a hold that cannot be fulfilled.
+  //
+  // Skipped when EDITING a booking that names a room (excludeBookingId set with
+  // a roomId). That booking is already a consumer of the category, so asking
+  // whether the category has spare capacity is asking the wrong question — and
+  // it answers "no" in a case that is entirely normal: a guest who is checked in
+  // has their room marked `occupied`, availabilityByType counts only
+  // `available` rooms, so simply moving that guest's checkout date by a day was
+  // refused as an overbooking. The room-level clash test above is the whole
+  // answer once a specific room is named and already held.
+  if (roomId && excludeBookingId) return null;
+
   const effectiveType = roomId ? roomDoc?.type : roomType;
   if (!effectiveType) return null;
 

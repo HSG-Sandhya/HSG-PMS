@@ -156,6 +156,7 @@ export const quoteDeskStay = async ({
   roomRate,
   tariffType = '',
   discountPercent = 0,
+  nights: nightsOverride,
 } = {}) => {
   const room = await Room.findById(roomId).select('type pricePerNight');
   if (!room) throw new BookingPricingError('That room does not exist');
@@ -163,7 +164,14 @@ export const quoteDeskStay = async ({
   // Calendar nights, matching the desk screen and the rest of the controller.
   // nightsBetween() ceils elapsed milliseconds, which is right for the website's
   // date-only input but would disagree here the moment a time is attached.
-  const nights = calculateNights(checkIn, checkOut);
+  //
+  // Checkout overrides this: the desk settles on the nights actually stayed,
+  // which is the figure the clerk sees and the guest is billed for when a stay
+  // is cut short or runs over. Anything unusable falls back to the calendar.
+  const override = Math.floor(Number(nightsOverride));
+  const nights = Number.isFinite(override) && override >= 1
+    ? override
+    : calculateNights(checkIn, checkOut);
   const billing = await getBilling();
 
   // A negotiated tariff is the clerk's to set, INCLUDING zero for a

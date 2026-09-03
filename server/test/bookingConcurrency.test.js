@@ -209,6 +209,28 @@ test('booking concurrency', { skip: ready ? false : skipReason, timeout: 120_000
     assert.equal(res.statusCode, 201, 'a cancelled booking must not keep holding the room');
   });
 
+  await t.test('an in-house guest can still have their dates changed', async () => {
+    // A checked-in guest's room is marked `occupied`, and availabilityByType
+    // counts only `available` rooms — so tightening the edit path's checks once
+    // made simply moving a checkout date read as an overbooking.
+    const room = await seedRoom();
+    await Booking.create({
+      guestName: 'In House', phone: '9000000020', roomId: room._id,
+      checkIn: new Date(CHECK_IN), checkOut: new Date(CHECK_OUT),
+      totalAmount: 4000, bookingStatus: 'Checked-In', checkedIn: true,
+      customerId: 'EDIT1', invoiceNumber: 'EDIT-1',
+    });
+    await Room.updateOne({ _id: room._id }, { $set: { status: 'occupied', isAvailable: false } });
+
+    const conflict = await availabilityConflict(Booking, Room, {
+      roomId: room._id,
+      checkIn: CHECK_IN,
+      checkOut: '2027-03-13',
+      excludeBookingId: (await Booking.findOne().lean())._id,
+    });
+    assert.equal(conflict, null, 'extending an in-house stay was refused as an overbooking');
+  });
+
   // ── Editing is a reservation too ──────────────────────────────────────────
   await t.test('overbooking, when the hotel switches it on, is still honoured', async () => {
     const room = await seedRoom();
