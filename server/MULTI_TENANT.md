@@ -43,10 +43,38 @@ zero config, effectively as "hotel #1".
 | Var | Default | Purpose |
 |-----|---------|---------|
 | `CONTROL_DB_NAME` | `pms_control` | Database holding the tenant registry |
-| `BASE_DOMAINS` | *(heuristic)* | Comma list of apex domains, e.g. `sandhyagrand.in,yourpms.com`. **Set this in production.** Anything ending in one of these has its leading label treated as the hotel subdomain. Unset → "3+ labels ⇒ first label is the subdomain" heuristic (fine for simple domains, wrong for multi-part TLDs like `co.uk`). |
+| `BASE_DOMAINS` | *(heuristic)* | Comma list of apex domains, e.g. `sandhyagrand.in,yourpms.com`. **Set this in production.** Anything ending in one of these has its leading label treated as the hotel subdomain. Unset → "3+ labels ⇒ first label is the subdomain" heuristic (fine for simple domains, wrong for multi-part TLDs like `co.uk`). It also decides which hosts are *ours*: with it set, an unrecognised domain is refused and a tenant's subdomain label cannot be reached on a foreign domain. Unset, neither check can be made — see Host resolution below. |
 | `RESERVED_SUBDOMAINS` | `www,api,admin,app,static,assets,cdn,mail` | Subdomains that are never a hotel; they use the base DB |
 | `TENANT_CACHE_TTL_MS` | `60000` | How long a host→tenant lookup is cached |
 | `TENANCY_STRICT` | `false` | `true` = throw instead of falling back to the base DB when there's no tenant context (catches unscoped queries) |
+
+## Host resolution
+
+A hostname is resolved in this order, and the order is load-bearing:
+
+| # | Host | Resolves to |
+|---|------|-------------|
+| 1 | exact custom domain — `hotelabc.com`, `www.hotelabc.com`, `admin.hotelabc.com` | the hotel that registered it |
+| 2 | platform subdomain on a `BASE_DOMAINS` domain — `taj.yourpms.com` | the tenant registry |
+| 3 | the platform's own hosts — the apex, reserved prefixes, `localhost`, bare IPs | base connection |
+| 4 | anything else | `404 Unknown hotel` |
+
+Custom domains are checked **first**. They have to be: an apex domain has no
+subdomain to identify it by, so any resolution that starts by parsing a
+subdomain cannot see it. A reserved prefix (`www.`, `admin.`) is folded to the
+apex before the lookup, so a hotel registers `hotelabc.com` once rather than
+every prefix in front of it.
+
+Two things depend on `BASE_DOMAINS` being set, and both fail open without it:
+
+- **Unknown hosts are refused.** Unset, an apex host cannot be told apart from
+  the operator's own domain, so it is served the base connection.
+- **A tenant subdomain is only honoured on your own domain.** Unset,
+  `taj.somebody-elses-domain.com` pointed at this server resolves to the tenant
+  `taj`, because the first label alone is enough to match.
+
+Neither matters while the deployment is single-tenant. Both matter the moment a
+second hotel exists. Set `BASE_DOMAINS` before onboarding one.
 
 ## Onboard a new hotel
 

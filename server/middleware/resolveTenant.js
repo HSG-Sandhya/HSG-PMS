@@ -3,10 +3,19 @@
 // Maps the request's host to a hotel, then runs the rest of the request inside
 // that hotel's tenant context (so every downstream query hits its database).
 //
-//   taj.example.com      → subdomain "taj"      → look up in the tenant registry
-//   admin.example.com    → reserved subdomain   → base connection (platform host)
-//   example.com          → apex / no subdomain  → base connection
-//   admin.sandhyagrand.in→ reserved subdomain   → base connection (existing site)
+// Resolution order, and it matters:
+//
+//   1. exact custom domain      hotelabc.com          → the hotel that owns it
+//   2. platform subdomain       taj.example.com       → the tenant registry
+//   3. the platform's own hosts example.com, admin.*  → base connection
+//   4. anything else                                  → rejected
+//
+// It used to run 1 and 2 in the opposite order, with a short-circuit in front:
+// parseSubdomain() was called first and ANY host without a subdomain returned
+// the base tenant immediately. The custom-domain lookup sat below that line and
+// was unreachable for an apex domain. So a hotel that registered hotelabc.com
+// got the operator's own database instead of its own — and www.hotelabc.com did
+// too, because "www" is a reserved subdomain and took the same early exit.
 //
 // A registry lookup is cached per-host for TENANT_CACHE_TTL_MS so we don't hit
 // the control database on every request (Atlas shared tiers throttle bursts).
@@ -64,21 +73,71 @@ export const parseSubdomain = (rawHost) => {
   return labels.length >= 3 ? labels[0] : null;
 };
 
+// Is this host under a domain the platform itself serves?
+//
+// Without BASE_DOMAINS we cannot tell our own domain from anybody else's, so
+// this answers yes — which is the permissive behaviour the existing
+// single-tenant deployment depends on. Set BASE_DOMAINS in production to make
+// it strict.
+const onPlatformDomain = (host) =>
+  !BASE_DOMAINS.length || BASE_DOMAINS.some((d) => host === d || host.endsWith("." + d));
+
+// The hosts to try as a registered custom domain.
+//
+//   hotelabc.com        → [hotelabc.com]
+//   www.hotelabc.com    → [www.hotelabc.com, hotelabc.com]
+//   admin.hotelabc.com  → [admin.hotelabc.com, hotelabc.com]
+//
+// A hotel registers its domain once; it should not also have to register every
+// platform-standard prefix in front of it. Only RESERVED labels are folded
+// away, so booking.hotelabc.com stays a distinct host a hotel could register
+// separately.
+const customDomainCandidates = (host) => {
+  const dot = host.indexOf(".");
+  const label = dot > 0 ? host.slice(0, dot) : null;
+  return label && RESERVED.has(label) ? [host, host.slice(dot + 1)] : [host];
+};
+
 // host → { record, expires }. Negative results (null record) are cached too.
 const cache = new Map();
 
-const lookupTenant = async (host, subdomain) => {
+const lookupTenant = async (host) => {
   const now = Date.now();
   const hit = cache.get(host);
   if (hit && hit.expires > now) return hit.record;
 
   const Tenant = getTenantModel();
-  const record = await Tenant.findOne({
-    $or: [{ customDomain: host }, ...(subdomain ? [{ subdomain }] : [])],
+
+  // 1. Custom domain, exact — before any subdomain parsing, which is the whole
+  //    point: an apex domain has no subdomain to parse.
+  let record = await Tenant.findOne({
+    customDomain: { $in: customDomainCandidates(host) },
   }).lean();
+
+  // 2. A platform subdomain, and only on a platform domain. These used to be
+  //    one query joined by $or, which meant a host on SOMEONE ELSE'S domain
+  //    could match a tenant purely because its first label happened to equal
+  //    that tenant's subdomain — point taj.anything.com at this server and you
+  //    reached the tenant "taj". Separating them, and requiring the host to be
+  //    under our own domain, closes that.
+  if (!record && onPlatformDomain(host)) {
+    const subdomain = parseSubdomain(host);
+    if (subdomain && !RESERVED.has(subdomain)) {
+      record = await Tenant.findOne({ subdomain }).lean();
+    }
+  }
 
   cache.set(host, { record: record || null, expires: now + TTL_MS });
   return record || null;
+};
+
+// The platform's own hosts: the apex it is served on, its reserved prefixes,
+// and local/IP addresses in development.
+const isPlatformHost = (host) => {
+  if (!host || isIpOrLocal(host)) return true;
+  if (!onPlatformDomain(host)) return false;
+  const subdomain = parseSubdomain(host);
+  return !subdomain || RESERVED.has(subdomain);
 };
 
 // Drop cached lookups (call after provisioning / status changes).
@@ -92,18 +151,40 @@ export const clearTenantCache = (host) => {
 // for base/reserved/apex hosts) or { error: "unknown"|"suspended"|"provisioning" }.
 export const resolveTenantForHost = async (rawHost) => {
   const host = String(rawHost || "").toLowerCase().split(":")[0];
-  const subdomain = parseSubdomain(host);
 
-  // Base / reserved / apex host → the operator's own database (unchanged
-  // single-tenant behaviour, and how the original deployment keeps working).
-  if (!subdomain || RESERVED.has(subdomain)) return { tenant: BASE_TENANT };
-
-  const record = await lookupTenant(host, subdomain);
-  if (!record) return { error: "unknown" };
-  if (record.status !== "active") {
-    return { error: record.status === "suspended" ? "suspended" : "provisioning" };
+  // 1 + 2. The registry: custom domain first, then a platform subdomain.
+  //
+  // Every host now consults the registry, including the operator's own — an
+  // apex custom domain has no subdomain to tell them apart by, which is exactly
+  // why this was broken. Results are cached per host, so the cost is one query
+  // per host per TTL, not one per request.
+  //
+  // If the control plane is unreachable, a platform host still has an answer
+  // that needs no registry, and giving it keeps the operator's own site serving
+  // instead of turning a control-database hiccup into a total outage. A tenant
+  // host genuinely cannot be resolved, so it is refused rather than guessed at.
+  let record;
+  try {
+    record = await lookupTenant(host);
+  } catch (err) {
+    logger.error("Tenant registry lookup failed", { host, error: err.message });
+    return isPlatformHost(host) ? { tenant: BASE_TENANT } : { error: "unknown" };
   }
-  return { tenant: record };
+
+  if (record) {
+    if (record.status !== "active") {
+      return { error: record.status === "suspended" ? "suspended" : "provisioning" };
+    }
+    return { tenant: record };
+  }
+
+  // 3. The platform's own hosts → the operator's database (unchanged
+  //    single-tenant behaviour, and how the original deployment keeps working).
+  if (isPlatformHost(host)) return { tenant: BASE_TENANT };
+
+  // 4. A host that looks like a hotel's address but matches no active hotel.
+  //    Never fall back to another hotel's data.
+  return { error: "unknown" };
 };
 
 export const resolveTenant = async (req, res, next) => {
