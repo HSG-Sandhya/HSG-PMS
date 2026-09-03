@@ -95,6 +95,49 @@ test('an edit still sees OTHER bookings', () => {
   assert.equal(cat.available, 0, 'another party holding the category must still block');
 });
 
+// ── Status is a fact about NOW; availability is a question about a RANGE ─────
+// Every room in these fixtures is deliberately not "available", because that is
+// the case the original tests never covered — and the case that was broken.
+const roomWith = (status, id = 'r1') => [{
+  _id: id, type: 'Deluxe', status, pricePerNight: 1000,
+  capacity: { adults: 2 }, amenities: [],
+}];
+
+test('a room occupied tonight is still sellable for next month', () => {
+  // The bug: room.status answered a question about a date range. A hotel full
+  // tonight could not sell a single room for any future date.
+  const cat = availabilityByType(roomWith('occupied'), snapshot()).get('Deluxe');
+  assert.equal(cat.available, 1, 'tonight\'s occupancy blocked a future stay');
+  assert.equal(cat.total, 1);
+});
+
+test('a room being cleaned is sellable — a turnover is not a closure', () => {
+  assert.equal(availabilityByType(roomWith('cleaning'), snapshot()).get('Deluxe').available, 1);
+});
+
+test('a room out of service is never sellable, whatever the dates', () => {
+  const cat = availabilityByType(roomWith('maintenance'), snapshot()).get('Deluxe');
+  assert.equal(cat.available, 0, 'a room under maintenance was offered for sale');
+  assert.equal(cat.total, 1, 'it is still part of the physical inventory');
+});
+
+test('an occupied room IS blocked for a range its booking overlaps', () => {
+  // Occupancy still blocks — but because a booking overlaps the range, which is
+  // the fact that actually answers the question. HOLD_STATUSES covers
+  // 'Checked-In', so an in-house guest is in blockedRoomIds for today.
+  const cat = availabilityByType(roomWith('occupied'), snapshot(['r1'])).get('Deluxe');
+  assert.equal(cat.available, 0);
+});
+
+test('freeRoomsForRange will not offer a room that is out of service', () => {
+  const rooms = [
+    { _id: 'ok', type: 'Deluxe', status: 'occupied' },
+    { _id: 'dead', type: 'Deluxe', status: 'maintenance' },
+  ];
+  const free = freeRoomsForRange(rooms, snapshot());
+  assert.deepEqual(free.map((r) => r._id), ['ok']);
+});
+
 // ── roomIsFree: the overlap test both the create and edit paths now share ────
 import { roomIsFree, describeClash } from '../services/inventory.js';
 

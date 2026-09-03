@@ -231,6 +231,38 @@ test('booking concurrency', { skip: ready ? false : skipReason, timeout: 120_000
     assert.equal(conflict, null, 'extending an in-house stay was refused as an overbooking');
   });
 
+  await t.test('a hotel full tonight can still take a booking for next month', async () => {
+    // The whole hotel is occupied right now, guests in every room.
+    const rooms = await Promise.all([seedRoom({ roomNumber: '401' }), seedRoom({ roomNumber: '402' })]);
+    for (const room of rooms) {
+      await Booking.create({
+        guestName: 'Tonight Guest', phone: '9000000030', roomId: room._id,
+        checkIn: new Date('2027-03-01'), checkOut: new Date('2027-03-05'),
+        totalAmount: 4000, bookingStatus: 'Checked-In', checkedIn: true,
+        customerId: `FULL${room.roomNumber}`, invoiceNumber: `FULL-${room.roomNumber}`,
+      });
+      await Room.updateOne({ _id: room._id }, { $set: { status: 'occupied', isAvailable: false } });
+    }
+
+    // A stay months later, when every one of those guests is long gone.
+    const res = await call(createRoomBooking, {
+      guest: { firstName: 'Future', lastName: 'Guest', email: 'future@example.com', phone: '9100000030' },
+      roomType: 'Deluxe', checkIn: '2027-09-10', checkOut: '2027-09-12',
+      paymentMethod: 'pay_at_hotel',
+    });
+
+    assert.equal(res.statusCode, 201,
+      `a full house tonight blocked a booking for September: ${res.body?.message}`);
+  });
+
+  await t.test('a room under maintenance is not sold, on any date', async () => {
+    const room = await seedRoom({ roomNumber: '501' });
+    await Room.updateOne({ _id: room._id }, { $set: { status: 'maintenance' } });
+
+    const res = await call(createRoomBooking, webBooking({ roomType: 'Deluxe' }));
+    assert.equal(res.statusCode, 409, 'a room out of service was sold');
+  });
+
   // ── Editing is a reservation too ──────────────────────────────────────────
   await t.test('overbooking, when the hotel switches it on, is still honoured', async () => {
     const room = await seedRoom();

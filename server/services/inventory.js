@@ -113,10 +113,35 @@ export const getInventorySnapshot = async (
 };
 
 /**
+ * Statuses that take a room out of inventory no matter WHEN you ask.
+ *
+ * The other two do not belong here, and that was the bug:
+ *
+ *   occupied  says a guest is in the room RIGHT NOW. It says nothing about
+ *             next month, and the booking that put them there is already
+ *             counted by the overlap test.
+ *   cleaning  is a turnover that lasts an hour.
+ *
+ * Both were treated as "unavailable for every date, forever". So a hotel whose
+ * rooms were all occupied tonight could not sell a single room for next month:
+ * availability for a date range was being answered with a fact about today.
+ * It stayed hidden only because this hotel rarely runs full.
+ *
+ * Availability over a range now comes from the bookings overlapping that range
+ * -- which is what blockedRoomIds already carries, including banquet holds and
+ * anyone currently checked in, since HOLD_STATUSES covers 'Checked-In'.
+ *
+ * A same-day turnover falls out of this correctly: the overlap test is
+ * half-open, so a guest leaving on the 5th does not block the 5th.
+ */
+const OUT_OF_SERVICE = new Set(['maintenance']);
+
+/**
  * Sellable inventory per room type.
  *
  * physical rooms of the type
- *   − rooms of that type already assigned or banquet-blocked
+ *   − rooms out of service
+ *   − rooms of that type already assigned or banquet-blocked OVER THIS RANGE
  *   − category holds against that type (roomCount each)
  *   = available
  */
@@ -143,7 +168,7 @@ export const availabilityByType = (rooms, snapshot, { minGuests = 0 } = {}) => {
     if (room.pricePerNight < cat.price) cat.price = room.pricePerNight;
 
     const usable =
-      room.status === 'available' &&
+      !OUT_OF_SERVICE.has(room.status) &&
       !blockedRoomIds.has(String(room._id)) &&
       (!minGuests || (room.capacity?.adults || 0) >= minGuests);
 
@@ -165,7 +190,7 @@ export const availabilityByType = (rooms, snapshot, { minGuests = 0 } = {}) => {
 
 /** Concrete rooms free for assignment (holds excluded — see the note above). */
 export const freeRoomsForRange = (rooms, snapshot) =>
-  rooms.filter((r) => !snapshot.blockedRoomIds.has(String(r._id)));
+  rooms.filter((r) => !OUT_OF_SERVICE.has(r.status) && !snapshot.blockedRoomIds.has(String(r._id)));
 
 /** Free count per type, honouring holds. Convenience for block-availability checks. */
 export const freeCountByType = (rooms, snapshot) => {
