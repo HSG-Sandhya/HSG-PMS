@@ -14,7 +14,8 @@ import BanquetBooking from '../models/BanquetBooking.js';
 import Room from '../models/Room.js';
 import mongoose from 'mongoose';
 import { createBooking } from '../controllers/bookingController.js';
-import { nextCustomerId, nextEventCustomerId } from '../services/bookingIds.js';
+import { nextCustomerId, nextEventCustomerId, nextInvoiceNumber } from '../services/bookingIds.js';
+import { createRoomBooking } from '../controllers/websiteController.js';
 import { resetSequenceCache } from '../services/sequence.js';
 
 const ready = await startDb();
@@ -156,6 +157,59 @@ test('booking id generation', { skip: ready ? false : skipReason, timeout: 120_0
 
     const ids = (await Booking.find().select('customerId').lean()).map((b) => b.customerId);
     assert.equal(new Set(ids).size, rooms.length, 'two bookings share a customer id');
+  });
+
+  // ── Invoice numbers ───────────────────────────────────────────────────────
+  // Both generators were already atomic; what differed was the FORMAT. The
+  // website minted a bare "HSG-1001" while every invoice the hotel has issued
+  // looks like "HSG-010826-HK-1001". No online booking had reached production,
+  // so the first one would have opened a second, differently-shaped series.
+  await t.test('the desk and the website mint the same invoice format', async () => {
+    const desk = await nextInvoiceNumber('Hari Kumar', '2026-08-01');
+    assert.match(desk, /^[A-Z]+-\d{6}-HK-\d{4}$/, `unexpected desk format: ${desk}`);
+
+    const rooms = await Room.create({
+      roomNumber: '301', type: 'Deluxe', pricePerNight: 2000,
+      status: 'available', capacity: { adults: 2, children: 1 },
+    });
+
+    const res = { statusCode: 200, body: null };
+    res.status = (c) => { res.statusCode = c; return res; };
+    res.json = (b) => { res.body = b; return res; };
+    await createRoomBooking({
+      body: {
+        guest: { firstName: 'Web', lastName: 'Guest', email: 'inv@example.com', phone: '9100000001' },
+        roomType: 'Deluxe', checkIn: CHECK_IN, checkOut: '2027-04-22',
+        paymentMethod: 'pay_at_hotel',
+      },
+      params: {}, query: {}, user: {},
+    }, res);
+
+    assert.equal(res.statusCode, 201, `website booking failed: ${res.body?.message}`);
+    const web = (await Booking.findOne({ email: 'inv@example.com' }).lean()).invoiceNumber;
+    assert.match(web, /^[A-Z]+-\d{6}-WG-\d{4}$/, `website still mints its own format: ${web}`);
+    assert.ok(rooms);
+  });
+
+  await t.test('50 simultaneous invoice numbers in one group are all distinct', async () => {
+    const numbers = await Promise.all(
+      Array.from({ length: RUSH }, () => nextInvoiceNumber('Same Guest', '2026-08-01')),
+    );
+    assert.equal(new Set(numbers).size, RUSH, 'two bookings were handed the same invoice number');
+  });
+
+  await t.test('the invoice counter continues the existing production series', async () => {
+    // Shaped exactly like the 15 invoices the hotel has actually issued.
+    await Booking.create({
+      guestName: 'Hari Kumar', phone: '9000000099',
+      checkIn: new Date('2026-08-01'), checkOut: new Date('2026-08-02'),
+      totalAmount: 1000, bookingStatus: 'Confirmed',
+      customerId: 'HK202608011001', invoiceNumber: 'HSG-010826-HK-1004',
+    });
+
+    const next = await nextInvoiceNumber('Hari Kumar', '2026-08-01');
+    const seq = Number(next.split('-')[3]);
+    assert.ok(seq > 1004, `restarted the series instead of continuing it: ${next}`);
   });
 
   // ── Events ────────────────────────────────────────────────────────────────

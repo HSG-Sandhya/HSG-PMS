@@ -9,7 +9,6 @@ import { getBanquetBlockedRoomIds } from './roomController.js';
 import { validateCheckIn } from '../services/checkIn.js';
 import { checkOutBlocker } from '../services/checkOut.js';
 import { reconcileRoomStatus } from '../services/roomStatus.js';
-import { nextSequence } from '../services/sequence.js';
 import { getInventorySnapshot, freeCountByType, availabilityConflict, HOLD_STATUSES } from '../services/inventory.js';
 import { withInventoryLock, InventoryBusyError } from '../services/inventoryLock.js';
 import { calculateNights, validateStayDates } from '../utils/dateHelpers.js';
@@ -18,7 +17,7 @@ import { sendBookingNotification } from '../services/notificationService.js';
 import { getBilling, getOps } from '../config/operationalConfig.js';
 import { syncRoomBookingIncome, removeEntriesBySource } from '../services/accountingSync.js';
 import { upsertGuest } from '../services/guestDirectory.js';
-import { nextCustomerId } from '../services/bookingIds.js';
+import { nextCustomerId, nextInvoiceNumber } from '../services/bookingIds.js';
 
 // How an availability conflict reads at the front desk. The override hint is
 // added only when the setting could actually have allowed it: a banquet hold
@@ -28,46 +27,9 @@ const deskMessage = (conflict) =>
     ? `${conflict.message} Turn on "Allow overbooking" in Operations settings to override.`
     : conflict.message;
 
-// Generate invoice number — the prefix comes from billing settings so the whole
-// numbering scheme is configurable (Billing & Tariff → Invoice prefix).
-const generateInvoiceNumber = async (guestName, checkIn) => {
-  const { invoicePrefix } = await getBilling();
-  const nameParts = guestName.trim().split(' ');
-  const firstInitial = nameParts[0]?.[0]?.toUpperCase() || '';
-  const lastInitial = nameParts.length > 1 ? nameParts[nameParts.length - 1][0].toUpperCase() : '';
-  const initials = firstInitial + lastInitial;
-
-  // DDMMYY so the date leads the number (after the prefix) — invoices then
-  // group/filter datewise. e.g. 6 Jul 2026 → "060726".
-  const dateObj = new Date(checkIn);
-  const yy = String(dateObj.getFullYear()).slice(-2);
-  const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
-  const dd = String(dateObj.getDate()).padStart(2, '0');
-  const dateStr = `${dd}${mm}${yy}`;
-
-  // Pattern: PREFIX-DDMMYY-INITIALS-NNNN. The running number increments within
-  // the same date + guest-initials group. The regex pins prefix/date/initials
-  // so sorting by the whole string sorts by the 4-digit sequence.
-  const regex = new RegExp(`^${invoicePrefix}-${dateStr}-${initials}-\\d{4}$`);
-  // One atomic $inc per date+initials group. Reading the latest and adding one
-  // handed the same number to two bookings created in the same moment, and the
-  // loser hit a duplicate-key error on save.
-  const sequenceNumber = await nextSequence(`invoice:${invoicePrefix}-${dateStr}-${initials}`, {
-    start: 1000,
-    seed: async () => {
-      const latestBooking = await Booking.findOne(
-        { invoiceNumber: { $regex: regex } },
-        { invoiceNumber: 1 },
-        { sort: { invoiceNumber: -1 } }
-      ).lean();
-      const parts = String(latestBooking?.invoiceNumber || '').split('-');
-      const lastSeq = parts.length === 4 ? parseInt(parts[3], 10) : NaN;
-      return Number.isFinite(lastSeq) ? lastSeq : 1000;
-    },
-  });
-
-  return `${invoicePrefix}-${dateStr}-${initials}-${String(sequenceNumber).padStart(4, '0')}`;
-};
+// The invoice numbering itself lives with the other id generators, so the desk
+// and the website mint from one series. Local alias for the call sites below.
+const generateInvoiceNumber = (guestName, checkIn) => nextInvoiceNumber(guestName, checkIn);
 
 // Create booking
 export const createBooking = async (req, res) => {

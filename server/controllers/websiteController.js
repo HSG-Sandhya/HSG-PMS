@@ -29,10 +29,9 @@ import { priceOrder, OrderPricingError } from '../services/orderPricing.js';
 import { quoteStay, BookingPricingError } from '../services/bookingPricing.js';
 import { secretsMatch } from '../utils/secretCompare.js';
 import { findSlotConflict, findSlotConflicts, describeSlotConflict } from './banquetController.js';
-import { nextSequence } from '../services/sequence.js';
 import { getInventorySnapshot, availabilityByType, availabilityConflict } from '../services/inventory.js';
 import { withInventoryLock, InventoryBusyError } from '../services/inventoryLock.js';
-import { nextCustomerId } from '../services/bookingIds.js';
+import { nextCustomerId, nextInvoiceNumber } from '../services/bookingIds.js';
 
 // ── Public restaurant ─────────────────────────────────────────────────────────
 
@@ -268,27 +267,6 @@ export const getRoomTypeById = async (req, res) => {
   }
 };
 
-const generateUniqueInvoiceNumber = async () => {
-  const { invoicePrefix } = await getBilling();
-  const seqRegex = new RegExp(`^${invoicePrefix}-(\\d+)$`);
-
-  // One atomic $inc instead of read-latest-then-add-one, which handed the same
-  // number to two simultaneous bookings. Seeded once from the highest number
-  // already in the collection so it continues the existing series.
-  const seq = await nextSequence(`invoice:${invoicePrefix}`, {
-    start: 1000,
-    seed: async () => {
-      const latest = await Booking.find({ invoiceNumber: { $regex: seqRegex } })
-        .select('invoiceNumber').sort({ invoiceNumber: -1 }).limit(25).lean();
-      return latest.reduce((max, b) => {
-        const n = parseInt(b.invoiceNumber?.match(seqRegex)?.[1], 10);
-        return Number.isFinite(n) && n > max ? n : max;
-      }, 1000);
-    },
-  });
-  return `${invoicePrefix}-${seq}`;
-};
-
 export const createRoomBooking = async (req, res) => {
   try {
     const bookingData = req.body;
@@ -415,7 +393,7 @@ export const createRoomBooking = async (req, res) => {
       bookingData.guest.lastName || ''
     }`.trim();
     const customerId = await nextCustomerId(guestName, bookingData.checkIn);
-    const invoiceNumber = await generateUniqueInvoiceNumber();
+    const invoiceNumber = await nextInvoiceNumber(guestName, bookingData.checkIn);
     const { defaultCheckInTime, defaultCheckOutTime } = await getBilling();
 
     // Website bookings reserve a category only — staff assign the specific room

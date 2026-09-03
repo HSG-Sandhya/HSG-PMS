@@ -19,6 +19,7 @@
 // copies of a numbering rule is four chances to drift.
 
 import { nextSequence } from './sequence.js';
+import { getBilling } from '../config/operationalConfig.js';
 import Booking from '../models/Booking.js';
 import BanquetBooking from '../models/BanquetBooking.js';
 
@@ -92,6 +93,48 @@ export const nextEventCustomerId = async (prefix, eventDate) => {
     },
   });
   return `${prefix}${dateStr}${seq}`;
+};
+
+/**
+ * The next invoice number: PREFIX-DDMMYY-INITIALS-NNNN, e.g. "HSG-010826-HK-1001".
+ * The prefix is configurable (Billing & Tariff → Invoice prefix); the running
+ * number increments within one date + guest-initials group.
+ *
+ * There were two invoice generators too, and unlike the customer-id copies both
+ * were already atomic -- what differed was the FORMAT. The website minted a bare
+ * "HSG-1001" while every one of the hotel's 15 issued invoices looks like
+ * "HSG-010826-HK-1001". No online booking had reached production yet, so the
+ * divergence had never shown up; the first one would have issued a GST document
+ * in a shape unlike any invoice the hotel had ever produced, in a series of its
+ * own. One generator, so the numbering stays one series.
+ */
+export const nextInvoiceNumber = async (guestName, checkIn) => {
+  const { invoicePrefix } = await getBilling();
+  const initials = initialsOf(guestName);
+
+  // DDMMYY so the date leads the number (after the prefix) -- invoices then
+  // group/filter datewise. e.g. 6 Jul 2026 -> "060726".
+  const d = new Date(checkIn);
+  const dateStr = `${String(d.getDate()).padStart(2, '0')}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getFullYear()).slice(-2)}`;
+
+  // The regex pins prefix/date/initials so sorting by the whole string sorts by
+  // the 4-digit sequence.
+  const regex = new RegExp(`^${invoicePrefix}-${dateStr}-${initials}-\\d{4}$`);
+  const seq = await nextSequence(`invoice:${invoicePrefix}-${dateStr}-${initials}`, {
+    start: 1000,
+    seed: async () => {
+      const latest = await Booking.findOne(
+        { invoiceNumber: { $regex: regex } },
+        { invoiceNumber: 1 },
+        { sort: { invoiceNumber: -1 } },
+      ).lean();
+      const parts = String(latest?.invoiceNumber || '').split('-');
+      const lastSeq = parts.length === 4 ? parseInt(parts[3], 10) : NaN;
+      return Number.isFinite(lastSeq) ? lastSeq : 1000;
+    },
+  });
+
+  return `${invoicePrefix}-${dateStr}-${initials}-${String(seq).padStart(4, '0')}`;
 };
 
 export default nextCustomerId;
