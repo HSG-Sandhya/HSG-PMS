@@ -10,16 +10,17 @@ import assert from 'node:assert/strict';
 import { startDb, stopDb, clearDb, skipReason } from './helpers/memoryDb.js';
 import Settings from '../models/Settings.js';
 import { getBilling, getOps, invalidateOperationalConfig } from '../config/operationalConfig.js';
+import settingsController from '../controllers/settingsController.js';
 import { updateAllSettings, updateSettingsSection } from '../controllers/settingsController.js';
 import paymentService from '../services/paymentService.js';
 
 const ready = await startDb();
 
-const call = async (handler, { body = {}, params = {} } = {}) => {
+const call = async (handler, { body = {}, params = {}, user = { isSystemAdmin: true } } = {}) => {
   const res = { statusCode: 200, body: null };
   res.status = (c) => { res.statusCode = c; return res; };
   res.json = (b) => { res.body = b; return res; };
-  await handler({ body, params, query: {}, user: { isSystemAdmin: true } }, res);
+  await handler({ body, params, query: {}, user }, res);
   return res;
 };
 
@@ -126,6 +127,79 @@ test('operational config cache invalidation', { skip: ready ? false : skipReason
 
     await call(updateAllSettings, { body: { payment: { razorpay: { enabled: false } } } });
     assert.equal((await paymentService.getConfig()).enabled, false, 'a disabled gateway kept accepting payments');
+  });
+
+  // ── The reset endpoint ────────────────────────────────────────────────────
+  // It carried its own second implementation of "reset", which recreated the
+  // document through getSettings() — blanking hotelName, which is `required`.
+  await t.test('POST /reset succeeds and keeps the hotel identified', async () => {
+    await Settings.create({
+      hotelName: 'Hotel Sandhya Grand',
+      billing: { roomGstRate: 28, invoicePrefix: 'OLD' },
+    });
+
+    const res = await call(settingsController.resetSettings);
+    assert.equal(res.statusCode, 200, `${res.body?.message}: ${res.body?.error}`);
+
+    const stored = await Settings.findOne().lean();
+    assert.equal(stored.hotelName, 'Hotel Sandhya Grand', 'the reset erased the hotel name');
+    assert.equal(await Settings.countDocuments(), 1, 'the reset left a duplicate document');
+    assert.notEqual(stored.billing?.invoicePrefix, 'OLD', 'the settings were not actually reset');
+  });
+
+  await t.test('the reset response goes through the same redaction as GET', async () => {
+    // A secret that a reset must not hand back, and that GET would strip.
+    await Settings.create({
+      hotelName: 'Hotel Sandhya Grand',
+      payment: { razorpay: { enabled: true, environment: 'live', keyId: 'rzp_live_X', keySecret: 'CANARY-SECRET' } },
+    });
+
+    const res = await call(settingsController.resetSettings);
+    assert.equal(res.statusCode, 200, res.body?.message);
+
+    const body = JSON.stringify(res.body);
+    assert.ok(!body.includes('CANARY-SECRET'), 'the reset response carried a gateway secret');
+    // And it answers on the shape every other settings endpoint uses.
+    assert.ok(res.body.data && typeof res.body.data === 'object');
+  });
+
+  await t.test('a caller without view_settings gets the reduced document from reset too', async () => {
+    // The real test of redaction, independent of whether a fresh document
+    // happens to hold a secret: the administrator-only sections are dropped for
+    // a caller who cannot see them. The raw document always carries them, so a
+    // reset that skipped serializeSettings would hand them over.
+    await Settings.create({ hotelName: 'Hotel Sandhya Grand' });
+
+    const privileged = await call(settingsController.resetSettings);
+    const ordinary = await call(settingsController.resetSettings, {
+      user: { isSystemAdmin: false, hasPermission: () => false },
+    });
+
+    assert.equal(ordinary.statusCode, 200, ordinary.body?.message);
+    for (const section of ['payment', 'integrations', 'security', 'backup']) {
+      assert.ok(
+        !(section in ordinary.body.data),
+        `reset handed the "${section}" section to a caller without view_settings`,
+      );
+    }
+    // ...and an administrator still gets them, so this is redaction, not a
+    // blanket strip.
+    assert.ok('payment' in privileged.body.data, 'an administrator lost the payment section');
+  });
+
+  await t.test('a reset drops both caches', async () => {
+    await Settings.create({
+      hotelName: 'Hotel Sandhya Grand',
+      billing: { roomGstRate: 28 },
+      payment: { razorpay: { enabled: true, environment: 'live', keyId: 'rzp_live_X', keySecret: 'old-secret' } },
+    });
+    assert.equal((await getBilling()).roomGstRate, 28);              // warm
+    assert.equal((await paymentService.getConfig()).keySecret, 'old-secret');  // warm
+
+    await call(settingsController.resetSettings);
+
+    assert.notEqual((await getBilling()).roomGstRate, 28, 'the old GST rate survived the reset');
+    assert.equal((await paymentService.getConfig()).enabled, false, 'the old gateway client survived the reset');
   });
 
   // The write surface is bigger than the controllers: scripts/updateGstPan.js

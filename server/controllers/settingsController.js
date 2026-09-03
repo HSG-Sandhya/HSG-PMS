@@ -317,13 +317,33 @@ export const updateAllSettings = async (req, res) => {
 // Reset settings to defaults
 const resetSettings = async (req, res) => {
   try {
-    // Delete existing settings and let getSettings create new defaults
-    await Settings.deleteMany({});
-    const defaultSettings = await Settings.getSettings();
-    
+    // Was its own second implementation of "reset", separate from the model's:
+    //
+    //     await Settings.deleteMany({});
+    //     const defaultSettings = await Settings.getSettings();
+    //
+    // getSettings() recreates the document with currentTenantName(), which is
+    // empty on any deployment that has not set HOTEL_NAME — and hotelName is
+    // `required`, so the recreate threw and the endpoint answered 500. The
+    // model's resetSettings() keeps the hotel's own name, which is the right
+    // behaviour anyway: resetting SETTINGS should not erase the hotel.
+    //
+    // Both caches derived from this document are dropped by the model's write
+    // hooks, so the delete and the recreate each invalidate on their own.
+    await Settings.resetSettings();
+
+    // Through the same redaction the normal GET uses. This returned the raw
+    // document, so the one endpoint guaranteed to hand back a whole settings
+    // object was the one endpoint that never redacted it — and it answered on
+    // the shape getSettings() produces, not the shape the client is given
+    // everywhere else.
+    const data = serializeSettings(await Settings.getSettings(), {
+      canViewAll: await canViewAllSettings(req),
+    });
+
     res.status(200).json({
       success: true,
-      data: defaultSettings,
+      data,
       message: 'Settings reset to defaults successfully'
     });
   } catch (error) {
