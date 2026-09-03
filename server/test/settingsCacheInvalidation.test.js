@@ -11,6 +11,7 @@ import { startDb, stopDb, clearDb, skipReason } from './helpers/memoryDb.js';
 import Settings from '../models/Settings.js';
 import { getBilling, getOps, invalidateOperationalConfig } from '../config/operationalConfig.js';
 import { updateAllSettings, updateSettingsSection } from '../controllers/settingsController.js';
+import paymentService from '../services/paymentService.js';
 
 const ready = await startDb();
 
@@ -81,6 +82,52 @@ test('operational config cache invalidation', { skip: ready ? false : skipReason
     assert.equal(ops.frontDesk.holdExpiryHours, 2);
   });
 
+  // ── The payment gateway client ────────────────────────────────────────────
+  // updateSettingsSection reloaded it; updateAllSettings did not. So
+  // PUT /api/settings could change the Razorpay credentials while the live
+  // client went on using the old ones until a restart.
+  await t.test('PUT /api/settings reaches the payment gateway client', async () => {
+    await Settings.create({
+      hotelName: 'Test Hotel',
+      payment: { razorpay: { enabled: true, environment: 'test', keyId: 'rzp_test_OLD', keySecret: 'old-secret' } },
+    });
+    assert.equal((await paymentService.getConfig()).keySecret, 'old-secret');   // warms the cache
+
+    const res = await call(updateAllSettings, {
+      body: { payment: { razorpay: { enabled: true, environment: 'live', keyId: 'rzp_live_NEW', keySecret: 'new-secret' } } },
+    });
+    assert.equal(res.statusCode, 200, `${res.body?.message}: ${res.body?.error}`);
+
+    const cfg = await paymentService.getConfig();
+    assert.equal(cfg.keySecret, 'new-secret', 'the gateway client kept the old credentials');
+    assert.equal(cfg.environment, 'live', 'the gateway client kept the old environment');
+  });
+
+  await t.test('a section update still reaches the payment client', async () => {
+    await Settings.create({
+      hotelName: 'Test Hotel',
+      payment: { razorpay: { enabled: true, environment: 'test', keyId: 'rzp_test_OLD', keySecret: 'old-secret' } },
+    });
+    await paymentService.getConfig();
+
+    await call(updateSettingsSection, {
+      params: { section: 'payment' },
+      body: { razorpay: { enabled: true, environment: 'test', keyId: 'rzp_test_NEW', keySecret: 'newer-secret' } },
+    });
+    assert.equal((await paymentService.getConfig()).keySecret, 'newer-secret');
+  });
+
+  await t.test('disabling the gateway takes effect immediately', async () => {
+    await Settings.create({
+      hotelName: 'Test Hotel',
+      payment: { razorpay: { enabled: true, environment: 'test', keyId: 'rzp_test_X', keySecret: 'a-secret' } },
+    });
+    assert.equal((await paymentService.getConfig()).enabled, true);
+
+    await call(updateAllSettings, { body: { payment: { razorpay: { enabled: false } } } });
+    assert.equal((await paymentService.getConfig()).enabled, false, 'a disabled gateway kept accepting payments');
+  });
+
   // The write surface is bigger than the controllers: scripts/updateGstPan.js
   // and scripts/setupPayment.js write settings and never invalidated anything.
   await t.test('a write query invalidates too, not only a document save', async () => {
@@ -89,6 +136,11 @@ test('operational config cache invalidation', { skip: ready ? false : skipReason
 
     await Settings.updateOne({}, { $set: { 'billing.roomGstRate': 9 } });
     assert.equal((await getBilling()).roomGstRate, 9, 'an updateOne left the cache stale');
+
+    // scripts/setupPayment.js writes keys this way and never reloaded anything.
+    await Settings.updateOne({}, { $set: { 'payment.razorpay': { enabled: true, environment: 'test', keyId: 'rzp_test_S', keySecret: 'script-secret' } } });
+    assert.equal((await paymentService.getConfig()).keySecret, 'script-secret',
+      'a direct write left the gateway client on its old credentials');
   });
 
   await t.test('a raw findOneAndUpdate invalidates too', async () => {

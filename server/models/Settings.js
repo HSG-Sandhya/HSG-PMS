@@ -876,28 +876,36 @@ SettingsSchema.statics.resetSettings = async function() {
   }
 };
 
-// ---- Operational-config cache invalidation ---------------------------------
+// ---- Dependent-cache invalidation ------------------------------------------
 //
-// getBilling() and getOps() cache the billing and operations sections per
-// tenant for a short TTL, so the booking and POS hot paths do not re-read this
-// document on every request. Something has to tell that cache when the document
-// changes.
+// Two things cache what is in this document, per tenant:
 //
-// That something used to be a call in the controller, and there was exactly one
-// of them — in updateSettingsSection — against nine write sites. So
-// PUT /api/settings saved and never invalidated: a changed GST rate, invoice
-// prefix or check-out time went on being ignored for the whole TTL. resetSettings
-// was worse, wiping the document to defaults while the cache kept serving the
-// old values, and the maintenance scripts invalidated nothing at all.
+//   config/operationalConfig.js   billing + operations, on a short TTL, so the
+//                                 booking and POS hot paths do not re-read
+//                                 Settings on every request
+//   services/paymentService.js    the live Razorpay client, built from the
+//                                 payment section
 //
-// On the model, no caller can forget. Every save, every write query and every
-// delete clears it, including writes from scripts/ that never touch a
-// controller.
+// Both have to be told when the document changes.
 //
-// The import is dynamic because config/operationalConfig.js imports THIS file;
-// a static import would close the cycle. ESM caches the module after the first
-// call, so this costs one lookup.
-const invalidateConfigCache = async () => {
+// That used to be the controller's job, and the two update endpoints did
+// different halves of it. updateSettingsSection invalidated the operational
+// config AND reloaded the payment service; updateAllSettings did neither. So
+// PUT /api/settings could change the Razorpay credentials while the in-memory
+// gateway client went on using the old ones, and change the GST rate while the
+// old rate was still being billed. The maintenance scripts in scripts/ —
+// setupPayment.js writes payment keys — did neither either.
+//
+// Doing it on the model is the centralisation: there is one path, it covers
+// every write, and no caller can forget. Both caches are dropped on ANY write
+// rather than only on the matching section, because deciding "did the payment
+// section change?" from a query update is exactly the kind of judgement that
+// drifts. Both are lazy — dropping is a Map delete and the value rebuilds on
+// next use — so an unrelated save costs nothing until someone needs the value.
+//
+// The imports are dynamic because both modules import THIS file; a static
+// import would close the cycle. ESM caches them after the first call.
+const invalidateDependentCaches = async () => {
   try {
     const { invalidateOperationalConfig } = await import('../config/operationalConfig.js');
     invalidateOperationalConfig();
@@ -906,9 +914,16 @@ const invalidateConfigCache = async () => {
     // failed because of it would be a real problem, so this never rethrows.
     console.error('[settings] could not invalidate the operational config cache:', err.message);
   }
+
+  try {
+    const { default: paymentService } = await import('../services/paymentService.js');
+    paymentService.invalidate();
+  } catch (err) {
+    console.error('[settings] could not invalidate the payment config cache:', err.message);
+  }
 };
 
-SettingsSchema.post('save', invalidateConfigCache);
+SettingsSchema.post('save', invalidateDependentCaches);
 
 // Written out rather than regex-matched so the list is auditable, and marked as
 // query middleware because updateOne/deleteOne exist as both document and query
@@ -920,7 +935,7 @@ SettingsSchema.post(
     'deleteOne', 'deleteMany',
   ],
   { query: true, document: false },
-  invalidateConfigCache,
+  invalidateDependentCaches,
 );
 
 // ---- Export ---------------------------------------------------------------

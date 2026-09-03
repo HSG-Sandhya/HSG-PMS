@@ -26,8 +26,6 @@ import {
   renderBanquetDocument,
 } from '../services/invoiceTemplates/banquetIndex.js';
 import { resolveLogo } from '../utils/resolveLogo.js';
-import paymentService from '../services/paymentService.js';
-import { invalidateOperationalConfig } from '../config/operationalConfig.js';
 import { callerHasAnyPermission } from '../middleware/requireManage.js';
 import { currentTenantName } from '../db/tenantContext.js';
 import {
@@ -260,19 +258,11 @@ export const updateSettingsSection = async (req, res) => {
 
     const updatedSettings = await Settings.updateSection(section, safeData);
 
-    // Drop the operational config cache so billing/operations edits (GST rate,
-    // breakfast charge, invoice prefix, default times, housekeeping rules) take
-    // effect on the very next booking/POS request rather than after the TTL.
-    if (section === 'billing' || section === 'operations') {
-      invalidateOperationalConfig();
-    }
-
-    // When the payment section is updated, refresh the Razorpay client so
-    // new keys take effect immediately without a server restart.
-    if (section === 'payment') {
-      try { await paymentService.reload(); }
-      catch (e) { console.error('paymentService.reload failed after settings save:', e); }
-    }
+    // The operational-config and payment caches are dropped by the Settings
+    // model itself, on any write, so both update endpoints and the maintenance
+    // scripts get the same treatment. These two side effects used to live here,
+    // which is how PUT /api/settings came to have neither of them.
+    // See models/Settings.js.
 
     return res.status(200).json({
       success: true,

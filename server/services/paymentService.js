@@ -76,12 +76,27 @@ class PaymentService {
   }
 
   /**
-   * Drop and rebuild the CURRENT tenant's cached config. Called from the settings
-   * controller after that hotel saves its Payments section, so new keys take
-   * effect immediately without a restart and without touching other hotels.
+   * Drop the CURRENT tenant's cached config without rebuilding it.
+   *
+   * This is what the Settings model calls after any write, so new Razorpay keys
+   * take effect on the next payment rather than after a restart. Dropping is a
+   * Map delete; getConfig() rebuilds lazily on first use, so an unrelated
+   * settings save costs nothing until someone actually takes a payment.
+   *
+   * Scoped to the current tenant, so one hotel saving its keys never disturbs
+   * another hotel's live gateway client.
+   */
+  invalidate() {
+    this.byTenant.delete(getCurrentTenant().slug);
+  }
+
+  /**
+   * Drop AND immediately rebuild the current tenant's config. Kept for callers
+   * that want the new keys resolved right now — boot, and the "test connection"
+   * button — rather than on next use.
    */
   async reload() {
-    this.byTenant.delete(getCurrentTenant().slug);
+    this.invalidate();
     return this.getConfig();
   }
 
