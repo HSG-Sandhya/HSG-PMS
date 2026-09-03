@@ -18,6 +18,7 @@ import { getBilling, getOps } from '../config/operationalConfig.js';
 import { syncRoomBookingIncome, removeEntriesBySource } from '../services/accountingSync.js';
 import { upsertGuest } from '../services/guestDirectory.js';
 import { nextCustomerId, nextInvoiceNumber } from '../services/bookingIds.js';
+import { quoteDeskStay, BookingPricingError } from '../services/bookingPricing.js';
 
 // How an availability conflict reads at the front desk. The override hint is
 // added only when the setting could actually have allowed it: a banquet hold
@@ -80,12 +81,13 @@ export const createBooking = async (req, res) => {
       });
     }
 
-    if (!bookingData.totalAmount || bookingData.totalAmount <= 0) {
-      return res.status(400).json({ 
-        success: false,
-        message: 'Total amount is required and must be greater than 0' 
-      });
-    }
+    // Money is NOT taken from the request. It used to be: totalAmount,
+    // baseAmount and gstAmount were read straight from the body, checked only
+    // for "greater than zero", and then spread into the document -- so any
+    // account allowed to create a booking could create a one-rupee one, or a
+    // fully-paid one, simply by posting the numbers it preferred. The quote
+    // below derives every rupee from the room, the dates, and the two things a
+    // clerk legitimately decides (a negotiated rate and a discount).
 
     // Ensure bookingStatus is valid
     if (!bookingData.bookingStatus) {
@@ -186,20 +188,55 @@ export const createBooking = async (req, res) => {
 
     await upsertGuest(guestFields);
 
-    // Generate invoice number
-    if (!bookingData.invoiceNumber) {
-      bookingData.invoiceNumber = await generateInvoiceNumber(guestName, checkInDate);
-    }
+    // Always generated, never accepted. The client deletes invoiceNumber before
+    // posting, but a direct caller could set its own -- and the invoice series
+    // is a GST document series, not a field to hand to the browser.
+    bookingData.invoiceNumber = await generateInvoiceNumber(guestName, checkInDate);
 
-    // Calculate and store baseAmount (room tariff per night)
-    if (!bookingData.baseAmount && room.pricePerNight) {
-      const { defaultCheckOutTime } = await getBilling();
-      const nights = calculateNights(
-        bookingData.checkIn,
-        bookingData.checkOut,
-        bookingData.checkOutTime || defaultCheckOutTime
-      );
-      bookingData.baseAmount = room.pricePerNight * nights;
+    // ── Money, decided here ──────────────────────────────────────────────────
+    // The clerk chooses the room, the dates, an optional negotiated tariff and
+    // an optional discount percentage. Everything in rupees is derived from
+    // those, using the same arithmetic the desk screen shows while the form is
+    // being filled, so the price quoted and the price stored cannot diverge.
+    const quote = await quoteDeskStay({
+      roomId: bookingData.roomId,
+      checkIn: bookingData.checkIn,
+      checkOut: bookingData.checkOut,
+      roomRate: bookingData.roomRate,
+      tariffType: bookingData.tariffType,
+      discountPercent: bookingData.discount,
+    });
+
+    bookingData.roomRate = quote.ratePerNight;
+    bookingData.tariffType = quote.tariffType || '';
+    bookingData.baseAmount = quote.baseAmount;
+    bookingData.breakfastAmount = quote.breakfastAmount;
+    bookingData.gstAmount = quote.gstAmount;
+    bookingData.discount = quote.discountPercent;
+    bookingData.discountAmount = quote.discountAmount;
+    bookingData.totalAmount = quote.totalAmount;
+
+    // Extras are posted to the folio during the stay and settled at checkout, so
+    // they are not part of a new booking's total -- but the running total must
+    // agree with its own components rather than being asserted by the caller.
+    const extras = bookingData.extraCharges || {};
+    bookingData.extraChargesTotal = ['extraBed', 'extraPerson', 'foodPackage', 'laundry', 'transport', 'other']
+      .reduce((sum, k) => sum + Math.max(0, Number(extras[k]) || 0), 0);
+    bookingData.lateCheckoutFee = 0; // a checkout-time charge; never present at creation
+
+    // An advance actually collected at the desk IS the clerk's to enter. What
+    // it cannot do is exceed the bill, which is how a booking used to be marked
+    // settled without the money existing.
+    const paid = Math.max(0, Number(bookingData.paidAmount) || 0);
+    bookingData.paidAmount = Math.min(paid, quote.totalAmount);
+    bookingData.remainingAmount = balanceOf(quote.totalAmount, bookingData.paidAmount);
+
+    // Derived, not asserted. Refunded/Failed are outcomes the desk records
+    // explicitly and no amount implies, so those are left alone.
+    if (!['Refunded', 'Failed'].includes(bookingData.paymentStatus)) {
+      if (bookingData.paidAmount <= 0) bookingData.paymentStatus = 'Pending';
+      else if (bookingData.remainingAmount <= 0) bookingData.paymentStatus = 'Paid';
+      else bookingData.paymentStatus = 'Partial';
     }
 
     // A booking only occupies the room when the guest is physically checked
@@ -250,6 +287,9 @@ export const createBooking = async (req, res) => {
 
   } catch (error) {
     if (error instanceof InventoryBusyError) {
+      return res.status(error.status).json({ success: false, message: error.message });
+    }
+    if (error instanceof BookingPricingError) {
       return res.status(error.status).json({ success: false, message: error.message });
     }
     console.error('Error creating booking:', error);

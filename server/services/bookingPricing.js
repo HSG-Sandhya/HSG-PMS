@@ -1,6 +1,7 @@
 import Room from '../models/Room.js';
 import { getBilling, roomGst } from '../config/operationalConfig.js';
 import { roundMoney } from '../utils/money.js';
+import { calculateNights } from '../utils/dateHelpers.js';
 
 /**
  * The single source of truth for what a stay COSTS.
@@ -113,6 +114,95 @@ export const quoteStay = async ({ roomId, roomType, checkIn, checkOut, roomCount
     baseAmount,
     gstAmount,
     totalAmount: roundMoney(baseAmount + gstAmount),
+    gstRate: billing.roomGstRate,
+  };
+};
+
+/**
+ * Price a stay booked at the FRONT DESK.
+ *
+ * createBooking used to take totalAmount, baseAmount and gstAmount straight from
+ * the request body and check only that the total was above zero, then spread the
+ * whole body into `new Booking(...)`. So any account that could create a booking
+ * could also create a one-rupee one -- or a fully-paid one -- by posting the
+ * numbers it preferred. The public site had already been fixed; the desk had not.
+ *
+ * The desk is not the website, though, and the difference is deliberate: a
+ * bargained tariff is a normal thing at a hotel counter. So the inputs it may
+ * choose are the ones a clerk legitimately decides -- which room, which dates,
+ * a negotiated nightly rate, a discount percentage, whether breakfast is
+ * included -- and every RUPEE figure is derived here from those.
+ *
+ * The arithmetic deliberately mirrors, step for step, what the admin screen
+ * shows the clerk while they fill the form (client/src/pages/operations/
+ * Bookings.js). If the two disagreed, the desk would quote one price and the
+ * invoice would carry another, which is worse than the hole being closed is
+ * good. In particular:
+ *
+ *   - GST is charged on the PRE-discount subtotal, so a discount never reduces
+ *     the tax.
+ *   - The discount is a percentage off the ROOM base only -- not breakfast,
+ *     not GST.
+ *   - Extra charges and late-checkout fees are NOT part of a new booking's
+ *     total. They are posted to the folio during the stay and settled at
+ *     checkout, which is how the screen treats them too.
+ *
+ * @returns every rupee figure the booking record needs.
+ */
+export const quoteDeskStay = async ({
+  roomId,
+  checkIn,
+  checkOut,
+  roomRate,
+  tariffType = '',
+  discountPercent = 0,
+} = {}) => {
+  const room = await Room.findById(roomId).select('type pricePerNight');
+  if (!room) throw new BookingPricingError('That room does not exist');
+
+  // Calendar nights, matching the desk screen and the rest of the controller.
+  // nightsBetween() ceils elapsed milliseconds, which is right for the website's
+  // date-only input but would disagree here the moment a time is attached.
+  const nights = calculateNights(checkIn, checkOut);
+  const billing = await getBilling();
+
+  // A negotiated tariff is the clerk's to set, INCLUDING zero for a
+  // complimentary stay -- so this tests for a usable number, not truthiness.
+  // Anything absent, negative or unparseable falls back to the published rate.
+  const negotiated = Number(roomRate);
+  const usesNegotiated = roomRate !== undefined && roomRate !== null && roomRate !== ''
+    && Number.isFinite(negotiated) && negotiated >= 0;
+  const ratePerNight = usesNegotiated ? negotiated : (Number(room.pricePerNight) || 0);
+
+  const baseAmount = roundMoney(ratePerNight * nights);
+  const breakfastAmount = tariffType === 'breakfast'
+    ? roundMoney((Number(billing.breakfastChargePerNight) || 0) * nights)
+    : 0;
+
+  const subtotal = roundMoney(baseAmount + breakfastAmount);
+  const gstAmount = roundMoney(roomGst(subtotal, billing));
+
+  // Clamped to the configured ceiling, so a request cannot discount past what
+  // the hotel allows however the screen is bypassed.
+  const maxPct = Number(billing.maxDiscountPercent);
+  const pct = Math.min(
+    Number.isFinite(maxPct) ? maxPct : 100,
+    Math.max(0, Number(discountPercent) || 0),
+  );
+  const discountAmount = roundMoney(baseAmount * (pct / 100));
+
+  return {
+    roomType: room.type,
+    nights,
+    ratePerNight: roundMoney(ratePerNight),
+    negotiated: usesNegotiated,
+    tariffType,
+    baseAmount,
+    breakfastAmount,
+    gstAmount,
+    discountPercent: pct,
+    discountAmount,
+    totalAmount: roundMoney(subtotal + gstAmount - discountAmount),
     gstRate: billing.roomGstRate,
   };
 };

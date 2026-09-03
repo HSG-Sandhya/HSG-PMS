@@ -82,6 +82,17 @@ const bookingSchema = new mongoose.Schema({
   roomRate: { type: Number, default: 0, min: 0 },
   discount: { type: Number, default: 0 },       // percentage off the subtotal (applied 0–100)
   discountAmount: { type: Number, default: 0 }, // rupee value of the discount
+
+  // Which tariff was sold, and the breakfast money it implies.
+  //
+  // The desk screen has always offered a breakfast-inclusive tariff and added
+  // breakfastChargePerNight × nights to the total for it -- but neither field
+  // was declared here, so Mongoose strict mode dropped both on save. The money
+  // survived inside baseAmount/gstAmount while the REASON for it did not, which
+  // meant a stored booking could not be re-priced: nothing recorded whether
+  // breakfast was in the number. Declared so the quote is reconstructible.
+  tariffType: { type: String, enum: ['room-only', 'breakfast', ''], default: '' },
+  breakfastAmount: { type: Number, default: 0 },
   gstAmount: { type: Number, default: 0 },
   // Itemised priced add-ons beyond the room tariff (each a rupee amount).
   extraCharges: {
