@@ -2,6 +2,7 @@ import BanquetBooking from '../models/BanquetBooking.js';
 import Housekeeping from '../models/Housekeeping.js';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
 import { syncBanquetPayments, removeEntriesBySource } from '../services/accountingSync.js';
+import { nextEventCustomerId } from '../services/bookingIds.js';
 
 const EVENT_TYPE_PREFIXES = {
   birthday: 'BIRTH',
@@ -11,29 +12,24 @@ const EVENT_TYPE_PREFIXES = {
   corporate: 'CORP',
 };
 
+// This had the same read-then-add race as the room-booking generators, and one
+// more problem on top: BanquetBooking never declared a customerId field, so
+// Mongoose's strict mode silently discarded every id this computed. Not one
+// banquet booking in production carries one. The only thing that ever read the
+// field was this function's own lookup, which therefore always found nothing
+// and always returned 1001 -- a database query per booking, for a constant,
+// thrown away on save.
+//
+// The field is declared on the schema now, and the number comes from the shared
+// atomic generator. Bookings created before this have no customer id; nothing
+// displays one today, so there is nothing to backfill for.
 const buildCustomerId = async (bookingData) => {
   let prefix = 'EVT';
   if (bookingData.eventType) {
     const key = bookingData.eventType.toLowerCase();
     prefix = EVENT_TYPE_PREFIXES[key] || bookingData.eventType.toUpperCase().slice(0, 4);
   }
-
-  const datePart = bookingData.eventDate
-    ? new Date(bookingData.eventDate).toISOString().replace(/[-:T.]/g, '').slice(0, 8)
-    : Date.now();
-
-  const lastBooking = await BanquetBooking.findOne({
-    eventType: bookingData.eventType,
-    eventDate: bookingData.eventDate,
-  }).sort({ createdAt: -1 });
-
-  let seq = 1001;
-  if (lastBooking?.customerId) {
-    const lastSeq = parseInt(lastBooking.customerId.slice(-4));
-    seq = isNaN(lastSeq) ? 1001 : lastSeq + 1;
-  }
-
-  return `${prefix}${datePart}${seq}`;
+  return nextEventCustomerId(prefix, bookingData.eventDate);
 };
 
 export const getAllBookings = async (_req, res) => {

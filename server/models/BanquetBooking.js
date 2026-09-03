@@ -3,6 +3,17 @@ import { balanceOf } from '../utils/money.js';
 
 import { registerModel } from "../db/modelRegistry.js";
 const banquetBookingSchema = new mongoose.Schema({
+  // Human-readable reference for the event, e.g. "MARR202603151001".
+  //
+  // marriageBookingController has always computed one of these on create, but
+  // the field was never declared here -- so Mongoose's strict mode dropped it
+  // on every save and no banquet booking in production has one. Declared now so
+  // the value is actually kept. Not unique-indexed: three existing bookings
+  // predate this and carry nothing, and a partial index over a field that is
+  // absent on older rows is more trouble than the guarantee is worth at this
+  // volume. The generator is atomic, so collisions are not the risk here.
+  customerId: { type: String, index: true },
+
   // Hall reference (optional for non-hall events)
   hallId: {
     type: mongoose.Schema.Types.ObjectId,

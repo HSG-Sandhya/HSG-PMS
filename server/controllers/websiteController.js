@@ -32,6 +32,7 @@ import { findSlotConflict, findSlotConflicts, describeSlotConflict } from './ban
 import { nextSequence } from '../services/sequence.js';
 import { getInventorySnapshot, availabilityByType, availabilityConflict } from '../services/inventory.js';
 import { withInventoryLock, InventoryBusyError } from '../services/inventoryLock.js';
+import { nextCustomerId } from '../services/bookingIds.js';
 
 // ── Public restaurant ─────────────────────────────────────────────────────────
 
@@ -267,36 +268,6 @@ export const getRoomTypeById = async (req, res) => {
   }
 };
 
-const generateUniqueCustomerId = async (guestName, checkInDate) => {
-  const nameParts = guestName.trim().split(' ');
-  const firstInitial = nameParts[0]?.[0]?.toUpperCase() || '';
-  const lastInitial = nameParts.length > 1 ? nameParts[nameParts.length - 1][0].toUpperCase() : '';
-  const initials = firstInitial + lastInitial;
-
-  const checkIn = new Date(checkInDate);
-  const yyyy = checkIn.getFullYear();
-  const mm = String(checkIn.getMonth() + 1).padStart(2, '0');
-  const dd = String(checkIn.getDate()).padStart(2, '0');
-  const dateStr = `${yyyy}${mm}${dd}`;
-
-  // The sequence runs per arrival day, so that is the counter's scope.
-  const seq = await nextSequence(`customer:${dateStr}`, {
-    start: 1000,
-    seed: async () => {
-      const dayStart = new Date(checkIn); dayStart.setHours(0, 0, 0, 0);
-      const dayEnd = new Date(checkIn); dayEnd.setHours(23, 59, 59, 999);
-      const sameDay = await Booking.find({ checkIn: { $gte: dayStart, $lte: dayEnd } })
-        .select('customerId').lean();
-      // Existing ids are INITIALS + YYYYMMDD + sequence, e.g. "SK202607301002".
-      return sameDay.reduce((max, b) => {
-        const n = parseInt(String(b.customerId || '').match(/^[A-Z]*\d{8}(\d+)$/)?.[1], 10);
-        return Number.isFinite(n) && n > max ? n : max;
-      }, 1000);
-    },
-  });
-  return `${initials}${dateStr}${seq}`;
-};
-
 const generateUniqueInvoiceNumber = async () => {
   const { invoicePrefix } = await getBilling();
   const seqRegex = new RegExp(`^${invoicePrefix}-(\\d+)$`);
@@ -443,7 +414,7 @@ export const createRoomBooking = async (req, res) => {
     const guestName = `${bookingData.guest.firstName || ''} ${
       bookingData.guest.lastName || ''
     }`.trim();
-    const customerId = await generateUniqueCustomerId(guestName, bookingData.checkIn);
+    const customerId = await nextCustomerId(guestName, bookingData.checkIn);
     const invoiceNumber = await generateUniqueInvoiceNumber();
     const { defaultCheckInTime, defaultCheckOutTime } = await getBilling();
 

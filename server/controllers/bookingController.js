@@ -18,6 +18,7 @@ import { sendBookingNotification } from '../services/notificationService.js';
 import { getBilling, getOps } from '../config/operationalConfig.js';
 import { syncRoomBookingIncome, removeEntriesBySource } from '../services/accountingSync.js';
 import { upsertGuest } from '../services/guestDirectory.js';
+import { nextCustomerId } from '../services/bookingIds.js';
 
 // How an availability conflict reads at the front desk. The override hint is
 // added only when the setting could actually have allowed it: a banquet hold
@@ -183,34 +184,15 @@ export const createBooking = async (req, res) => {
       return res.status(earlyConflict.status).json({ success: false, message: deskMessage(earlyConflict) });
     }
 
-    // Generate customer ID
+    // Customer ID. This read every booking for the arrival day, took the most
+    // recently CREATED one and added one to its last four characters -- so two
+    // clerks working together both landed on the same number and the second
+    // save hit the unique index on customerId, surfacing at the desk as
+    // "Internal server error" with the booking lost. Atomic now, and shared
+    // with every other path that mints one. See services/bookingIds.js.
     const guestName = bookingData.guestName || '';
     const checkInDate = bookingData.checkIn || new Date();
-    const nameParts = guestName.trim().split(' ');
-    const firstInitial = nameParts[0]?.[0]?.toUpperCase() || '';
-    const lastInitial = nameParts.length > 1 ? nameParts[nameParts.length - 1][0].toUpperCase() : '';
-    const initials = firstInitial + lastInitial;
-    
-    const dateObj = new Date(checkInDate);
-    const yyyy = dateObj.getFullYear();
-    const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
-    const dd = String(dateObj.getDate()).padStart(2, '0');
-    const dateStr = `${yyyy}${mm}${dd}`;
-    
-    const dateStart = new Date(dateObj.setHours(0,0,0,0));
-    const dateEnd = new Date(dateObj.setHours(23,59,59,999));
-    const bookingsForDay = await Booking.find({
-      checkIn: { $gte: dateStart, $lte: dateEnd }
-    }).sort({ createdAt: -1 });
-    
-    let seq = 1001;
-    if (bookingsForDay.length > 0) {
-      const lastId = bookingsForDay[0].customerId;
-      const lastSeq = lastId ? parseInt(lastId.slice(-4)) : 1000;
-      seq = isNaN(lastSeq) ? 1001 : lastSeq + 1;
-    }
-    
-    bookingData.customerId = `${initials}${dateStr}${seq}`;
+    bookingData.customerId = await nextCustomerId(guestName, checkInDate);
 
     // Create or update guest record
     const guestFields = {
@@ -740,32 +722,12 @@ export const generateMissingInvoiceNumbers = async (req, res) => {
 // ── Shared helper: generate a unique customerId for a check-in date ─────────
 // Mirrors the inline logic in createBooking so group rooms each get a unique,
 // sequential id even when created in the same request.
-const generateCustomerId = async (guestName, checkInDate, offset = 0) => {
-  const nameParts = String(guestName || '').trim().split(' ');
-  const firstInitial = nameParts[0]?.[0]?.toUpperCase() || 'G';
-  const lastInitial = nameParts.length > 1 ? nameParts[nameParts.length - 1][0].toUpperCase() : '';
-  const initials = firstInitial + lastInitial;
-
-  const dateObj = new Date(checkInDate);
-  const yyyy = dateObj.getFullYear();
-  const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
-  const dd = String(dateObj.getDate()).padStart(2, '0');
-  const dateStr = `${yyyy}${mm}${dd}`;
-
-  const dateStart = new Date(new Date(dateObj).setHours(0, 0, 0, 0));
-  const dateEnd = new Date(new Date(dateObj).setHours(23, 59, 59, 999));
-  const bookingsForDay = await Booking.find({ checkIn: { $gte: dateStart, $lte: dateEnd } })
-    .sort({ createdAt: -1 })
-    .limit(1);
-
-  let seq = 1001;
-  if (bookingsForDay.length > 0) {
-    const lastId = bookingsForDay[0].customerId;
-    const lastSeq = lastId ? parseInt(lastId.slice(-4), 10) : 1000;
-    seq = isNaN(lastSeq) ? 1001 : lastSeq + 1;
-  }
-  return `${initials}${dateStr}${seq + offset}`;
-};
+// The group and company flows used to carry their own copy of the read-then-add
+// generator, plus an `offset` so a block of N rooms could space its ids out from
+// a single read. With an atomic counter each call simply returns the next
+// number, so the offset -- and the way two concurrent blocks used to overlap
+// each other's whole range -- is gone.
+const generateCustomerId = (guestName, checkInDate) => nextCustomerId(guestName, checkInDate);
 
 // Booking statuses that still hold a room against availability.
 // Kept as a local alias for readability at the call sites below; the list
@@ -893,7 +855,7 @@ const createGroupFromRoomBlock = async (res, ctx) => {
           ? Math.max(1, Math.floor(paxTotal / qty) + (k < paxTotal % qty ? 1 : 0))
           : 1;
 
-        const customerId = await generateCustomerId(coordinator.guestName, checkInDate, idx);
+        const customerId = await generateCustomerId(coordinator.guestName, checkInDate);
         const invoiceNumber = await generateInvoiceNumber(coordinator.guestName, checkInDate);
 
         const booking = new Booking({
@@ -1065,7 +1027,7 @@ export const createGroupBooking = async (req, res) => {
         const isMaster = i === 0;
         const occupantName = (r.guestName && r.guestName.trim()) || coordinator.guestName;
 
-        const customerId = await generateCustomerId(coordinator.guestName, checkInDate, i);
+        const customerId = await generateCustomerId(coordinator.guestName, checkInDate);
         const invoiceNumber = await generateInvoiceNumber(occupantName, checkInDate);
 
         const booking = new Booking({
@@ -1304,7 +1266,7 @@ export const createCompanyBooking = async (req, res) => {
         for (let k = 0; k < qty; k++) {
           const isMaster = idx === 0;
           const occupant = (employees[idx]?.name || '').trim() || primaryContact.name;
-          const customerId = await generateCustomerId(company.name, checkInDate, idx);
+          const customerId = await generateCustomerId(company.name, checkInDate);
           const invoiceNumber = await generateInvoiceNumber(occupant, checkInDate);
 
           const booking = new Booking({
@@ -1492,7 +1454,7 @@ export const addRoomToGroup = async (req, res) => {
       return res.status(earlyConflict.status).json({ success: false, message: earlyConflict.message });
     }
 
-    const customerId = await generateCustomerId(master.groupName || occupant, master.checkIn, cluster.length);
+    const customerId = await generateCustomerId(master.groupName || occupant, master.checkIn);
     const invoiceNumber = await generateInvoiceNumber(occupant, master.checkIn);
 
     const booking = new Booking({
