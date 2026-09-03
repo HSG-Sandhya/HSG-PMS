@@ -470,7 +470,11 @@ SettingsSchema.pre('save', function() {
 SettingsSchema.statics.getOrCreate = async function(match = {}) {
   const existing = await this.findOne(match);
   if (existing) return existing;
-  return this.create({ hotelName: '' });
+  // hotelName is `required`, so the empty string this used to pass was rejected
+  // outright — creating the first settings document threw instead of creating
+  // it. The tenant's own name is the right default and is never another
+  // hotel's; the generic fallback only applies when nothing is configured yet.
+  return this.create({ hotelName: currentTenantName() || 'Hotel' });
 };
 
 /**
@@ -836,18 +840,34 @@ SettingsSchema.statics.updateSection = async function(section, data) {
  * Reset settings to defaults
  * @returns {Promise<Object>} The reset settings
  */
+/**
+ * Reset every setting to its schema default, keeping the hotel's name.
+ *
+ * This did not work. It read the document through getSettings(), which returns
+ * a plain object reshaped for the UI and carries no _id, then deleted by that
+ * missing id:
+ *
+ *     await this.deleteOne({ _id: settings._id });   // _id is undefined
+ *
+ * which matched nothing. The old document survived, a second one was created
+ * beside it, and findOne({}) went on returning the original — so "reset to
+ * defaults" changed nothing at all while quietly leaving a duplicate behind.
+ * Blanking hotelName then failed its own `required` rule on top.
+ *
+ * findOne() returns the real document, and deleteMany clears any duplicates a
+ * previous reset left.
+ */
 SettingsSchema.statics.resetSettings = async function() {
   try {
-    const settings = await this.getSettings();
-    
-    // Reset to schema defaults by removing and recreating
-    await this.deleteOne({ _id: settings._id });
-    
-    const newSettings = new this({
-      hotelName: currentTenantName(),
-      // Other default values will be set by the schema
-    });
-    
+    const existing = await this.findOne({});
+
+    // Resetting SETTINGS should not erase the hotel's identity, and hotelName
+    // is `required`, so it cannot be blank either way.
+    const hotelName = existing?.hotelName || currentTenantName() || 'Hotel';
+
+    await this.deleteMany({});
+
+    const newSettings = new this({ hotelName });
     await newSettings.save();
     return newSettings;
   } catch (error) {
@@ -855,6 +875,53 @@ SettingsSchema.statics.resetSettings = async function() {
     throw error;
   }
 };
+
+// ---- Operational-config cache invalidation ---------------------------------
+//
+// getBilling() and getOps() cache the billing and operations sections per
+// tenant for a short TTL, so the booking and POS hot paths do not re-read this
+// document on every request. Something has to tell that cache when the document
+// changes.
+//
+// That something used to be a call in the controller, and there was exactly one
+// of them — in updateSettingsSection — against nine write sites. So
+// PUT /api/settings saved and never invalidated: a changed GST rate, invoice
+// prefix or check-out time went on being ignored for the whole TTL. resetSettings
+// was worse, wiping the document to defaults while the cache kept serving the
+// old values, and the maintenance scripts invalidated nothing at all.
+//
+// On the model, no caller can forget. Every save, every write query and every
+// delete clears it, including writes from scripts/ that never touch a
+// controller.
+//
+// The import is dynamic because config/operationalConfig.js imports THIS file;
+// a static import would close the cycle. ESM caches the module after the first
+// call, so this costs one lookup.
+const invalidateConfigCache = async () => {
+  try {
+    const { invalidateOperationalConfig } = await import('../config/operationalConfig.js');
+    invalidateOperationalConfig();
+  } catch (err) {
+    // A cache that failed to clear is stale for a few seconds. A write that
+    // failed because of it would be a real problem, so this never rethrows.
+    console.error('[settings] could not invalidate the operational config cache:', err.message);
+  }
+};
+
+SettingsSchema.post('save', invalidateConfigCache);
+
+// Written out rather than regex-matched so the list is auditable, and marked as
+// query middleware because updateOne/deleteOne exist as both document and query
+// hooks and default differently.
+SettingsSchema.post(
+  [
+    'updateOne', 'updateMany', 'replaceOne',
+    'findOneAndUpdate', 'findOneAndReplace', 'findOneAndDelete',
+    'deleteOne', 'deleteMany',
+  ],
+  { query: true, document: false },
+  invalidateConfigCache,
+);
 
 // ---- Export ---------------------------------------------------------------
 const Settings = registerModel('Settings', SettingsSchema);

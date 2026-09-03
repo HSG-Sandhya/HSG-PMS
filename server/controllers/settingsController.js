@@ -294,9 +294,19 @@ export const updateAllSettings = async (req, res) => {
   try {
     const updateData = req.body;
 
-    const settings = await Settings.getSettings();
+    // getSettings() returns a plain object reshaped for the UI, not a document,
+    // so `settings.save()` threw "settings.save is not a function" and this
+    // endpoint answered 500 to every request it ever received. Nothing in the
+    // admin client calls it — api.settings.updateAll exists but has no caller —
+    // which is why a completely broken endpoint went unnoticed.
+    //
+    // getOrCreate() returns the real document. The secret comparison still needs
+    // the UI-shaped view, because that is the shape the client echoes back.
+    const settings = await Settings.getOrCreate();
+    const stored = await Settings.getSettings();
+
     // Same reasoning as the section update: a blank secret means "unchanged".
-    Object.assign(settings, preserveSecrets(updateData, settings));
+    Object.assign(settings, preserveSecrets(updateData, stored));
     await settings.save();
 
     return res.status(200).json({
