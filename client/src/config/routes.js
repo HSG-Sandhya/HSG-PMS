@@ -12,6 +12,8 @@ import PointOfSaleIcon from '@mui/icons-material/PointOfSale';
 import CelebrationIcon from '@mui/icons-material/Celebration';
 import CloudSyncIcon from '@mui/icons-material/CloudSync';
 
+import { groupPermissions } from './permissions';
+
 /**
  * THE route table. One entry per protected page, and the only place that says
  * which permissions open it.
@@ -27,6 +29,15 @@ import CloudSyncIcon from '@mui/icons-material/CloudSync';
  *   permissions  ANY ONE of these opens the page. Matches how both
  *                ProtectedRoute (`.some()`) and the Sidebar already behaved;
  *                system admins bypass the check entirely.
+ *
+ *                Taken from the permission catalogue by GROUP, never
+ *                hand-listed. Each entry used to name a single `manage_*`
+ *                permission — the WRITE one — so a role granted only the read
+ *                or partial permissions for a page was bounced out of it. A
+ *                Room Attendant holding view_housekeeping_tasks and
+ *                update_room_status could not open /housekeeping at all,
+ *                despite the server letting them. Deriving from the group
+ *                means the route table and the catalogue cannot disagree.
  *   Component    lazily-loaded page component
  *   props        static props for that component (e.g. which tab to open)
  *   nav          present => a top-level sidebar row. Omit for routes that are
@@ -47,7 +58,7 @@ export const ROUTES = [
   },
   {
     path: '/bookings',
-    permissions: ['manage_bookings'],
+    permissions: groupPermissions('bookings'),
     Component: lazy(() => import('../pages/operations/Bookings')),
     props: { view: 'active' },
     nav: {
@@ -64,34 +75,34 @@ export const ROUTES = [
   {
     // Reached through the Bookings sub-nav, so no nav row of its own.
     path: '/bookings/checked-out',
-    permissions: ['manage_bookings'],
+    permissions: groupPermissions('bookings'),
     Component: lazy(() => import('../pages/operations/Bookings')),
     props: { view: 'checkedout' },
   },
   {
     path: '/reservations',
-    permissions: ['manage_reservations'],
+    permissions: groupPermissions('reservations'),
     Component: lazy(() => import('../pages/management/Reservations')),
     nav: { title: 'Reservations', icon: CalendarMonthIcon, color: 'from-blue-400 to-blue-600' },
     landing: true,
   },
   {
     path: '/rooms',
-    permissions: ['manage_rooms'],
+    permissions: groupPermissions('rooms'),
     Component: lazy(() => import('../pages/management/Rooms')),
     nav: { title: 'Rooms', icon: Hotel, color: 'from-purple-400 to-purple-600' },
     landing: true,
   },
   {
     path: '/guests',
-    permissions: ['manage_guests'],
+    permissions: groupPermissions('guests'),
     Component: lazy(() => import('../pages/management/Guests')),
     nav: { title: 'Guests', icon: Person, color: 'from-yellow-400 to-yellow-600' },
     landing: true,
   },
   {
     path: '/accounting',
-    permissions: ['manage_accounting'],
+    permissions: groupPermissions('accounting'),
     Component: lazy(() => import('../pages/management/Accounting')),
     nav: { title: 'Accounting', icon: AccountBalanceWalletIcon, color: 'from-emerald-400 to-emerald-600' },
     landing: true,
@@ -100,7 +111,7 @@ export const ROUTES = [
     // Staff management is reached through Settings → Staff, so it has no nav
     // row. The route still exists for direct links.
     path: '/staffs',
-    permissions: ['manage_staff', 'view_staff', 'create_staff'],
+    permissions: groupPermissions('staff'),
     Component: lazy(() => import('../pages/management/Staff')),
     landing: true,
   },
@@ -108,7 +119,7 @@ export const ROUTES = [
     // Attendance and payroll share one workspace, so either side's permission
     // opens it.
     path: '/workforce',
-    permissions: ['manage_attendance', 'manage_payroll', 'view_payroll'],
+    permissions: groupPermissions('attendance', 'payroll'),
     Component: lazy(() => import('../components/WorkforceManagement')),
     props: { defaultTab: 'attendance' },
     nav: { title: 'Staff & Payroll', icon: AccessTimeIcon, color: 'from-cyan-400 to-cyan-600' },
@@ -116,35 +127,35 @@ export const ROUTES = [
   },
   {
     path: '/housekeeping',
-    permissions: ['manage_housekeeping'],
+    permissions: groupPermissions('housekeeping'),
     Component: lazy(() => import('../pages/operations/Housekeepings')),
     nav: { title: 'Housekeeping', icon: CleaningServices, color: 'from-pink-400 to-pink-600' },
     landing: true,
   },
   {
     path: '/restaurant',
-    permissions: ['manage_restaurant'],
+    permissions: groupPermissions('restaurant'),
     Component: lazy(() => import('../pages/operations/Restaurant')),
     nav: { title: 'Restaurant', icon: RestaurantIcon, color: 'from-red-400 to-red-600' },
     landing: true,
   },
   {
     path: '/pos',
-    permissions: ['manage_pos'],
+    permissions: groupPermissions('pos'),
     Component: lazy(() => import('../pages/operations/POS')),
     nav: { title: 'POS', icon: PointOfSaleIcon, color: 'from-green-400 to-green-600' },
     landing: true,
   },
   {
     path: '/banquet-hall',
-    permissions: ['manage_events'],
+    permissions: groupPermissions('events'),
     Component: lazy(() => import('../pages/management/BanquetHallBooking')),
     nav: { title: 'Banquet Hall Booking', icon: CelebrationIcon, color: 'from-indigo-400 to-indigo-600' },
     landing: true,
   },
   {
     path: '/channels',
-    permissions: ['manage_channels'],
+    permissions: groupPermissions('channels'),
     Component: lazy(() => import('../pages/management/ChannelManager')),
     nav: { title: 'Channel Manager', icon: CloudSyncIcon, color: 'from-teal-400 to-teal-600' },
     landing: true,
@@ -152,7 +163,7 @@ export const ROUTES = [
   {
     // The sidebar renders Settings in its own footer section, not as a nav row.
     path: '/settings',
-    permissions: ['manage_settings'],
+    permissions: groupPermissions('settings'),
     Component: lazy(() => import('../components/settings')),
     landing: true,
   },
@@ -160,19 +171,22 @@ export const ROUTES = [
   // ── Routes with no nav row and no landing eligibility ────────────────────
   {
     path: '/admin',
+    // Deliberately NOT the whole admin group: view_backups and
+    // view_system_logs are narrow grants that should not also open the
+    // platform console. admin_access is the gate for that page.
     permissions: ['admin_access'],
     Component: lazy(() => import('../components/AdminPanel')),
   },
   {
     // Backward-compatible deep links that open a specific Workforce tab.
     path: '/staff-attendance',
-    permissions: ['manage_attendance'],
+    permissions: groupPermissions('attendance'),
     Component: lazy(() => import('../components/WorkforceManagement')),
     props: { defaultTab: 'attendance' },
   },
   {
     path: '/payroll',
-    permissions: ['manage_payroll', 'view_payroll'],
+    permissions: groupPermissions('payroll'),
     Component: lazy(() => import('../components/WorkforceManagement')),
     props: { defaultTab: 'payroll' },
   },
