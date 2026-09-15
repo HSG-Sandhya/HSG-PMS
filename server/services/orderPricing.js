@@ -24,10 +24,16 @@ import { roundMoney } from '../utils/money.js';
  * prices produced a tax-free order.
  *
  * So the browser now sends only WHAT it wants and HOW MANY. Identity, price,
- * availability, tax and total are all read or derived server-side. The staff POS
- * (authenticated, `manage_restaurant`) deliberately keeps its ability to set a
- * price, because overriding one is a legitimate front-of-house action —
- * discounts, staff meals, comps. Anonymous callers get no such privilege.
+ * availability, tax and total are all read or derived server-side.
+ *
+ * The staff POS was originally left out of this, on the reasoning that
+ * overriding a price is a legitimate front-of-house action — discounts, staff
+ * meals, comps. It isn't one the app actually offers: neither the POS screen nor
+ * the Restaurant screen has any way to change a price, both simply multiply the
+ * menu price they were served, and the room-service orders they create land on a
+ * guest's folio at checkout. So the admin paths price through here too, and a
+ * comp or a discount — when the hotel wants one — belongs in the open as its own
+ * recorded decision rather than as a quietly rewritten unit price.
  */
 
 const MAX_LINES = 50;
@@ -60,7 +66,10 @@ export const readRequestedQuantities = (rawItems) => {
 
   const wanted = new Map();
   for (const raw of rawItems) {
-    const id = String(raw?.itemId ?? raw?._id ?? '').trim();
+    // `itemId` arrives populated on the admin edit path (the screen PUTs back the
+    // order it was shown), so unwrap a document before stringifying it -- else a
+    // perfectly good cart reads as "an item that does not exist".
+    const id = String(raw?.itemId?._id ?? raw?.itemId ?? raw?._id ?? '').trim();
     if (!mongoose.Types.ObjectId.isValid(id)) {
       throw new OrderPricingError('Order contains an item that does not exist on the menu');
     }

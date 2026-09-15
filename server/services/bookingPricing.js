@@ -25,6 +25,27 @@ import { calculateNights } from '../utils/dateHelpers.js';
  * write the booking. One calculation, so the three cannot drift.
  */
 
+/**
+ * The rate plan the desk sold, in the one spelling the Booking schema accepts.
+ *
+ * The Rate Plan dropdown has always posted `normal` for "Room Only". While the
+ * field was undeclared that was harmless -- strict mode dropped it. Declaring it
+ * with an enum of ['room-only', 'breakfast', ''] turned the same value into a
+ * ValidationError, which the controller could only report as "Failed to create
+ * booking": every default front-desk booking 500'd.
+ *
+ * So the plan is mapped here rather than trusted, and anything unrecognised
+ * becomes '' (plan not recorded) instead of travelling on to the enum. A string
+ * off the wire must never be able to fail validation on a field the caller does
+ * not control the vocabulary of.
+ */
+export const normalizeTariffType = (value) => {
+  const v = String(value ?? '').trim().toLowerCase().replace(/[\s_]+/g, '-');
+  if (v === 'breakfast' || v === 'with-breakfast' || v === 'room-with-breakfast') return 'breakfast';
+  if (v === 'normal' || v === 'room-only' || v === 'roomonly') return 'room-only';
+  return '';
+};
+
 /** A quoting error the caller should surface as a 400. */
 export class BookingPricingError extends Error {
   constructor(message) {
@@ -182,8 +203,11 @@ export const quoteDeskStay = async ({
     && Number.isFinite(negotiated) && negotiated >= 0;
   const ratePerNight = usesNegotiated ? negotiated : (Number(room.pricePerNight) || 0);
 
+  // One spelling from here on: the screen's word for a plan is not the stored one.
+  const plan = normalizeTariffType(tariffType);
+
   const baseAmount = roundMoney(ratePerNight * nights);
-  const breakfastAmount = tariffType === 'breakfast'
+  const breakfastAmount = plan === 'breakfast'
     ? roundMoney((Number(billing.breakfastChargePerNight) || 0) * nights)
     : 0;
 
@@ -204,7 +228,7 @@ export const quoteDeskStay = async ({
     nights,
     ratePerNight: roundMoney(ratePerNight),
     negotiated: usesNegotiated,
-    tariffType,
+    tariffType: plan,
     baseAmount,
     breakfastAmount,
     gstAmount,

@@ -146,7 +146,7 @@ const Bookings = ({ view = 'all', bookingType = null }) => {
     customerId: '',
     idCardImage: null,
     idCardImageBack: null,
-    tariffType: 'normal', // Add tariff type field
+    tariffType: 'room-only', // rate plan, in the value the Booking schema stores
   });
 
   const showSnackbar = useCallback((message, severity = 'success') => {
@@ -280,7 +280,7 @@ const Bookings = ({ view = 'all', bookingType = null }) => {
         idCardType: booking.idCardType || 'Aadhaar Card',
         idCardNumber: booking.idCardNumber || '',
         idCardImage: booking.idCardImage || null,
-        tariffType: booking.tariffType || 'normal',
+        tariffType: booking.tariffType || 'room-only',
         breakfastAmount: booking.breakfastAmount || 0,
       });
     } else {
@@ -326,7 +326,7 @@ const Bookings = ({ view = 'all', bookingType = null }) => {
         idCardType: 'Aadhaar Card',
         idCardNumber: '',
         idCardImage: null,
-        tariffType: 'normal',
+        tariffType: 'room-only',
       });
     }
     setOpenDialog(true);

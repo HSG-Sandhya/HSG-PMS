@@ -6,11 +6,58 @@ import Receipt from '../models/Receipt.js';
 import Booking from '../models/Booking.js';
 import Image from '../models/Image.js';
 import { syncRestaurantOrderIncome, syncTableSettlement, removeEntriesBySource } from '../services/accountingSync.js';
+import { priceOrder, OrderPricingError } from '../services/orderPricing.js';
 import { optimizeImage } from '../utils/imageOptimizer.js';
 import fs from 'fs';
 import { parse } from 'csv-parse';
 
-const ORDER_STATUSES = ['Pending', 'In Progress', 'Completed', 'Cancelled', 'Ready for Pickup', 'Picked Up'];
+// The Order schema's own enum. This list used to carry two extra values
+// ('Ready for Pickup', 'Picked Up') that the schema has never accepted, so a
+// status this controller called valid was rejected at the write -- the same
+// disagreement between a screen's vocabulary and the model's that 500'd the
+// front desk. Nothing sends them; the schema decides what a status is.
+const ORDER_STATUSES = ['Pending', 'In Progress', 'Completed', 'Cancelled'];
+
+// Fields a caller may set on an order. The money is NOT among them: items,
+// gst and totalAmount are derived from the live menu by priceOrder(). Both
+// admin paths used to take them straight from the request -- createOrder did
+// `new Order(req.body)` and updateOrder passed the body to findByIdAndUpdate --
+// so the browser named the price of a sale, and on the update path it named the
+// total outright, since findByIdAndUpdate never runs the recomputing pre-save
+// hook. That is the hole the public ordering endpoints were closed against;
+// the staff POS kept it because a price override was thought to be a
+// front-of-house need, but neither the POS nor the Restaurant screen has ever
+// offered one -- both just multiply the menu price they were served.
+const ORDER_FIELDS = [
+  'orderType', 'tableId', 'roomId', 'status', 'specialInstructions',
+  'paymentMethod', 'cashReceived', 'customerName', 'customerPhone', 'servedBy',
+];
+
+const pickOrderFields = (body = {}) => {
+  const out = {};
+  for (const key of ORDER_FIELDS) {
+    if (body[key] !== undefined) out[key] = body[key];
+  }
+  return out;
+};
+
+/** The cart as the pricing boundary reads it: which item, how many. */
+const cartOf = (items = []) => {
+  const map = new Map();
+  for (const line of items) {
+    const id = String(line?.itemId?._id ?? line?.itemId ?? line?._id ?? '');
+    map.set(id, (map.get(id) || 0) + (Number(line?.quantity) || 0));
+  }
+  return map;
+};
+
+/** Did this request actually change what was ordered? */
+const sameCart = (a, b) => {
+  const [x, y] = [cartOf(a), cartOf(b)];
+  if (x.size !== y.size) return false;
+  for (const [id, qty] of x) if (y.get(id) !== qty) return false;
+  return true;
+};
 
 const escapeRegex = (value) => value.toString().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const getFirstValue = (row, keys) => {
@@ -487,7 +534,20 @@ export const createOrder = async (req, res) => {
       }
     }
 
-    const order = new Order(req.body);
+    // Priced here, from the menu, not from the request body.
+    const { items, gst, total } = await priceOrder(req.body.items);
+
+    const order = new Order({
+      ...pickOrderFields(req.body),
+      items,
+      gst,
+      totalAmount: total,
+      // Menu prices are base prices and posGst() is added on top, which is what
+      // both screens show. Derived, so a request cannot declare the sale
+      // tax-inclusive and keep the tax.
+      gstIncluded: false,
+      createdBy: req.user?._id,
+    });
     const savedOrder = await order.save();
     if (orderType === 'table' && tableId) {
       await Table.findByIdAndUpdate(tableId, { status: 'Occupied' });
@@ -502,14 +562,43 @@ export const createOrder = async (req, res) => {
     await syncRestaurantOrderIncome(populatedOrder);
     res.status(201).json({ ...populatedOrder.toObject(), receipt });
   } catch (error) {
+    if (error instanceof OrderPricingError) {
+      return res.status(error.status).json({ message: error.message });
+    }
     res.status(400).json({ message: error.message });
   }
 };
 
 export const updateOrder = async (req, res) => {
   try {
+    const existing = await Order.findById(req.params.id);
+    if (!existing) return res.status(404).json({ message: 'Order not found' });
+
+    const changes = { ...pickOrderFields(req.body), updatedBy: req.user?._id };
+
+    // Re-price only when the cart actually changed. A status flip PUTs the whole
+    // order back (the Restaurant screen spreads it), and re-pricing that against
+    // today's menu would quietly re-cost food already served at yesterday's
+    // price. What was ordered decides the money; nothing else in the request does.
+    if (req.body.items !== undefined && !sameCart(existing.items, req.body.items)) {
+      const { items, gst, total } = await priceOrder(req.body.items);
+      changes.items = items;
+      changes.gst = gst;
+      changes.totalAmount = total;
+      changes.gstIncluded = false;
+    }
+
+    // An order moved off room service onto a table sends the new tableId but no
+    // roomId, and $set leaves the old one in place -- so the order went on
+    // pointing at a guest's booking it no longer belonged to, and their invoice
+    // went on billing it. Switching away from room service clears the link.
+    if (changes.orderType && changes.orderType !== 'room' && !changes.roomId) {
+      delete changes.roomId;
+      changes.$unset = { roomId: '' };
+    }
+
     const order = await populateOrder(
-      Order.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after', runValidators: true })
+      Order.findByIdAndUpdate(req.params.id, changes, { returnDocument: 'after', runValidators: true })
     );
     if (!order) return res.status(404).json({ message: 'Order not found' });
     if (order.status === 'Completed' || order.status === 'Cancelled') {
@@ -523,6 +612,9 @@ export const updateOrder = async (req, res) => {
     await syncRestaurantOrderIncome(order);
     res.json(order);
   } catch (error) {
+    if (error instanceof OrderPricingError) {
+      return res.status(error.status).json({ message: error.message });
+    }
     res.status(400).json({ message: error.message });
   }
 };

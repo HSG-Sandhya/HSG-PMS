@@ -158,7 +158,9 @@ orderSchema.pre('save', async function() {
   }
   
   if (this.cashReceived > 0) {
-    this.changeAmount = this.cashReceived - this.totalAmount;
+    // Never negative: `changeAmount` is min: 0, so cash short of the total used
+    // to fail validation on save rather than simply meaning "no change given".
+    this.changeAmount = Math.max(0, this.cashReceived - this.totalAmount);
   }
 });
 

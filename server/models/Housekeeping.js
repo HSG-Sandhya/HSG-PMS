@@ -47,7 +47,7 @@ const housekeepingSchema = new mongoose.Schema({
   // Notifications & source
   source: {
     type: String,
-    enum: ["manual", "room_notification", "system", "checkout_booking", "room_status_update", "banquet_checkout"],
+    enum: ["manual", "room_notification", "system", "checkout_booking", "room_transfer", "room_status_update", "banquet_checkout"],
     default: "manual"
   },
   notificationData: mongoose.Schema.Types.Mixed,

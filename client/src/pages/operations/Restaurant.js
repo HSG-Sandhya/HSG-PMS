@@ -32,6 +32,7 @@ import OrdersTab from './restaurant/tabs/OrdersTab';
 import api from '../../api';
 import { useSettings } from '../../contexts/SettingsContext';
 import { useBilling } from '../../hooks/useBilling';
+import { calcPosGst } from '../../utils/billing';
 
 const Restaurant = () => {
   const { settings } = useSettings();
@@ -245,12 +246,10 @@ const Restaurant = () => {
     }, 0);
   };
 
-  // Get GST amount using the configured POS GST rate (Billing & Tariff),
-  // kept to 2-decimal (paise) precision as before.
-  const getGSTAmount = () => {
-    const subtotal = getSubtotal();
-    return Math.round(subtotal * (billing.posGstRate / 100) * 100) / 100;
-  };
+  // Get GST amount using the configured POS GST rate (Billing & Tariff).
+  // calcPosGst applies the same rounding the server does when it prices the
+  // order, so the figure on screen is the figure that gets recorded.
+  const getGSTAmount = () => calcPosGst(getSubtotal(), billing);
 
   // Get total price (subtotal + GST)
   const getTotalPrice = () => {
@@ -291,7 +290,7 @@ const Restaurant = () => {
       const subtotal = orderItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
       
       // Calculate GST using the configured POS rate
-      const gstAmount = Math.round(subtotal * (billing.posGstRate / 100) * 100) / 100; // Round to 2 decimal places
+      const gstAmount = calcPosGst(subtotal, billing);
       
       // Calculate total amount (subtotal + GST)
       const totalAmount = subtotal + gstAmount;

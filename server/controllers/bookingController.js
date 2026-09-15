@@ -18,7 +18,7 @@ import { getBilling, getOps } from '../config/operationalConfig.js';
 import { syncRoomBookingIncome, removeEntriesBySource } from '../services/accountingSync.js';
 import { upsertGuest } from '../services/guestDirectory.js';
 import { nextCustomerId, nextInvoiceNumber } from '../services/bookingIds.js';
-import { quoteDeskStay, BookingPricingError } from '../services/bookingPricing.js';
+import { quoteDeskStay, BookingPricingError, normalizeTariffType } from '../services/bookingPricing.js';
 
 // How an availability conflict reads at the front desk. The override hint is
 // added only when the setting could actually have allowed it: a banquet hold
@@ -212,7 +212,7 @@ export const createBooking = async (req, res) => {
     });
 
     bookingData.roomRate = quote.ratePerNight;
-    bookingData.tariffType = quote.tariffType || '';
+    bookingData.tariffType = quote.tariffType;
     bookingData.baseAmount = quote.baseAmount;
     bookingData.breakfastAmount = quote.breakfastAmount;
     bookingData.gstAmount = quote.gstAmount;
@@ -495,6 +495,13 @@ export const updateBooking = async (req, res) => {
       ? bookingData.roomId
       : (existingBooking.roomId?._id || existingBooking.roomId);
 
+    // A category hold has no room, so it skips the quote below -- and with it the
+    // normalisation the quote does. Map the rate plan here too, or the screen's
+    // "normal" reaches the schema enum on that one path and 500s the edit.
+    if (bookingData.tariffType !== undefined) {
+      bookingData.tariffType = normalizeTariffType(bookingData.tariffType);
+    }
+
     // Category holds (group and company blocks) carry no room and are priced by
     // their own flows, so there is no per-room tariff to derive here.
     if (priceRoomId && PRICING_INPUTS.some((f) => bookingData[f] !== undefined)) {
@@ -522,7 +529,7 @@ export const updateBooking = async (req, res) => {
       const extras = bookingData.extraChargesTotal ?? existingBooking.extraChargesTotal ?? 0;
 
       bookingData.roomRate = quote.ratePerNight;
-      bookingData.tariffType = quote.tariffType || '';
+      bookingData.tariffType = quote.tariffType;
       bookingData.baseAmount = quote.baseAmount;
       bookingData.breakfastAmount = quote.breakfastAmount;
       bookingData.gstAmount = quote.gstAmount;
@@ -1665,7 +1672,7 @@ export const updateGroupStatus = async (req, res) => {
 export const transferRoom = async (req, res) => {
   try {
     const bookingId = req.params.id;
-    const { toRoomId, reason = '', priceAdjustment = 0 } = req.body || {};
+    const { toRoomId, reason = '', priceAdjustment } = req.body || {};
 
     if (!toRoomId || !mongoose.Types.ObjectId.isValid(toRoomId)) {
       return res.status(400).json({ success: false, message: 'A valid destination room is required' });
@@ -1674,6 +1681,16 @@ export const transferRoom = async (req, res) => {
     const booking = await Booking.findById(bookingId).populate('roomId');
     if (!booking) {
       return res.status(404).json({ success: false, message: 'Booking not found' });
+    }
+
+    // A stay that is finished, cancelled or rejected has no guest to move. This
+    // was unchecked, so a completed booking could be "transferred" -- rewriting a
+    // settled folio and marking a room occupied for a guest who had left.
+    if (['Completed', 'Cancelled', 'Rejected'].includes(booking.bookingStatus)) {
+      return res.status(409).json({
+        success: false,
+        message: `A ${String(booking.bookingStatus).toLowerCase()} booking cannot be transferred.`,
+      });
     }
 
     const fromRoom = booking.roomId && booking.roomId._id
@@ -1687,64 +1704,145 @@ export const transferRoom = async (req, res) => {
     if (!toRoom) {
       return res.status(404).json({ success: false, message: 'Destination room not found' });
     }
-
-    // The destination room must be free for this booking's stay window.
-    const overlap = await Booking.findOne({
-      _id: { $ne: booking._id },
-      roomId: toRoom._id,
-      bookingStatus: { $in: ['Confirmed', 'Pending'] },
-      checkIn: { $lt: booking.checkOut },
-      checkOut: { $gt: booking.checkIn },
-    });
-    if (overlap) {
+    if (toRoom.status === 'maintenance') {
       return res.status(409).json({
         success: false,
-        message: `Room ${toRoom.roomNumber} is occupied for an overlapping stay.`,
+        message: `Room ${toRoom.roomNumber} is under maintenance and cannot take a guest.`,
       });
     }
 
-    // Block transfer into a banquet-reserved room.
-    const blocked = await getBanquetBlockedRoomIds(booking.checkIn, booking.checkOut);
-    if (blocked.has(toRoom._id.toString())) {
-      return res.status(409).json({
-        success: false,
-        message: `Room ${toRoom.roomNumber} is reserved for a banquet event on these dates.`,
+    // ── What the move COSTS, decided here ───────────────────────────────────
+    // priceAdjustment used to be taken from the request and added straight to
+    // totalAmount: the browser named its own figure, so a transfer could knock a
+    // ₹6,300 bill down to ₹400 -- and baseAmount/gstAmount were left untouched,
+    // so the invoice went on printing the old numbers while the folio showed the
+    // new balance. The desk decides WHICH room; the difference it makes to the
+    // bill is derived, through the same quote every other path prices with.
+    //
+    // A move the hotel absorbs is a real front-desk decision, though (a goodwill
+    // upgrade, a room that turned out to be faulty), so an explicit 0 waives the
+    // charge. That is the ONLY figure a caller may name.
+    const waived = priceAdjustment !== undefined && Number(priceAdjustment) === 0;
+
+    // The rate follows the guest: a bargained tariff keeps its bargain and moves
+    // by the difference in list price, so roomRate x nights still reconstructs
+    // baseAmount and a later edit cannot silently undo the upgrade.
+    const billedRate = Number(booking.roomRate) > 0
+      ? Number(booking.roomRate)
+      : (Number(fromRoom?.pricePerNight) || 0);
+    const listDelta = (Number(toRoom.pricePerNight) || 0) - (Number(fromRoom?.pricePerNight) || 0);
+    const movedRate = Math.max(0, billedRate + listDelta);
+
+    // Priced outside the inventory lock -- the critical section below is the
+    // re-check and the save, nothing else. See services/inventoryLock.js.
+    let quote = null;
+    if (!waived) {
+      quote = await quoteDeskStay({
+        roomId: toRoom._id,
+        checkIn: booking.checkIn,
+        checkOut: booking.checkOut,
+        roomRate: movedRate,
+        tariffType: booking.tariffType,
+        discountPercent: booking.discount,
       });
     }
+    const lateFee = Number(booking.lateCheckoutFee) || 0;
+    const extras = Number(booking.extraChargesTotal) || 0;
+    const newTotal = quote
+      ? roundMoney(quote.totalAmount + lateFee + extras)
+      : (Number(booking.totalAmount) || 0);
+    const adjustment = roundMoney(newTotal - (Number(booking.totalAmount) || 0));
 
-    const adjustment = Number(priceAdjustment) || 0;
+    const { frontDesk } = await getOps();
 
-    booking.transferHistory.push({
-      fromRoomId: fromRoom?._id,
-      fromRoomNumber: fromRoom?.roomNumber || '',
-      toRoomId: toRoom._id,
-      toRoomNumber: toRoom.roomNumber,
-      reason,
-      priceAdjustment: adjustment,
-      transferredAt: new Date(),
-    });
-    booking.roomId = toRoom._id;
-    if (adjustment) {
-      booking.totalAmount = Math.max(0, (Number(booking.totalAmount) || 0) + adjustment);
-    }
-    await booking.save();
+    // Is the destination actually free for this stay? This asked its own
+    // question -- bookingStatus in ['Confirmed', 'Pending'] -- which is the
+    // narrow list HOLD_STATUSES exists to replace: it could not see a
+    // 'Checked-In' group booking or a 'Tentative' hold, so the desk was allowed
+    // to move a guest into a room with someone already in it. One verdict now,
+    // the same one createBooking and updateBooking use, and it runs inside the
+    // reservation lock so a transfer and a booking cannot both take the room.
+    const conflict = await withInventoryLock(async () => {
+      const clash = await availabilityConflict(Booking, Room, {
+        roomId: toRoom._id,
+        checkIn: booking.checkIn,
+        checkOut: booking.checkOut,
+        statuses: ACTIVE_HOLD_STATUSES,
+        excludeBookingId: booking._id,
+        allowOverbooking: frontDesk.allowOverbooking,
+      });
+      if (clash) return clash;
 
-    // Free the old room (cleaning), occupy the new one — only if the guest is
-    // actually in residence (Confirmed). Pending bookings leave rooms bookable.
-    if (booking.bookingStatus === 'Confirmed') {
-      if (fromRoom?._id) {
-        await Room.findByIdAndUpdate(fromRoom._id, { status: 'cleaning', isAvailable: false });
+      booking.transferHistory.push({
+        fromRoomId: fromRoom?._id,
+        fromRoomNumber: fromRoom?.roomNumber || '',
+        toRoomId: toRoom._id,
+        toRoomNumber: toRoom.roomNumber,
+        reason,
+        priceAdjustment: adjustment,
+        transferredAt: new Date(),
+      });
+      booking.roomId = toRoom._id;
+      booking.roomType = toRoom.type || booking.roomType;
+      if (quote) {
+        booking.roomRate = quote.ratePerNight;
+        booking.baseAmount = quote.baseAmount;
+        booking.breakfastAmount = quote.breakfastAmount;
+        booking.gstAmount = quote.gstAmount;
+        booking.discountAmount = quote.discountAmount;
+        booking.totalAmount = newTotal;
       }
-      await Room.findByIdAndUpdate(toRoom._id, { status: 'occupied', isAvailable: false });
+      await booking.save();
+      return null;
+    });
+    if (conflict) {
+      return res.status(conflict.status).json({ success: false, message: deskMessage(conflict) });
     }
 
+    // Room state is DERIVED from who is actually in residence -- it used to be
+    // assigned from bookingStatus === 'Confirmed', which is not the same
+    // question. Re-rooming a confirmed reservation before the guest arrived
+    // marked the destination 'occupied' with nobody in it, and put the old room
+    // into 'cleaning' with no housekeeping task to explain it.
+    //
+    // A guest who has actually checked in does leave a room to be cleaned, so
+    // that task is raised first and the reconcile below then sees it.
+    if (booking.checkedIn && fromRoom?._id) {
+      try {
+        const task = await Housekeeping.ensureCleaningTask({
+          roomId: fromRoom._id,
+          source: 'room_transfer',
+          notes: `Guest moved to room ${toRoom.roomNumber}. Room requires cleaning.`,
+        });
+        emitHousekeepingTask(task, await Room.findById(fromRoom._id));
+      } catch (taskError) {
+        console.error('Error creating housekeeping task on transfer:', taskError);
+      }
+    }
+    await Promise.all([
+      fromRoom?._id ? reconcileRoomStatus(fromRoom._id) : Promise.resolve(null),
+      reconcileRoomStatus(toRoom._id),
+    ]);
+
+    // The bill moved, so the ledger has to move with it.
     const populated = await Booking.findById(booking._id).populate('roomId');
+    await syncRoomBookingIncome(populated);
+
     return res.json({
       success: true,
       data: populated,
-      message: `Guest moved to room ${toRoom.roomNumber}`,
+      adjustment,
+      message: adjustment
+        ? `Guest moved to room ${toRoom.roomNumber} (bill ${adjustment > 0 ? 'up' : 'down'} by ${Math.abs(adjustment)})`
+        : `Guest moved to room ${toRoom.roomNumber}`,
     });
   } catch (error) {
+    if (error instanceof InventoryBusyError) {
+      return res.status(error.status).json({ success: false, message: error.message });
+    }
+    if (error instanceof BookingPricingError) {
+      return res.status(error.status).json({ success: false, message: error.message });
+    }
     console.error('Error transferring room:', error);
     return res.status(500).json({
       success: false,

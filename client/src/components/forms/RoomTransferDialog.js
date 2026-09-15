@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import {
-  Box, Typography, TextField, MenuItem, Chip, Stack, Divider, InputAdornment,
+  Box, Typography, TextField, MenuItem, Chip, Stack, Divider, Switch, FormControlLabel,
 } from '@mui/material';
 import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
 import ArrowRightAltIcon from '@mui/icons-material/ArrowRightAlt';
@@ -18,6 +18,10 @@ const fmt = (d) => {
 const RoomTransferDialog = ({ open, onClose, booking, rooms = [], onTransferred }) => {
   const [toRoomId, setToRoomId] = useState('');
   const [reason, setReason] = useState('');
+  // What the move costs is derived on the server, from the room rates and the
+  // stay -- the browser no longer names a figure. The one call that IS the
+  // desk's to make is whether to charge it at all.
+  const [waiveDifference, setWaiveDifference] = useState(false);
   const [priceAdjustment, setPriceAdjustment] = useState(0);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -47,7 +51,7 @@ const RoomTransferDialog = ({ open, onClose, booking, rooms = [], onTransferred 
   }, [toRoomId, rooms, currentRoomId, nights]);
 
   useEffect(() => {
-    if (open) { setToRoomId(''); setReason(''); setPriceAdjustment(0); setError(''); }
+    if (open) { setToRoomId(''); setReason(''); setPriceAdjustment(0); setWaiveDifference(false); setError(''); }
   }, [open]);
 
   const handleSubmit = async (e) => {
@@ -59,7 +63,9 @@ const RoomTransferDialog = ({ open, onClose, booking, rooms = [], onTransferred 
       const { data } = await api.bookings.transfer(booking._id, {
         toRoomId,
         reason: reason.trim(),
-        priceAdjustment: Number(priceAdjustment) || 0,
+        // 0 waives the difference; anything else is the server's to decide, so
+        // the field is simply left out.
+        ...(waiveDifference ? { priceAdjustment: 0 } : {}),
       });
       onTransferred?.(data?.message || 'Room transferred');
       onClose?.();
@@ -158,15 +164,29 @@ const RoomTransferDialog = ({ open, onClose, booking, rooms = [], onTransferred 
           placeholder="AC fault, guest request, upgrade…"
         />
 
-        <TextField
-          fullWidth type="number" label="Folio adjustment"
-          value={priceAdjustment}
-          onChange={(e) => setPriceAdjustment(e.target.value)}
-          helperText="Auto-suggested from the room rate difference. Positive = charge more, negative = refund."
-          slotProps={{
-            input: { startAdornment: <InputAdornment position="start">{currencySym()}</InputAdornment> }
-          }}
-        />
+        <Box sx={{ p: 2, borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+          <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
+            <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+              Folio adjustment
+            </Typography>
+            <Typography
+              variant="h6"
+              sx={{ fontWeight: 800, color: waiveDifference ? 'text.disabled' : 'var(--app-primary)', textDecoration: waiveDifference ? 'line-through' : 'none' }}
+            >
+              {priceAdjustment > 0 ? '+' : ''}{currencySym()}{Math.abs(priceAdjustment).toLocaleString('en-IN')}
+            </Typography>
+          </Stack>
+          <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+            {toRoomId
+              ? `Rate difference over ${nights} night${nights > 1 ? 's' : ''}, with GST. Confirmed on the server from the room rates.`
+              : 'Pick a room to see what the move costs.'}
+          </Typography>
+          <FormControlLabel
+            sx={{ mt: 1 }}
+            control={<Switch checked={waiveDifference} onChange={(e) => setWaiveDifference(e.target.checked)} />}
+            label={<Typography variant="body2">Move at no charge (waive the difference)</Typography>}
+          />
+        </Box>
 
         {error && (
           <Typography variant="body2" sx={{ color: 'error.main', mt: 2 }}>{error}</Typography>

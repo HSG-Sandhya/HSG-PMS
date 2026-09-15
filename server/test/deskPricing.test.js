@@ -174,6 +174,44 @@ test('front-desk pricing', { skip: ready ? false : skipReason, timeout: 120_000 
     assert.equal(stored.totalAmount, base + breakfast + (base + breakfast) * 0.05);
   });
 
+  await t.test("the Rate Plan dropdown's own value is accepted, not 500'd", async () => {
+    // The desk form posts tariffType 'normal' for "Room Only" -- its default, so
+    // this is the ordinary booking, not an edge case. Declaring tariffType with
+    // an enum of ['room-only','breakfast',''] made every one of them fail
+    // validation inside save(), which the controller could only report as
+    // "Failed to create booking" with the booking lost.
+    const room = await seedRoom();
+    const res = await call(booking(room._id, { tariffType: 'normal' }));
+    assert.equal(res.statusCode, 201, res.body?.message);
+
+    const stored = await Booking.findOne().lean();
+    assert.equal(stored.tariffType, 'room-only', 'the plan is stored in the schema spelling');
+    assert.equal(stored.breakfastAmount, 0, 'room-only carries no breakfast charge');
+    assert.equal(stored.totalAmount, RATE * NIGHTS * 1.05);
+  });
+
+  await t.test('an unknown rate plan is dropped, never passed on to the enum', async () => {
+    const room = await seedRoom();
+    const res = await call(booking(room._id, { tariffType: 'half-board' }));
+    assert.equal(res.statusCode, 201, res.body?.message);
+
+    const stored = await Booking.findOne().lean();
+    assert.equal(stored.tariffType, '', 'a plan we do not sell is simply not recorded');
+    assert.equal(stored.breakfastAmount, 0);
+  });
+
+  await t.test('editing a booking accepts the same dropdown value', async () => {
+    const room = await seedRoom();
+    const created = await call(booking(room._id));
+    assert.equal(created.statusCode, 201, created.body?.message);
+    const id = created.body.data._id;
+
+    const res = await put(id, { tariffType: 'normal' });
+    assert.equal(res.statusCode, 200, res.body?.message);
+    const stored = await Booking.findById(id).lean();
+    assert.equal(stored.tariffType, 'room-only');
+  });
+
   await t.test('extraChargesTotal is recomputed from its own components', async () => {
     const room = await seedRoom();
     const res = await call(booking(room._id, {

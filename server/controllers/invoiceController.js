@@ -24,7 +24,7 @@ export const generateBanquetInvoice = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to generate invoice',
-      error: error.message,
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error',
     });
   }
 };
@@ -47,7 +47,7 @@ export const getInvoiceData = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to get invoice data',
-      error: error.message,
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error',
     });
   }
 };

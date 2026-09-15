@@ -140,8 +140,15 @@ class InvoiceService {
 
         // Fetch restaurant orders for hotel bookings. Exclude cancelled orders
         // so the guest is never billed for food that was cancelled.
+        // orderType: 'room' matters. Without it this matched any order still
+        // carrying this booking's id -- including one the desk had since moved
+        // off room service onto a table, which updateOrder leaves the stale
+        // roomId on. The checkout screen filters by orderType, so that order was
+        // never collected for, and the guest was handed an invoice with food on
+        // it they had not been charged. One definition of "this guest's food",
+        // shared with the desk and the ledger.
         const restaurantOrders = billFood
-          ? await Order.find({ roomId: bookingId, status: { $ne: 'Cancelled' } })
+          ? await Order.find({ roomId: bookingId, orderType: 'room', status: { $ne: 'Cancelled' } })
             .populate('items.itemId')
             .sort({ createdAt: 1 })
           : [];

@@ -123,8 +123,17 @@ export const syncRoomBookingIncome = async (booking) => {
   // booking's completed room-service orders. order.totalAmount is already
   // GST-INCLUSIVE (base + POS GST) and equals the invoice's F&B total, so this sum
   // is the food TOTAL the guest pays — not a taxable base to add GST onto.
+  //
+  // Not 'Completed' -- BILLED. The desk collects, and the invoice prints, every
+  // room order that was not cancelled, kitchen ticket still open or not. Summing
+  // only the completed ones left the rest of the money inside paidAmount with
+  // nothing to attribute it to, so it fell through to the room line below and
+  // was booked as Room Revenue at the room's GST rate instead of food at the POS
+  // rate. Same set as the checkout screen and the invoice, so the split matches
+  // what was actually charged. (Room orders are never posted per-order --
+  // syncRestaurantOrderIncome skips them -- so this cannot double-count.)
   const [foodAgg] = await Order.aggregate([
-    { $match: { roomId: booking._id, orderType: 'room', status: 'Completed' } },
+    { $match: { roomId: booking._id, orderType: 'room', status: { $ne: 'Cancelled' } } },
     { $group: { _id: null, total: { $sum: '$totalAmount' } } },
   ]);
   const foodInclusive = Number(foodAgg?.total) || 0;

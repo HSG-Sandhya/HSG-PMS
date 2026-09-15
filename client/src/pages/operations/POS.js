@@ -16,13 +16,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import PageLayout from '../../components/layout/PageLayout';
 import FormDialog, { FormSection } from '../../components/forms/FormDialog';
 import { useBilling } from '../../hooks/useBilling';
-import { currencySym } from '../../utils/billing';
+import { currencySym, calcPosGst } from '../../utils/billing';
 import { hotelIdentity } from '../../utils/hotelProfile';
 
 const POS = () => {
   const navigate = useNavigate();
   const billing = useBilling();
-  const posGstFrac = billing.posGstRate / 100;
   
   // State variables
   const [menuItems, setMenuItems] = useState([]);
@@ -291,9 +290,11 @@ const POS = () => {
     return cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   };
   
-  // Calculate GST using the configured POS rate — menu prices are BASE prices, tax added on top
+  // Calculate GST using the configured POS rate — menu prices are BASE prices, tax
+  // added on top. calcPosGst applies the same rounding the server does, so the
+  // figure the cashier collects is the figure the sale is recorded at.
   const calculateGST = () => {
-    return calculateSubtotal() * posGstFrac;
+    return calcPosGst(calculateSubtotal(), billing);
   };
 
   // Total payable = base subtotal + GST
@@ -376,10 +377,16 @@ const POS = () => {
       }
 
       const selectedTableInfo = selectedTable ? tables.find(t => t._id === selectedTable) : null;
+      // Print the sale the server RECORDED, not the cart we sent it. Prices, GST
+      // and the total are decided server-side from the live menu now, so the two
+      // can differ — a menu price that moved while the till was open, or the
+      // rounding the billing config asks for — and the slip in the guest's hand
+      // has to be the one in the books.
       const receiptData = {
         ...orderData,
-        _id: savedOrder._id,
-        orderNumber: savedOrder.orderNumber,
+        ...savedOrder,
+        subtotal: (Number(savedOrder.totalAmount) || 0) - (Number(savedOrder.gst) || 0),
+        orderDate: savedOrder.createdAt || orderData.orderDate,
         // Dedicated receipt record issued by the server (RCPT-YYMMDD-###)
         receiptNumber: savedOrder.receipt?.receiptNumber || null,
         tableInfo: selectedTableInfo,

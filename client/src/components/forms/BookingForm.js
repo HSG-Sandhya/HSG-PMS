@@ -634,10 +634,10 @@ const BookingForm = ({
                     }}>
                     <TextField
                       select fullWidth size="small" label="Rate Plan" name="tariffType"
-                      value={formData.tariffType || 'normal'} onChange={handleInputChange}
+                      value={formData.tariffType || 'room-only'} onChange={handleInputChange}
                       helperText="With Breakfast adds the configured breakfast tariff per night"
                     >
-                      <MenuItem value="normal">Room Only</MenuItem>
+                      <MenuItem value="room-only">Room Only</MenuItem>
                       <MenuItem value="breakfast">With Breakfast</MenuItem>
                     </TextField>
                   </Grid>
