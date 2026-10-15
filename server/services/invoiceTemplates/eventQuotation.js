@@ -80,7 +80,158 @@ const DEFAULT_TERMS = [
   'GST applicable as per Government norms.',
 ];
 
+// Event quotations have package-comparison data rather than booking line items,
+// so they cannot be passed directly to the banquet invoice renderers. Keep the
+// proposal content, but render the Corporate selection in the same visual
+// language as the Corporate banquet quotation: compact letterhead, navy table
+// heading, alternating rows and a gold accent rule.
+const renderCorporateEventQuotation = (q, hotel = {}) => {
+  const packages = (q.packages || []).filter((p) => p && p.name);
+  const sections = sectionRows(packages);
+  const addOns = (q.addOns || []).filter((a) => a && a.name);
+  const complimentary = (q.complimentary || []).filter(Boolean);
+  const terms = (q.terms || []).filter(Boolean);
+  const termsList = terms.length ? terms : DEFAULT_TERMS;
+  const termHalf = Math.ceil(termsList.length / 2);
+  const clientTitle = q.clientCompany || q.clientName || 'Guest';
+  const timing = q.startTime
+    ? `${formatTime(q.startTime)}${q.endTime ? ` – ${formatTime(q.endTime)}` : ''}`
+    : '';
+  const eventFacts = [
+    ['Venue', q.hallName],
+    ['Occasion', q.eventTitle || q.eventType],
+    ['Event date', q.eventDate ? formatLongDate(q.eventDate) : ''],
+    ['Timing', timing],
+    ['Expected guests', q.expectedGuests ? `${q.expectedGuests} pax` : ''],
+    ['Seating style', q.seatingStyle],
+  ].filter(([, value]) => value);
+  const clientLines = [
+    q.clientCompany && q.clientName && q.clientCompany.trim() !== q.clientName.trim()
+      ? `Contact: ${q.clientName}` : '',
+    q.clientPhone,
+    q.clientEmail,
+    q.clientAddress,
+    q.clientGstin ? `GSTIN ${q.clientGstin}` : '',
+  ].filter(Boolean);
+  const addressLines = [
+    hotel.address,
+    hotel.contact?.phone ? `Mobile ${hotel.contact.phone}` : '',
+    [hotel.contact?.email, hotel.contact?.website].filter(Boolean).join(' · '),
+    hotel.gstin ? `GSTIN ${hotel.gstin}` : '',
+  ].filter(Boolean);
+  const pkgColumns = packages.length ? packages : [];
+  const columnCount = Math.max(1, pkgColumns.length);
+  const title = `${q.eventTitle || q.eventType || 'Event'} quotation`;
+
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8" />
+<title>Quotation ${e(q.quotationNumber || '')} — ${e(hotel.name || '')}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:Inter,system-ui,sans-serif;color:#1f2937;background:#eef1f6;font-size:12px}
+  .page{position:relative;width:210mm;min-height:297mm;margin:18px auto;padding:11mm 10mm;background:#fff;overflow:hidden;box-shadow:0 16px 44px -22px rgba(23,50,79,.4)}
+  .watermark{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:0}
+  .watermark img{width:52%;max-width:340px;opacity:.045}
+  .watermark span{font-size:38px;font-weight:900;letter-spacing:.12em;color:#17324f;opacity:.025;transform:rotate(-22deg);text-align:center}
+  .content{position:relative;z-index:1}
+  .head{display:flex;align-items:flex-start;gap:15px}
+  .logo{width:66px;height:66px;flex:none;border:1px solid #e2e7f0;border-radius:12px;display:flex;align-items:center;justify-content:center;overflow:hidden;color:#17324f;font-size:27px;font-weight:800;background:#fff}
+  .logo img{width:100%;height:100%;object-fit:contain}
+  .brand{flex:1;min-width:0}
+  .hname{font-size:20px;font-weight:800;color:#17324f;letter-spacing:-.015em;line-height:1.15}
+  .hmeta{font-size:10px;color:#64748b;margin-top:5px;line-height:1.65}
+  .doc{text-align:right;flex:none;min-width:175px}
+  .doc .kind{display:inline-block;color:#17324f;font-size:14px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;padding-bottom:5px;border-bottom:2px solid #b0892f}
+  .doc .number{font-size:12px;font-weight:700;color:#111827;margin-top:8px}
+  .doc .date{font-size:10px;color:#64748b;margin-top:2px}
+  .rule{position:relative;height:1.5px;background:#e5e9f0;margin-top:15px}
+  .rule:before{content:'';position:absolute;left:0;top:-1px;width:66px;height:4px;background:#b0892f;border-radius:2px}
+  .parties{display:grid;grid-template-columns:1fr 1fr;gap:22px;margin-top:18px}
+  h2{display:flex;align-items:center;gap:8px;margin-bottom:8px;color:#17324f;font-size:9.5px;font-weight:800;letter-spacing:.15em;text-transform:uppercase}
+  h2:before{content:'';width:7px;height:7px;background:#b0892f;transform:rotate(45deg)}
+  .client{font-size:13.5px;font-weight:700;color:#111827}
+  .lines{font-size:11px;color:#64748b;line-height:1.65;margin-top:3px}
+  dl{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:11px}
+  dt{color:#94a3b8}dd{text-align:right;color:#1f2937;font-weight:600}
+  .title{margin-top:17px;color:#17324f;font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+  .title small{display:block;margin-top:3px;color:#64748b;font-size:10px;font-weight:500;letter-spacing:0;text-transform:none}
+  .band{margin-top:12px;background:#17324f;color:#eaf0f8;text-align:left;padding:9px 12px;border-radius:7px 7px 0 0;font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase}
+  table{width:100%;border-collapse:separate;border-spacing:0;table-layout:fixed}
+  th{background:#17324f;color:#eaf0f8;font-size:9px;letter-spacing:.1em;text-transform:uppercase;font-weight:700;text-align:center;padding:9px 8px;border-right:1px solid rgba(255,255,255,.14)}
+  th:first-child{width:${Math.round(100 / (columnCount + 2.6))}%;text-align:left;border-radius:0 0 0 7px}
+  th:last-child{border-radius:0 0 7px 0;border-right:0}
+  td{padding:8px 10px;border-bottom:1px solid #eef1f6;border-right:1px solid #eef1f6;vertical-align:top;font-size:10.5px}
+  tr:nth-child(even) td{background:#f8fafc}td:last-child{border-right:0}
+  .rowlabel{background:#f6f8fc;color:#17324f;font-size:9px;letter-spacing:.08em;text-transform:uppercase;font-weight:800;text-align:left}
+  .rowlabel small{display:block;color:#64748b;font-size:8px;letter-spacing:0;text-transform:none;margin-top:2px}
+  .pkgname{font-weight:700;color:#111827;font-size:11.5px}
+  .tagline{font-size:9px;color:#64748b;margin-top:2px}
+  .recommended{display:inline-block;margin-top:4px;padding:2px 7px;border-radius:20px;background:#f4ecdc;color:#8a6b24;font-size:7px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+  .price{text-align:center;font-size:13px;font-weight:800;color:#17324f}
+  .basis{display:block;margin-top:2px;color:#64748b;font-size:8px;font-weight:600;letter-spacing:.08em;text-transform:uppercase}
+  .estimate{margin-top:3px;color:#64748b;font-size:9px;font-weight:600}
+  ul{list-style:none}li{position:relative;padding:0 0 3px 10px;color:#374151;font-size:9.5px;line-height:1.45}
+  li:before{content:'•';position:absolute;left:0;color:#b0892f;font-weight:800}
+  .dash{text-align:center;color:#94a3b8}
+  .note{padding:6px 0 0;text-align:center;font-size:8.5px;color:#94a3b8;font-style:italic}
+  .extras{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));border:1px solid #e5e9f0;border-top:0;padding:10px 6px;break-inside:avoid}
+  .extra{text-align:center;padding:0 10px;border-right:1px solid #e5e9f0}.extra:last-child{border:0}
+  .extra b{display:block;color:#17324f;font-size:9px;letter-spacing:.08em;text-transform:uppercase}
+  .extra strong{display:block;color:#1f2937;font-size:13px;margin-top:3px}
+  .extra small{display:block;color:#64748b;font-size:8px;margin-top:2px}
+  .terms{margin-top:12px;border:1px solid #e5e9f0;border-radius:7px;padding:10px 12px}
+  .terms h2{justify-content:center;margin-bottom:7px}
+  .termcols{display:grid;grid-template-columns:1fr 1fr;gap:2px 20px}
+  .memo{margin-top:8px;color:#64748b;font-size:10px;line-height:1.5}.memo b{color:#17324f}
+  .signs{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:12px}
+  .sign{border:1px solid #e5e9f0;border-radius:7px;padding:9px 12px;text-align:center}
+  .sign b{color:#17324f;font-size:9px;letter-spacing:.12em;text-transform:uppercase}
+  .sign span{display:block;color:#64748b;font-size:9px;margin-top:3px}
+  .sign i{display:block;height:22px;margin:2px 12px 4px;border-bottom:1px solid #cbd5e1}
+  .foot{margin-top:14px;padding-top:8px;border-top:1px solid #e5e9f0;color:#64748b;text-align:center;font-size:9px;line-height:1.5}
+  .foot b{color:#17324f}
+  @page{size:A4;margin:10mm}
+  @media print{body{background:#fff}.page{width:auto;min-height:0;margin:0;padding:0;box-shadow:none}.band,th{-webkit-print-color-adjust:exact;print-color-adjust:exact}.terms,.signs,table tr{break-inside:avoid}}
+</style></head><body><div class="page">
+  <div class="watermark">${hotel.logo ? `<img src="${e(hotel.logo)}" alt="">` : `<span>${e((hotel.name || 'HOTEL').toUpperCase())}</span>`}</div>
+  <div class="content">
+    <header class="head">
+      <div class="logo">${hotel.logo ? `<img src="${e(hotel.logo)}" alt="">` : e((hotel.name || 'H').charAt(0))}</div>
+      <div class="brand"><div class="hname">${e(hotel.name || 'Hotel Sandhya Grand & Marriage Hall')}</div><div class="hmeta">${addressLines.map(e).join('<br>')}</div></div>
+      <div class="doc"><div class="kind">Quotation</div><div class="number">${e(q.quotationNumber || '—')}</div><div class="date">Issued ${formatLongDate(q.quotationDate)}</div><div class="date">Valid until ${formatLongDate(q.validUpto)}</div></div>
+    </header>
+    <div class="rule"></div>
+    <section class="parties">
+      <div><h2>Prepared for</h2><div class="client">${e(clientTitle)}</div><div class="lines">${clientLines.map((line) => e(line)).join('<br>')}</div></div>
+      <div><h2>Event details</h2><dl>${eventFacts.map(([label, value]) => `<dt>${e(label)}</dt><dd>${e(value)}</dd>`).join('')}</dl></div>
+    </section>
+    <div class="title">${e(title)}<small>Package options and inclusions for your event</small></div>
+    ${packages.length ? `<div class="band">Event packages${q.hallName ? ` · ${e(q.hallName)}` : ''}</div>
+    <table><thead><tr><th>Package details</th>${pkgColumns.map((p) => `<th>${e(p.name)}</th>`).join('')}</tr></thead><tbody>
+      <tr><td class="rowlabel">Estimated price</td>${pkgColumns.map((p) => {
+        const total = packageTotal(p, q.expectedGuests);
+        const quantity = Number(p.quantity) || Number(q.expectedGuests) || 0;
+        const showEst = p.priceBasis !== 'lump sum' && total > 0;
+        return `<td><div class="price">${priceLine(p)}</div>${showEst ? `<div class="estimate">Est. ${formatCurrency(total)}${quantity ? ` for ${e(String(quantity))}` : ''}${Number(p.days) > 1 ? ` × ${e(String(p.days))} days` : ''}</div>` : ''}${p.recommended ? '<div style="text-align:center"><span class="recommended">Recommended</span></div>' : ''}</td>`;
+      }).join('')}</tr>
+      ${sections.map((section) => `<tr><td class="rowlabel">${e(section.replace(/\s*\(.*\)$/, ''))}${/\(.*\)$/.test(section) ? `<small>${e((section.match(/\((.*)\)$/) || [, ''])[1])}</small>` : ''}</td>${pkgColumns.map((p) => {
+        const items = itemsFor(p, section);
+        return `<td>${items.length ? `<ul>${items.map((item) => `<li>${e(item)}</li>`).join('')}</ul>` : '<div class="dash">—</div>'}</td>`;
+      }).join('')}</tr>`).join('')}
+      ${packages.some((p) => p.notes) ? `<tr><td class="rowlabel">Package notes</td>${pkgColumns.map((p) => `<td>${p.notes ? e(p.notes) : '<div class="dash">—</div>'}</td>`).join('')}</tr>` : ''}
+    </tbody></table><div class="note">Menu items are subject to availability and may change without prior notice.</div>` : ''}
+    ${addOns.length ? `<section style="margin-top:13px"><h2>Additional facilities (optional)</h2><div class="extras">${addOns.map((a) => `<div class="extra"><b>${e(a.name)}</b><strong>${formatCurrency(a.price)}</strong><small>${a.gstPercent ? `+ ${e(String(a.gstPercent))}% GST · ` : ''}${e(a.unit || '')}</small>${a.gstPercent ? `<small>Gross ${formatCurrency(addOnTotal(a))}</small>` : ''}${a.note ? `<small>${e(a.note)}</small>` : ''}</div>`).join('')}</div></section>` : ''}
+    ${complimentary.length ? `<section style="margin-top:12px"><h2>Complimentary services</h2><div class="extras">${complimentary.map((item) => `<div class="extra"><strong>${e(item)}</strong></div>`).join('')}</div></section>` : ''}
+    <section class="terms"><h2>Terms &amp; conditions</h2><div class="termcols"><ul>${termsList.slice(0, termHalf).map((term) => `<li>${e(term)}</li>`).join('')}</ul><ul>${termsList.slice(termHalf).map((term) => `<li>${e(term)}</li>`).join('')}</ul></div>${q.notes ? `<div class="memo"><b>Note:</b> ${e(q.notes)}</div>` : ''}</section>
+    <section class="signs"><div class="sign"><b>Prepared by</b><span>${e(hotel.name || '')}</span><i></i><span>Authorised signatory${q.preparedBy ? ` — ${e(q.preparedBy)}` : ''}</span></div><div class="sign"><b>Customer acceptance</b><span>${e(q.clientCompany || q.clientName || '')}</span><i></i><span>Client signature &amp; date</span></div></section>
+    <footer class="foot"><b>Thank you for choosing ${e(hotel.name || 'us')}.</b><br>${addressLines.map(e).join(' · ')}</footer>
+  </div>
+</div></body></html>`;
+};
+
 export const renderEventQuotation = ({ quotation: q, hotel = {}, templateId = 'aurora' }) => {
+  if (templateId === 'corporate') return renderCorporateEventQuotation(q, hotel);
   // Standalone package proposals have a different data model from booking
   // invoices, so keep their comparison layout while applying the chosen
   // banquet template's visual palette to the printed document.
