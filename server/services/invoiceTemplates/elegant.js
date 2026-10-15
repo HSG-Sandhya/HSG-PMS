@@ -1,4 +1,4 @@
-import { escapeHtml as e, formatCurrency, formatDate, formatLongDate, amountInWords } from './formatters.js';
+import { escapeHtml as e, formatCurrency, formatDate, formatLongDate, amountInWords, formatStayMoment } from './formatters.js';
 
 const renderItems = (items) => items.map((item) => `
   <tr>
@@ -19,7 +19,7 @@ const stayOrEvent = (ctx) => {
         <div class="event-mark">Stay</div>
         <div class="event-title">${e(ctx.stay.roomNumber || 'Accommodation')}${ctx.stay.roomType ? ` · ${e(ctx.stay.roomType)}` : ''}</div>
         <div class="event-body">
-          ${formatLongDate(ctx.stay.checkIn)} – ${formatLongDate(ctx.stay.checkOut)}<br />
+          ${formatStayMoment(ctx.stay.checkIn, ctx.stay.checkInTime)} – ${formatStayMoment(ctx.stay.checkOut, ctx.stay.checkOutTime)}<br />
           <em>${e(ctx.stay.nights)} night${ctx.stay.nights > 1 ? 's' : ''} · ${e(ctx.stay.adults)} adult${ctx.stay.adults > 1 ? 's' : ''}${ctx.stay.children ? ` · ${ctx.stay.children} child${ctx.stay.children > 1 ? 'ren' : ''}` : ''}</em>
         </div>
       </div>`;

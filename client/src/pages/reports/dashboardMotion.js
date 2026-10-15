@@ -77,6 +77,10 @@ export const FloatingOrb = ({
       filter: `blur(${blur}px)`,
       background: `radial-gradient(circle at 30% 30%, ${color}, transparent 65%)`,
       animation: `${float} ${duration}s ease-in-out ${delay}s infinite`,
+      // Four 100px-blurred, blended orbs drifting under every card forced the
+      // whole dashboard to re-composite each frame, idle or not. They hold
+      // still (same colour field) unless the glass level is "Everywhere".
+      animationPlayState: 'var(--app-ambient-play, paused)',
       mixBlendMode: 'screen',
       opacity: 0.85,
       zIndex: 0,
@@ -175,8 +179,8 @@ export const Marquee = ({ items = [], speed = 36, darkMode = false }) => {
         borderTop: `1px solid ${borderColor}`,
         borderBottom: `1px solid ${borderColor}`,
         background: bg,
-        backdropFilter: 'var(--app-blur-overlay)',
-        WebkitBackdropFilter: 'var(--app-blur-overlay)',
+        backdropFilter: 'var(--app-blur)',
+        WebkitBackdropFilter: 'var(--app-blur)',
         py: 1.5,
         maskImage: 'linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent)',
         WebkitMaskImage: 'linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent)',
@@ -187,6 +191,10 @@ export const Marquee = ({ items = [], speed = 36, darkMode = false }) => {
           display: 'inline-flex',
           whiteSpace: 'nowrap',
           animation: `${marqueeKf} ${speed}s linear infinite`,
+          // Ambient loop. Every frame it moves, the page shell's blur behind
+          // it is redrawn — about a third of a core, with nobody touching the
+          // page. Paused it reads as a still strip of the same stats.
+          animationPlayState: 'var(--app-ambient-play, paused)',
           willChange: 'transform',
         }}
       >

@@ -674,7 +674,7 @@ const Dashboard = () => {
                           fontSize: 12,
                           fontWeight: 600,
                           letterSpacing: '0.05em',
-                          backdropFilter: 'var(--app-blur-overlay)',
+                          backdropFilter: 'var(--app-blur)',
                         }}
                       >
                         <Box sx={{ width: 6, height: 6, borderRadius: '50%', background: kpi.color, boxShadow: `0 0 8px ${kpi.color}` }} />

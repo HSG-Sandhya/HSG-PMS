@@ -15,10 +15,13 @@ import { Types } from 'mongoose';
 import {
   getTemplateList as listInvoiceTemplates,
   getTemplate as getInvoiceTemplate,
+  getTemplateTheme as getInvoiceTemplateThemeSchema,
+  getStoredInvoiceTheme,
   DEFAULT_TEMPLATE_ID,
   renderInvoice,
   normalizeInvoiceContext,
 } from '../services/invoiceTemplates/index.js';
+import { sanitizeTheme, resolveTheme } from '../services/invoiceTemplates/theme.js';
 import {
   getBanquetTemplateList as listBanquetTemplates,
   getBanquetTemplate,
@@ -239,7 +242,7 @@ export const updateSettingsSection = async (req, res) => {
     
     // Validate invoice section data structure
     if (section === 'invoice') {
-      const validFields = ['templateCustomization', 'prefix', 'nextNumber', 'footerNote', 'footerText', 'showQrOnInvoice', 'showGstBreakup', 'selectedTemplate', 'template', 'includeGST', 'autoGenerate', 'signatureUrl'];
+      const validFields = ['templateTheme', 'templateCustomization', 'prefix', 'nextNumber', 'footerNote', 'footerText', 'showQrOnInvoice', 'showGstBreakup', 'selectedTemplate', 'template', 'includeGST', 'autoGenerate', 'signatureUrl'];
       const hasValidField = Object.keys(updateData).some(key => validFields.includes(key));
       
       if (!hasValidField) {
@@ -1024,6 +1027,70 @@ const updateSelectedInvoiceTemplate = async (req, res) => {
   }
 };
 
+// ── House invoice styling ────────────────────────────────────────────────────
+// ONE set of colours, wording, blocks and motion for every themed design,
+// rather than a separate panel per template. Anything the admin sets here wins
+// on every design; anything left alone keeps that design's own default, so the
+// four designs stay distinct until a value is deliberately changed.
+//
+// The form is seeded from the SELECTED design's defaults, so the pickers open
+// showing real colours rather than a generic palette. Only the fields that
+// differ from that seed are stored, which is what keeps untouched fields
+// falling through to each design.
+
+const themeSeedTemplate = async () => {
+  const settings = await Settings.getSettings();
+  const selected = settings?.invoice?.template
+    || settings?.invoice?.selectedTemplate
+    || DEFAULT_TEMPLATE_ID;
+  return getInvoiceTemplateThemeSchema(selected)
+    || getInvoiceTemplateThemeSchema('aurora-luxe');
+};
+
+const getInvoiceTheme = async (req, res) => {
+  try {
+    const seed = await themeSeedTemplate();
+    const saved = sanitizeTheme(await getStoredInvoiceTheme());
+    res.status(200).json({
+      success: true,
+      data: {
+        fields: seed.fields,
+        defaults: seed.defaults,
+        saved,
+        resolved: resolveTheme(seed.defaults, saved),
+        seededFrom: { id: seed.id, name: seed.name },
+        // Which designs actually follow this styling — the client labels the
+        // rest so nobody edits a colour expecting a fixed design to change.
+        appliesTo: listInvoiceTemplates().filter((t) => t.customizable).map((t) => t.id),
+      },
+      message: 'Invoice styling retrieved',
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+const updateInvoiceTheme = async (req, res) => {
+  try {
+    const { customization } = req.body || {};
+    // Unknown keys and unusable values are dropped here rather than stored and
+    // filtered later — the database only ever holds values a template can use.
+    const clean = sanitizeTheme(customization);
+    await Settings.updateSection('invoice', { templateTheme: clean });
+
+    const seed = await themeSeedTemplate();
+    res.status(200).json({
+      success: true,
+      data: { saved: clean, resolved: resolveTheme(seed.defaults, clean) },
+      message: Object.keys(clean).length
+        ? 'Invoice styling saved'
+        : 'Invoice styling reset to the designs\u2019 own defaults',
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 // ── Banquet quotation/invoice templates (separate selection) ─────────────────
 
 const getAvailableBanquetTemplates = async (req, res) => {
@@ -1438,93 +1505,150 @@ const deleteBackup = async (req, res) => {
 
 
 
+// The hotel identity used by every preview. Built from ONE settings read so a
+// caller that renders many templates does not re-query per template — this
+// Atlas tier throttles on operation COUNT, not query cost.
+const buildPreviewHotel = async () => {
+  const hotelSection = await Settings.getSection('hotelProfile');
+  return {
+    name: hotelSection?.hotelName || currentTenantName(),
+    logo: await resolveLogo(hotelSection?.logo || ''),
+    address: [
+      hotelSection?.address?.line1,
+      hotelSection?.address?.line2,
+      hotelSection?.address?.city,
+      hotelSection?.address?.state,
+      hotelSection?.address?.postalCode,
+    ].filter(Boolean).join(', '),
+    contact: {
+      phone: hotelSection?.contact?.phone || '',
+      email: hotelSection?.contact?.email || '',
+      website: hotelSection?.contact?.website || '',
+    },
+    gstin: hotelSection?.businessRegistration?.gstNumber || '',
+    // So the preview's food bill shows the same identity a real one would.
+    restaurant: {
+      name: hotelSection?.restaurant?.name || hotelSection?.hotelName || currentTenantName(),
+      gstin: hotelSection?.restaurant?.gstNumber || hotelSection?.businessRegistration?.gstNumber || '',
+      fssai: hotelSection?.restaurant?.fssaiNumber
+        || hotelSection?.businessRegistration?.fssaiNumber || '',
+    },
+  };
+};
+
+const SAMPLE_BANQUET_BOOKING = () => ({
+  _id: 'SAMPLE0001',
+  customerName: 'Aarav & Diya Sharma',
+  guestName: 'Aarav & Diya Sharma',
+  phone: '9876543210',
+  email: 'aarav@example.com',
+  address: '12 Rosewood Lane, Munger, Bihar',
+  hallId: { name: 'Grand Banquet Hall' },
+  hallName: 'Grand Banquet Hall',
+  eventDate: new Date(),
+  eventType: 'Reception',
+  bookingDate: new Date(),
+  startTime: '18:00',
+  endTime: '23:00',
+  guestCount: 150,
+  numberOfGuests: 150,
+  menu: {
+    hasMeals: true,
+    mealType: 'chicken',
+    numberOfPlates: 150,
+    side: { paniPuri: 150, coldDrink: 150 },
+    extra: { chickenLollipop: 100 },
+    combo: {},
+    beverages: {},
+  },
+  hallCharges: 25000,
+  totalAmount: 132500,
+  paidAmount: 50000,
+  paymentMethod: 'UPI',
+  paymentReference: 'AXIS123456',
+});
+
+const SAMPLE_ROOM_BOOKING = () => ({
+  _id: 'SAMPLE0002',
+  customerName: 'Mr. Rohan Verma',
+  guestName: 'Mr. Rohan Verma',
+  firstName: 'Rohan',
+  lastName: 'Verma',
+  phone: '9876501234',
+  email: 'rohan@example.com',
+  address: '21 Park Avenue, Patna, Bihar',
+  roomId: { roomNumber: '204', roomType: 'Deluxe AC', type: 'Deluxe AC', pricePerNight: 4500 },
+  checkIn: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+  checkOut: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000),
+  adults: 2,
+  children: 1,
+  totalAmount: 13500,
+  baseAmount: 4500,
+  restaurantCharges: 2400,
+  restaurantOrders: [
+    { orderNumber: 'R-1001', totalAmount: 1450, items: [{}, {}, {}], createdAt: new Date() },
+    { orderNumber: 'R-1002', totalAmount: 950, items: [{}, {}], createdAt: new Date() },
+  ],
+  paidAmount: 10000,
+  paymentMethod: 'Card',
+  paymentReference: 'HDFC4521',
+});
+
 const previewInvoice = async (req, res) => {
   try {
-    const { templateId, type = 'hotel' } = req.body || {};
-    const hotelSection = await Settings.getSection('hotelProfile');
-    const hotel = {
-      name: hotelSection?.hotelName || currentTenantName(),
-      logo: await resolveLogo(hotelSection?.logo || ''),
-      address: [
-        hotelSection?.address?.line1,
-        hotelSection?.address?.line2,
-        hotelSection?.address?.city,
-        hotelSection?.address?.state,
-        hotelSection?.address?.postalCode,
-      ].filter(Boolean).join(', '),
-      contact: {
-        phone: hotelSection?.contact?.phone || '',
-        email: hotelSection?.contact?.email || '',
-        website: hotelSection?.contact?.website || '',
-      },
-      gstin: hotelSection?.businessRegistration?.gstNumber || '',
-    };
-
-    const sampleBooking = type === 'banquet' ? {
-      _id: 'SAMPLE0001',
-      customerName: 'Aarav & Diya Sharma',
-      guestName: 'Aarav & Diya Sharma',
-      phone: '9876543210',
-      email: 'aarav@example.com',
-      address: '12 Rosewood Lane, Munger, Bihar',
-      hallId: { name: 'Grand Banquet Hall' },
-      hallName: 'Grand Banquet Hall',
-      eventDate: new Date(),
-      eventType: 'Reception',
-      bookingDate: new Date(),
-      startTime: '18:00',
-      endTime: '23:00',
-      guestCount: 150,
-      numberOfGuests: 150,
-      menu: {
-        hasMeals: true,
-        mealType: 'chicken',
-        numberOfPlates: 150,
-        side: { paniPuri: 150, coldDrink: 150 },
-        extra: { chickenLollipop: 100 },
-        combo: {},
-        beverages: {},
-      },
-      hallCharges: 25000,
-      totalAmount: 132500,
-      paidAmount: 50000,
-      paymentMethod: 'UPI',
-      paymentReference: 'AXIS123456',
-    } : {
-      _id: 'SAMPLE0002',
-      customerName: 'Mr. Rohan Verma',
-      guestName: 'Mr. Rohan Verma',
-      firstName: 'Rohan',
-      lastName: 'Verma',
-      phone: '9876501234',
-      email: 'rohan@example.com',
-      address: '21 Park Avenue, Patna, Bihar',
-      roomId: { roomNumber: '204', roomType: 'Deluxe AC', type: 'Deluxe AC', pricePerNight: 4500 },
-      checkIn: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
-      checkOut: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000),
-      adults: 2,
-      children: 1,
-      totalAmount: 13500,
-      baseAmount: 4500,
-      restaurantCharges: 2400,
-      restaurantOrders: [
-        { orderNumber: 'R-1001', totalAmount: 1450, items: [{}, {}, {}], createdAt: new Date() },
-        { orderNumber: 'R-1002', totalAmount: 950, items: [{}, {}], createdAt: new Date() },
-      ],
-      paidAmount: 10000,
-      paymentMethod: 'Card',
-      paymentReference: 'HDFC4521',
-    };
+    // `customization` is the styling form's UNSAVED values: an admin picking a
+    // colour sees it on the sample invoice before committing it. Absent, the
+    // renderer falls back to the saved house styling.
+    const { templateId, type = 'hotel', customization = null } = req.body || {};
+    const hotel = await buildPreviewHotel();
+    const sampleBooking = type === 'banquet' ? SAMPLE_BANQUET_BOOKING() : SAMPLE_ROOM_BOOKING();
 
     const html = await renderInvoice({
       booking: sampleBooking,
       hotel,
+      customization: customization ? sanitizeTheme(customization) : null,
       type,
       templateId,
     });
 
     res.setHeader('Content-Type', 'text/html');
     res.send(html);
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// Every room template rendered once, for the card grid's thumbnails.
+//
+// This is deliberately ONE request rather than one per card. The settings and
+// logo reads happen a single time here; seventeen separate preview calls would
+// repeat them seventeen times, and this Atlas tier throttles on the number of
+// operations rather than their cost.
+//
+// Thumbnails render with the motion switched off: seventeen animating cards on
+// one screen is visual noise and needless CPU. The full-size preview still moves.
+const previewInvoiceThumbnails = async (req, res) => {
+  try {
+    const { customization = null, type = 'hotel' } = req.body || {};
+    const hotel = await buildPreviewHotel();
+    const booking = type === 'banquet' ? SAMPLE_BANQUET_BOOKING() : SAMPLE_ROOM_BOOKING();
+    const base = customization ? sanitizeTheme(customization) : await getStoredInvoiceTheme();
+    const still = { ...base, animation: 'off' };
+
+    const items = [];
+    for (const meta of listInvoiceTemplates()) {
+      try {
+        const html = await renderInvoice({
+          booking, hotel, type, templateId: meta.id, customization: still,
+        });
+        items.push({ ...meta, html });
+      } catch (err) {
+        // One bad template must not blank the whole gallery.
+        items.push({ ...meta, html: '', error: err.message });
+      }
+    }
+
+    res.status(200).json({ success: true, data: { items }, message: 'Template thumbnails rendered' });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -1618,6 +1742,9 @@ export default {
   getAvailableInvoiceTemplates,
   getInvoiceTemplateSettings,
   updateSelectedInvoiceTemplate,
+  getInvoiceTheme,
+  updateInvoiceTheme,
+  previewInvoiceThumbnails,
   getAvailableBanquetTemplates,
   getBanquetTemplateSettings,
   updateSelectedBanquetTemplate,

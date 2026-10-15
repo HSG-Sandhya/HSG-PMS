@@ -209,8 +209,11 @@ const StatsCard = ({
             top: 0, left: 0, right: 0,
             height: 2,
             background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.85), transparent)',
+            opacity: 0,
             animation: `${shimmerKf} 4.5s ease-in-out infinite`,
             animationDelay: `${delay * 2}s`,
+            // Ambient loop — runs only at the "Everywhere" glass level.
+            animationPlayState: 'var(--app-ambient-play, paused)',
             zIndex: 1,
             pointerEvents: 'none',
           }}

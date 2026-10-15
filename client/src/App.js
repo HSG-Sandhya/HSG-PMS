@@ -79,10 +79,14 @@ const MainLayout = ({ children }) => {
         <div
           style={{
             display: isMobile ? 'none' : 'block',
-            // Same duration/easing as the drawer's transform so the reserved
-            // width and the sliding panel move in lockstep (desync reads as
-            // flicker along the glass edge).
-            transition: 'width 0.6s cubic-bezier(0.4, 0, 0.2, 1)',
+            // The reserved width STEPS rather than animates. Animating it
+            // re-laid-out the whole page (and re-rendered every chart through
+            // its ResizeObserver) on each frame of a 0.6s slide — and the
+            // sidebar closes on every nav click, so that ran on every page
+            // change. Now the page reflows once: opening reserves the column
+            // up front and the panel glides into it; closing waits for the
+            // panel's 0.6s slide-out, then gives the column back.
+            transition: sidebarOpen ? 'none' : 'width 0s linear 0.6s',
             overflow: 'hidden',
             // No background here — it was painting a rectangular column behind
             // the floating glass sidebar. This div only reserves layout width.

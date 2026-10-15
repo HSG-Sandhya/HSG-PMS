@@ -1,5 +1,6 @@
 import { balanceOf } from '../../utils/money.js';
 import { BILLING_DEFAULTS, pctToFraction } from '../../config/operationalDefaults.js';
+import RestaurantCalculationUtils from '../templates/RestaurantCalculationUtils.js';
 
 // Banquet services carry their own GST rate, configured in Billing & Tariff
 // (banquetGstRate) alongside the room and POS rates. Catering is priced pre-GST
@@ -27,12 +28,113 @@ const calculateNights = (booking) => {
   return 1;
 };
 
+// Food is billed on its OWN document, so the stay invoice carries accommodation
+// alone. Kept in step with the Heritage template, which has always split the two
+// this way, and with accountingSync.js, which attributes payment the same way.
+/**
+ * The time to print beside a stay date, as 'HH:mm'.
+ *
+ * Prefers what actually happened (checkedInAt / checkedOutAt) over what was
+ * scheduled — but only when the stamp falls on the date being billed. A guest
+ * who left at 00:30 the next morning is still billed to the previous day, and
+ * printing "24 Sept · 12:30 AM" beside that date would contradict it. In that
+ * case the scheduled time stands, which is what the booking contracted for.
+ */
+const stayMomentTime = (billedDate, actualStamp, scheduled, fallback) => {
+  if (actualStamp && billedDate) {
+    const actual = new Date(actualStamp);
+    const billed = new Date(billedDate);
+    const sameDay = actual.getFullYear() === billed.getFullYear()
+      && actual.getMonth() === billed.getMonth()
+      && actual.getDate() === billed.getDate();
+    if (sameDay && !Number.isNaN(actual.getTime())) {
+      return `${String(actual.getHours()).padStart(2, '0')}:${String(actual.getMinutes()).padStart(2, '0')}`;
+    }
+  }
+  return scheduled || fallback || '';
+};
+
+const buildFoodBill = (booking, billing = BILLING_DEFAULTS, roomInvoiceNumber = '') => {
+  const orders = Array.isArray(booking.restaurantOrders) ? booking.restaurantOrders : [];
+  const charges = Number(booking.restaurantCharges || 0);
+  if (!orders.length && charges <= 0) return null;
+
+  // RestaurantCalculationUtils is the single source of truth for food maths: it
+  // honours each order's own gstIncluded flag, which is the difference between
+  // backing the tax out of a POS price and wrongly adding it on top.
+  const calc = RestaurantCalculationUtils.calculateRestaurantTotals(orders, charges, billing);
+  if (!calc.total) return null;
+
+  const rate = pctToFraction(billing.posGstRate);
+  const round2 = (n) => Math.round(n * 100) / 100;
+  const half = round2(calc.gstAmount / 2);
+
+
+  const line = (over) => ({ category: 'restaurant', gstRate: rate, ...over });
+  const sumOf = (list) => round2(list.reduce((sum, i) => sum + Number(i.amount || 0), 0));
+  const dayOf = (d) => (d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '');
+
+  // Preferred: a line per dish.
+  let items = (calc.itemsBreakdown || []).map((item) => line({
+    description: item.name,
+    detail: [item.orderNumber && `Order ${item.orderNumber}`, dayOf(item.orderDate)].filter(Boolean).join(' · '),
+    quantity: item.quantity,
+    rate: item.rate,
+    amount: item.amount,
+  }));
+
+  // A printed bill has to add up. The dish-level breakdown silently skips an
+  // order that carries a total but no item detail, which would leave the lines
+  // short of the total they sit under — so fall back to a line per ORDER, then
+  // to a single consolidated line, until what is printed reconciles.
+  if (!items.length || Math.abs(sumOf(items) - calc.total) > 1) {
+    items = orders
+      .filter((order) => Number(order.totalAmount) > 0)
+      .map((order, i) => line({
+        description: order.orderNumber ? `Restaurant order ${order.orderNumber}` : `Restaurant order #${i + 1}`,
+        detail: dayOf(order.createdAt),
+        quantity: order.items?.length || 1,
+        rate: Number(order.totalAmount),
+        amount: Number(order.totalAmount),
+      }));
+  }
+  if (!items.length || Math.abs(sumOf(items) - calc.total) > 1) {
+    items = [line({
+      description: 'Restaurant & room service',
+      detail: 'Consolidated food and beverage charges',
+      quantity: 1,
+      rate: calc.total,
+      amount: calc.total,
+    })];
+  }
+
+  return {
+    number: foodBillNumberFrom(roomInvoiceNumber),
+    items,
+    subtotal: round2(calc.subtotal),
+    cgst: half,
+    sgst: round2(calc.gstAmount - half),
+    gstTotal: round2(calc.gstAmount),
+    gstRate: billing.posGstRate,
+    total: round2(calc.total),
+    pricesIncludeGst: Boolean(calc.pricesIncludeGst),
+  };
+};
+
+// The food bill is its own document and needs its own number, derived from the
+// stay invoice so the pair is obviously related on paper.
+const foodBillNumberFrom = (roomInvoiceNumber) => {
+  const n = String(roomInvoiceNumber || '');
+  if (!n) return '';
+  if (n.startsWith('HSG')) return n.replace('HSG', 'FB');
+  if (n.startsWith('INV')) return n.replace('INV', 'FB');
+  return `FB-${n}`;
+};
+
 const buildHotelItems = (booking, billing = BILLING_DEFAULTS) => {
-  // Each line carries the rate that applies to it. Accommodation and food are
-  // taxed separately, and the per-line CGST/SGST grid used to split every line
-  // at a flat 5% regardless.
+  // Accommodation lines only — each carries the room GST rate, which is what
+  // the per-line CGST/SGST grid splits it at.
   const roomRate = pctToFraction(billing.roomGstRate);
-  const posRate = pctToFraction(billing.posGstRate);
   const items = [];
   const totalAmount = Number(booking.totalAmount || 0);
   const nights = calculateNights(booking);
@@ -59,25 +161,9 @@ const buildHotelItems = (booking, billing = BILLING_DEFAULTS) => {
     gstRate: roomRate,
   });
 
-  const orders = Array.isArray(booking.restaurantOrders) ? booking.restaurantOrders : [];
-  orders.forEach((order, idx) => {
-    const orderLabel = order.orderNumber
-      ? `Restaurant order ${order.orderNumber}`
-      : `Restaurant order #${idx + 1}`;
-    const detail = order.createdAt
-      ? new Date(order.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })
-      : '';
-    items.push({
-      description: orderLabel,
-      detail,
-      quantity: order.items?.length || 1,
-      rate: Number(order.totalAmount || 0),
-      amount: Number(order.totalAmount || 0),
-      category: 'restaurant',
-      gstRate: posRate,
-    });
-  });
-
+  // Restaurant orders are NOT listed here. They are invoiced on the separate
+  // food bill (buildFoodBill above) under the restaurant's own GST identity;
+  // listing them in both places would bill the guest for the food twice.
   const lateFee = Number(booking.lateCheckoutFee || 0);
   if (lateFee > 0) {
     items.push({
@@ -86,7 +172,11 @@ const buildHotelItems = (booking, billing = BILLING_DEFAULTS) => {
       quantity: 1,
       rate: lateFee,
       amount: lateFee,
-      category: 'extra',
+      // Accommodation, not food: it is charged for keeping the ROOM past noon
+      // and is taxed at the room rate. Tagged 'extra' it inherited the
+      // restaurant SAC (996331), so the invoice declared a food code against a
+      // lodging charge taxed at the lodging rate.
+      category: 'room',
       gstRate: roomRate,
     });
   }
@@ -346,7 +436,7 @@ const buildBanquetItems = (booking, billing = BILLING_DEFAULTS) => {
   });
 };
 
-const computeTotals = (items, booking, isBanquet = false, billing = BILLING_DEFAULTS) => {
+const computeTotals = (items, booking, isBanquet = false, billing = BILLING_DEFAULTS, foodTotal = 0) => {
   const round2 = (n) => Math.round(n * 100) / 100;
   const paid = Number(booking.paidAmount || booking.amountPaid || booking.advanceAmount || 0);
 
@@ -388,25 +478,25 @@ const computeTotals = (items, booking, isBanquet = false, billing = BILLING_DEFA
     };
   }
 
+  // ACCOMMODATION ONLY. Food is a separate document with its own GST identity
+  // and its own rate, so mixing it in here would both double-bill the guest and
+  // tax food at the room rate. Its figures live on ctx.food.
   const itemsTotal = items.reduce((sum, item) => sum + Number(item.amount || 0), 0);
   const roomPortion = Number(booking.totalAmount || 0);
-  const foodPortion = Number(booking.restaurantCharges || 0);
-  const declaredTotal = roomPortion + foodPortion;
-  const grandTotal = declaredTotal || itemsTotal;
+  const grandTotal = roomPortion || itemsTotal;
 
-  // Accommodation and food carry separately configurable GST rates. This split
-  // the combined total at one hardcoded 5%, which is correct only while the two
-  // rates happen to be equal -- and prints a wrong taxable value, and wrong
-  // CGST/SGST, on a tax invoice the moment they are not.
   const roomDivisor = 1 + pctToFraction(billing.roomGstRate);
-  const posDivisor = 1 + pctToFraction(billing.posGstRate);
-  const taxable = declaredTotal
-    ? roomPortion / roomDivisor + foodPortion / posDivisor
-    : grandTotal / roomDivisor;
+  const taxable = grandTotal / roomDivisor;
   const taxAmount = grandTotal - taxable;
   const cgst = taxAmount / 2;
   const sgst = taxAmount / 2;
-  const balance = balanceOf(grandTotal, paid);
+
+  // One payment covers both documents, so it has to be attributed. Food is
+  // settled first and accommodation takes the remainder — the same split
+  // accountingSync.js uses (roomPaid = paid − foodTotal), so the printed
+  // invoice and the books never disagree about what the room earned.
+  const roomPaid = Math.max(0, paid - (Number(foodTotal) || 0));
+  const balance = balanceOf(grandTotal, roomPaid);
 
   return {
     subtotal: Math.round(taxable * 100) / 100,
@@ -415,9 +505,10 @@ const computeTotals = (items, booking, isBanquet = false, billing = BILLING_DEFA
     igst: 0,
     discount: Number(booking.discount || 0),
     total: Math.round(grandTotal * 100) / 100,
-    paid: Math.round(paid * 100) / 100,
+    // What this invoice was paid, after food took its share.
+    paid: Math.round(roomPaid * 100) / 100,
     balance: Math.round(balance * 100) / 100,
-    status: balance <= 0 ? 'paid' : paid > 0 ? 'partial' : 'unpaid',
+    status: balance <= 0 ? 'paid' : roomPaid > 0 ? 'partial' : 'unpaid',
   };
 };
 
@@ -438,7 +529,11 @@ export const normalizeInvoiceContext = ({
   const safeBooking = booking || {};
   const isBanquet = type === 'banquet';
   const items = isBanquet ? buildBanquetItems(safeBooking, billing) : buildHotelItems(safeBooking, billing);
-  const totals = computeTotals(items, safeBooking, isBanquet, billing);
+  const invoiceNumber = buildInvoiceNumber(safeBooking, isBanquet ? 'banquet' : 'hotel');
+  // A stay's food is its own document. Banquet catering is not — it is part of
+  // the event's own bill and is already itemised there.
+  const food = isBanquet ? null : buildFoodBill(safeBooking, billing, invoiceNumber);
+  const totals = computeTotals(items, safeBooking, isBanquet, billing, food ? food.total : 0);
 
   const customerName = safeBooking.customerName
     || safeBooking.guestName
@@ -481,6 +576,15 @@ export const normalizeInvoiceContext = ({
     roomType: safeBooking.roomId?.roomType || safeBooking.roomType || '',
     checkIn: safeBooking.checkIn,
     checkOut: safeBooking.checkOut,
+    // 'HH:mm' each, printed beside the dates above by formatStayMoment().
+    checkInTime: stayMomentTime(
+      safeBooking.checkIn, safeBooking.checkedInAt,
+      safeBooking.checkInTime, billing.defaultCheckInTime,
+    ),
+    checkOutTime: stayMomentTime(
+      safeBooking.checkOut, safeBooking.checkedOutAt,
+      safeBooking.checkOutTime, billing.defaultCheckOutTime,
+    ),
     nights: calculateNights(safeBooking),
     adults: Number(safeBooking.adults || 1),
     children: Number(safeBooking.children || 0),
@@ -501,10 +605,27 @@ export const normalizeInvoiceContext = ({
   return {
     type: isBanquet ? 'banquet' : 'hotel',
     invoice: {
-      number: buildInvoiceNumber(safeBooking, isBanquet ? 'banquet' : 'hotel'),
+      number: invoiceNumber,
       issuedOn,
       dueOn,
     },
+    // The separate food bill, or null when nothing was eaten. Templates render
+    // it as a document of its own after the stay invoice.
+    food,
+    // Where the two documents meet: the ONE place accommodation and food are
+    // added together and struck against what was actually paid.
+    settlement: food ? {
+      roomInvoiceNumber: invoiceNumber,
+      foodBillNumber: food.number,
+      accommodationTotal: totals.total,
+      foodTotal: food.total,
+      combinedTotal: Math.round((totals.total + food.total) * 100) / 100,
+      paid: Math.round((Number(safeBooking.paidAmount || safeBooking.amountPaid || safeBooking.advanceAmount || 0)) * 100) / 100,
+      balance: Math.round(
+        (totals.total + food.total
+          - Number(safeBooking.paidAmount || safeBooking.amountPaid || safeBooking.advanceAmount || 0)) * 100,
+      ) / 100,
+    } : null,
     hotel: {
       name: hotel?.name || 'Hotel Sandhya Grand & Marriage Hall',
       logo: hotel?.logo || '',
@@ -515,6 +636,13 @@ export const normalizeInvoiceContext = ({
       website: hotel?.contact?.website || 'www.sandhyagrand.in',
       gstin: hotel?.gstin || '',
       panNumber: hotel?.panNumber || '',
+      // The food bill prints under the restaurant's own identity when F&B holds
+      // a separate GST registration; otherwise it falls back to the hotel's.
+      restaurant: {
+        name: hotel?.restaurant?.name || hotel?.name || 'Restaurant',
+        gstin: hotel?.restaurant?.gstin || hotel?.gstin || '',
+        fssai: hotel?.restaurant?.fssai || '',
+      },
     },
     customer,
     stay,

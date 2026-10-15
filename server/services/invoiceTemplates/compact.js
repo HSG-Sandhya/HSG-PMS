@@ -1,4 +1,4 @@
-import { escapeHtml as e, formatCurrency, formatDate, amountInWords } from './formatters.js';
+import { escapeHtml as e, formatCurrency, formatDate, amountInWords, formatStayMoment } from './formatters.js';
 
 const renderItems = (items) => items.map((item) => `
   <tr>
@@ -16,7 +16,12 @@ const stayOrEvent = (ctx) => {
   if (ctx.type === 'hotel' && ctx.stay) {
     return `
       <dt>Room</dt><dd>${e(ctx.stay.roomNumber || '—')}${ctx.stay.roomType ? ` · ${e(ctx.stay.roomType)}` : ''}</dd>
-      <dt>Stay</dt><dd>${formatDate(ctx.stay.checkIn)} → ${formatDate(ctx.stay.checkOut)} (${e(ctx.stay.nights)}n)</dd>
+      <!-- Arrival and departure get a row each. Carrying the times, the old
+           single "in → out (3n)" line wrapped to three ragged lines in this
+           template's deliberately narrow column. -->
+      <dt>Arrival</dt><dd>${formatStayMoment(ctx.stay.checkIn, ctx.stay.checkInTime)}</dd>
+      <dt>Departure</dt><dd>${formatStayMoment(ctx.stay.checkOut, ctx.stay.checkOutTime)}</dd>
+      <dt>Nights</dt><dd>${e(ctx.stay.nights)}</dd>
       <dt>Guests</dt><dd>${e(ctx.stay.adults)}A${ctx.stay.children ? ` · ${ctx.stay.children}C` : ''}</dd>`;
   }
   if (ctx.type === 'banquet' && ctx.event) {

@@ -4,6 +4,7 @@ import { MotionConfig } from 'framer-motion';
 import { useSettings } from '../../contexts/SettingsContext';
 import CssBaseline from '@mui/material/CssBaseline';
 import NightTorch from './NightTorch';
+import { NESTED_GLASS } from './glassScope';
 import { nightProgress } from '../../utils/daylight';
 
 // Curated CSS-only scene backgrounds. Pure gradients = zero load time,
@@ -170,12 +171,18 @@ const AppThemeProvider = ({ children }) => {
   //   row     — repeated surfaces: booking cards, table rows, stat tiles
   //   panel   — page shell, section cards, tab bars
   //   overlay — dialogs, menus, popovers, the sidebar
+  //   nested  — any surface inside an already-frosted or opaque one (see
+  //             glassScope.js). Re-blurring the parent's blur is nearly
+  //             invisible, so only "Everywhere" pays for it.
+  //   ambient — never-ending background loops (dashboard orbs, stat-card
+  //             shimmer, torch flicker). They repaint under the glass every
+  //             frame, idle or not, so they also belong to "Everywhere" only.
   const blurTiers = {
-    full:     { row: true,  panel: true,  overlay: true },
-    panels:   { row: false, panel: true,  overlay: true },
-    overlays: { row: false, panel: false, overlay: true },
-    off:      { row: false, panel: false, overlay: false },
-  }[glassLevel] || { row: false, panel: true, overlay: true };
+    full:     { row: true,  panel: true,  overlay: true,  nested: true,  ambient: true },
+    panels:   { row: false, panel: true,  overlay: true,  nested: false, ambient: false },
+    overlays: { row: false, panel: false, overlay: true,  nested: false, ambient: false },
+    off:      { row: false, panel: false, overlay: false, nested: false, ambient: false },
+  }[glassLevel] || { row: false, panel: true, overlay: true, nested: false, ambient: false };
   const backgroundStyle = settingsContext?.settings?.theme?.backgroundStyle || 'none';
   const backgroundImage = settingsContext?.settings?.theme?.backgroundImage || '';
   const solidColor = settingsContext?.settings?.theme?.solidColor || (isDarkMode ? '#0f172a' : '#f8fafc');
@@ -265,17 +272,30 @@ const AppThemeProvider = ({ children }) => {
     const sat = (pct) => (saturationBoost ? ` saturate(${pct}%)` : '');
     const filt = (px, pct) => `blur(${px}px)${sat(pct)}`;
 
-    root.style.setProperty('--app-blur', blurTiers.panel ? filt(clearBlur, saturate) : 'none');
+    const panelBlur = blurTiers.panel ? filt(clearBlur, saturate) : 'none';
+    const panelBlurStrong = blurTiers.panel ? filt(strongBlur, strongSaturate) : 'none';
+    const rowBlur = blurTiers.row ? filt(clearBlur, saturate) : 'none';
+    root.style.setProperty('--app-blur', panelBlur);
     // "strong" surfaces (stat cards, sidebar) used to be the milkiest — keep them
     // only slightly heavier than base so they stay clear and see-through.
-    root.style.setProperty('--app-blur-strong', blurTiers.panel ? filt(strongBlur, strongSaturate) : 'none');
+    root.style.setProperty('--app-blur-strong', panelBlurStrong);
     // Overlays (dialogs, menus, the sidebar) are few and short-lived, so they
     // keep their blur at every level except "off" — that's where the look
     // survives most cheaply.
     root.style.setProperty('--app-blur-overlay', blurTiers.overlay ? filt(strongBlur, strongSaturate) : 'none');
     // Repeated surfaces — booking cards, table rows, stat tiles. These are the
     // ones that multiply, so they're the first tier to go.
-    root.style.setProperty('--app-blur-row', blurTiers.row ? filt(clearBlur, saturate) : 'none');
+    root.style.setProperty('--app-blur-row', rowBlur);
+    // What the three tiers above become INSIDE a frosted or opaque surface
+    // (NESTED_GLASS in glassScope.js re-points them there). Every card inside
+    // the page shell used to run its own blur pass over the shell's blur.
+    const nested = (value) => (blurTiers.nested ? value : 'none');
+    root.style.setProperty('--app-blur-nested', nested(panelBlur));
+    root.style.setProperty('--app-blur-strong-nested', nested(panelBlurStrong));
+    root.style.setProperty('--app-blur-row-nested', nested(rowBlur));
+    // Play state for the never-ending decorative loops. Paused, they rest on
+    // their first keyframe and cost nothing per frame.
+    root.style.setProperty('--app-ambient-play', blurTiers.ambient && animationsOn ? 'running' : 'paused');
 
     // ─── Liquid-Glass tokens: the SINGLE SOURCE OF TRUTH for the app's glass look ───
     // Every card, table, tab, dialog, menu and the sidebar reference these
@@ -337,7 +357,7 @@ const AppThemeProvider = ({ children }) => {
       : 'none');
     root.style.setProperty('--app-bg', computeBackground());
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [primaryColor, secondaryColor, accentColor, textPrimary, textSecondary, safeSurfaceOpacity, safeBlur, backgroundStyle, backgroundImage, solidColor, solidOpacity, gradientFrom, gradientTo, gradientAngle, bgTexture, isDarkMode, darkness, glassLevel, saturationBoost, cardGlowOn, glassSheenOn, hoverEffectsOn]);
+  }, [primaryColor, secondaryColor, accentColor, textPrimary, textSecondary, safeSurfaceOpacity, safeBlur, backgroundStyle, backgroundImage, solidColor, solidOpacity, gradientFrom, gradientTo, gradientAngle, bgTexture, isDarkMode, darkness, glassLevel, saturationBoost, cardGlowOn, glassSheenOn, hoverEffectsOn, animationsOn]);
 
   const settings = settingsContext?.settings;
 
@@ -525,6 +545,9 @@ const AppThemeProvider = ({ children }) => {
             WebkitBackdropFilter: 'none',
             border: isDarkMode ? '1px solid rgba(148,163,184,0.22)' : '1px solid rgba(226,232,240,0.9)',
             boxShadow: glassShadow,
+            // Cards and panels inside an opaque dialog would only blur a flat
+            // colour. The paper has no blur of its own, so it can take these.
+            ...NESTED_GLASS,
           },
         },
       },
@@ -607,6 +630,8 @@ const AppThemeProvider = ({ children }) => {
             WebkitBackdropFilter: glassBlurOverlay,
             border: glassBorder,
             boxShadow: glassShadow,
+            // Covers menus and selects too — their paper extends this one.
+            '& > *': NESTED_GLASS,
           },
         },
       },
@@ -780,6 +805,9 @@ const AppThemeProvider = ({ children }) => {
             WebkitBackdropFilter: glassBlurOverlay,
             borderRight: glassBorder,
             boxShadow: glassShadow,
+            // The sidebar's profile card and every nav row each ran their own
+            // blur inside the sidebar's glass — ~17 passes a frame while it slid.
+            '& > *': NESTED_GLASS,
           },
         },
       },
@@ -813,7 +841,9 @@ const AppThemeProvider = ({ children }) => {
       >
         {children}
       </MotionConfig>
-      <NightTorch active={torchActive} intensity={darkness} flicker={animationsOn} />
+      {/* The flicker re-blends the whole viewport every frame for as long as
+          dark mode is on, so it's an ambient loop: "Everywhere" glass only. */}
+      <NightTorch active={torchActive} intensity={darkness} flicker={animationsOn && blurTiers.ambient} />
     </ThemeProvider>
   );
 };

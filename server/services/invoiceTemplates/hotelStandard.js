@@ -5,6 +5,7 @@ import {
   formatLongDate,
   amountInWords,
   hsnFor,
+  formatStayMoment,
 } from './formatters.js';
 
 // ── Hotel Standard ───────────────────────────────────────────────────────────
@@ -37,8 +38,8 @@ const stayRows = (ctx) => {
   if (ctx.type === 'hotel' && ctx.stay) {
     return `
       ${ctx.stay.roomNumber ? `<tr><th>Room</th><td>${e(ctx.stay.roomNumber)}${ctx.stay.roomType ? ` — ${e(ctx.stay.roomType)}` : ''}</td></tr>` : ''}
-      <tr><th>Check-in</th><td>${formatDate(ctx.stay.checkIn)}</td></tr>
-      <tr><th>Check-out</th><td>${formatDate(ctx.stay.checkOut)}</td></tr>
+      <tr><th>Check-in</th><td>${formatStayMoment(ctx.stay.checkIn, ctx.stay.checkInTime)}</td></tr>
+      <tr><th>Check-out</th><td>${formatStayMoment(ctx.stay.checkOut, ctx.stay.checkOutTime)}</td></tr>
       <tr><th>Nights</th><td>${e(ctx.stay.nights)}</td></tr>
       <tr><th>Occupancy</th><td>${e(ctx.stay.adults)} adult${ctx.stay.adults > 1 ? 's' : ''}${ctx.stay.children ? `, ${e(ctx.stay.children)} child${ctx.stay.children > 1 ? 'ren' : ''}` : ''}</td></tr>`;
   }

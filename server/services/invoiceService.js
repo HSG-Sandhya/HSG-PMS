@@ -196,13 +196,7 @@ class InvoiceService {
       // Banquet documents use the dedicated banquet template set; the single
       // selection renders both the quotation and the invoice (docType switches).
       if (bookingType === 'banquet') {
-        // Corporate-style events always print on the clean "Corporate" template;
-        // weddings and social events use whatever decorative template is chosen
-        // in Settings. This lets one venue run both looks without re-selecting.
-        const CORPORATE_EVENTS = ['Meeting', 'Conference', 'Corporate'];
-        const banquetTemplateId = CORPORATE_EVENTS.includes(bookingObject.eventType)
-          ? 'corporate'
-          : (invoiceSection?.banquetTemplate || DEFAULT_BANQUET_TEMPLATE_ID);
+        const banquetTemplateId = invoiceSection?.banquetTemplate || DEFAULT_BANQUET_TEMPLATE_ID;
         const bankAccount = await this.getBankAccount();
         return renderBanquetDocument({
           booking: bookingObject,

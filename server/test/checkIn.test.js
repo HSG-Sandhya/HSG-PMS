@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { checkInBlocker, CHECK_IN_SOURCE_STATUSES, EARLY_ARRIVAL_GRACE_MS } from '../services/checkIn.js';
+import { checkInBlocker, CHECK_IN_SOURCE_STATUSES, EARLY_ARRIVAL_GRACE_MS, STAY_END_GRACE_MS } from '../services/checkIn.js';
 
 // checkInGuest performed no state validation at all. These pin down the
 // decision table it now runs, in the order the front desk would ask.
@@ -77,6 +77,35 @@ test('a room held for a banquet is refused', () => {
 test('a stay that has already ended cannot be checked into', () => {
   const b = checkInBlocker({ booking: booking(), room: room(), now: new Date('2026-09-14T00:00:00Z') });
   assert.match(b.message, /already ended/);
+});
+
+test('the departure day itself is still checkable-in', () => {
+  // The reported bug: a 21-22 Sep booking refused all day on the 22nd with
+  // "This stay has already ended". checkOut is a calendar day wearing whatever
+  // timestamp the browser's midnight produced, so comparing `now` against it
+  // straight killed the whole departure day. Both stampings are covered.
+  const utcMidnight = new Date('2026-09-13T00:00:00Z');   // checkOut from a UTC browser
+  const istMidnight = new Date('2026-09-12T18:30:00Z');   // the same 13 Sep, from IST
+  for (const checkOut of [utcMidnight, istMidnight]) {
+    // 13 Sep, 10:59 IST -- the desk's morning, well inside the departure day.
+    const morningOfDeparture = new Date('2026-09-13T05:29:00Z');
+    assert.equal(
+      checkInBlocker({ booking: booking({ checkOut }), room: room(), now: morningOfDeparture }),
+      null,
+      `checkOut ${checkOut.toISOString()} should still allow arrival on the day`
+    );
+  }
+});
+
+test('a day past departure the stay is over for good', () => {
+  const checkOut = new Date('2026-09-13T00:00:00Z');
+  const justInside = new Date(checkOut.getTime() + STAY_END_GRACE_MS - 60_000);
+  const wellAfter = new Date(checkOut.getTime() + STAY_END_GRACE_MS + 60_000);
+  assert.equal(checkInBlocker({ booking: booking({ checkOut }), room: room(), now: justInside }), null);
+  assert.match(
+    checkInBlocker({ booking: booking({ checkOut }), room: room(), now: wellAfter }).message,
+    /already ended/
+  );
 });
 
 test('arrival is allowed within the early grace window but not before it', () => {

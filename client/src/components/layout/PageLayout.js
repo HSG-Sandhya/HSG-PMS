@@ -1,6 +1,7 @@
 import { createContext, useContext } from 'react';
 import { Box } from '@mui/material';
 import PageTransition from './PageTransition';
+import { NESTED_GLASS } from './glassScope';
 import { useSettings } from '../../contexts/SettingsContext';
 
 // Tracks whether we're already inside a PageLayout. Routes wrap pages in a
@@ -56,6 +57,9 @@ const PageLayoutInner = ({ children }) => {
             WebkitBackdropFilter: 'var(--app-blur-strong)',
             border: isDarkMode ? '1.5px solid rgba(148,163,184,0.14)' : '1.5px solid rgba(255,255,255,0.18)',
             boxShadow: '0 8px 32px rgba(0,0,0,0.10)',
+            // Everything on the page sits on this frosted shell, so its cards,
+            // room tiles and menu items stop re-blurring it (glassScope.js).
+            '& > *': NESTED_GLASS,
           }}>
             {children}
           </Box>

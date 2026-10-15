@@ -470,8 +470,10 @@ const Reservations = () => {
                 top: 0,
                 zIndex: 2,
                 background: 'rgba(255, 255, 255, calc(var(--app-surface-alpha, 0.05) * 3))',
-                backdropFilter: 'var(--app-blur)',
-                WebkitBackdropFilter: 'var(--app-blur)',
+                // Overlay tier: rows scroll underneath this near-clear header,
+                // and the blur is what keeps their text from showing through.
+                backdropFilter: 'var(--app-blur-overlay)',
+                WebkitBackdropFilter: 'var(--app-blur-overlay)',
                 borderRadius: 2,
                 border: '1px solid rgba(255, 255, 255, var(--app-surface-border-alpha, 0.08))',
                 overflow: 'hidden',

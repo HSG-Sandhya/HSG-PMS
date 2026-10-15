@@ -15,12 +15,20 @@
      --app-blur          panels and page sections
      --app-blur-strong   heavier panels (sidebar, stat containers)
      --app-blur-overlay  dialogs, menus, popovers — few and short-lived
-     --app-blur-row      repeated rows and cards — the ones that multiply */
+     --app-blur-row      repeated rows and cards — the ones that multiply
+   The `*-nested` values are what the first, second and fourth tiers become
+   inside an already-frosted or opaque surface (see glassScope.js); only the
+   "Everywhere" glass level blurs there. --app-ambient-play pauses the
+   never-ending decorative loops everywhere but that level too. */
 :root {
   --app-blur: blur(5px) saturate(180%);
   --app-blur-strong: blur(9px) saturate(185%);
   --app-blur-overlay: blur(9px) saturate(185%);
   --app-blur-row: blur(5px) saturate(180%);
+  --app-blur-nested: none;
+  --app-blur-strong-nested: none;
+  --app-blur-row-nested: none;
+  --app-ambient-play: paused;
   --app-glass-fill: rgba(255, 255, 255, 0.14);
   --app-glass-fill-strong: rgba(255, 255, 255, 0.52);
   --app-glass-fill-row: rgba(255, 255, 255, 0.14);

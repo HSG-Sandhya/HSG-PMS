@@ -5,6 +5,7 @@ import {
   amountInWords,
   hsnFor,
   splitItemTax,
+  formatStayMoment,
 } from './formatters.js';
 
 // ── Compliance Grid ──────────────────────────────────────────────────────────
@@ -23,8 +24,8 @@ const stayCell = (ctx) => {
   if (ctx.type === 'hotel' && ctx.stay) {
     return [
       ctx.stay.roomNumber && `Room: ${e(ctx.stay.roomNumber)}${ctx.stay.roomType ? ` (${e(ctx.stay.roomType)})` : ''}`,
-      `Check-in: ${formatDate(ctx.stay.checkIn)}`,
-      `Check-out: ${formatDate(ctx.stay.checkOut)}`,
+      `Check-in: ${formatStayMoment(ctx.stay.checkIn, ctx.stay.checkInTime)}`,
+      `Check-out: ${formatStayMoment(ctx.stay.checkOut, ctx.stay.checkOutTime)}`,
       `Nights: ${e(ctx.stay.nights)}`,
       `Pax: ${e(ctx.stay.adults)}A${ctx.stay.children ? `+${e(ctx.stay.children)}C` : ''}`,
     ].filter(Boolean).join('<br/>');

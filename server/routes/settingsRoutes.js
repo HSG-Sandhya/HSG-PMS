@@ -139,7 +139,14 @@ router.post('/hotel-profile/email-otp/verify', settingsController.verifyHotelEma
 router.get('/invoice-templates', settingsController.getAvailableInvoiceTemplates);
 router.get('/invoice-template-settings', settingsController.getInvoiceTemplateSettings);
 router.put('/invoice-template', settingsController.updateSelectedInvoiceTemplate);
+// One house styling for every themed design: colours, wording, blocks, motion.
+// The PUT is covered by the router-wide manage_settings guard above, like every
+// other mutation here.
+router.get('/invoice-theme', settingsController.getInvoiceTheme);
+router.put('/invoice-theme', settingsController.updateInvoiceTheme);
 router.post('/invoice/preview', settingsController.previewInvoice);
+// Every room design rendered in one request, for the settings card gallery.
+router.post('/invoice/thumbnails', settingsController.previewInvoiceThumbnails);
 
 // === BANQUET QUOTATION/INVOICE TEMPLATE MANAGEMENT ===
 router.get('/banquet-templates', settingsController.getAvailableBanquetTemplates);

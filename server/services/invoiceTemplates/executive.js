@@ -1,4 +1,4 @@
-import { escapeHtml as e, formatCurrency, formatDate, formatLongDate, amountInWords } from './formatters.js';
+import { escapeHtml as e, formatCurrency, formatDate, formatLongDate, amountInWords, formatStayMoment } from './formatters.js';
 
 const renderItems = (items) => items.map((item, idx) => `
   <tr>
@@ -17,8 +17,8 @@ const stayOrEvent = (ctx) => {
   if (ctx.type === 'hotel' && ctx.stay) {
     return `
       <dt>Room</dt><dd>${e(ctx.stay.roomNumber || '—')}${ctx.stay.roomType ? ` · ${e(ctx.stay.roomType)}` : ''}</dd>
-      <dt>Check-in</dt><dd>${formatDate(ctx.stay.checkIn)}</dd>
-      <dt>Check-out</dt><dd>${formatDate(ctx.stay.checkOut)}</dd>
+      <dt>Check-in</dt><dd>${formatStayMoment(ctx.stay.checkIn, ctx.stay.checkInTime)}</dd>
+      <dt>Check-out</dt><dd>${formatStayMoment(ctx.stay.checkOut, ctx.stay.checkOutTime)}</dd>
       <dt>Stay</dt><dd>${e(ctx.stay.nights)} night${ctx.stay.nights > 1 ? 's' : ''} · ${e(ctx.stay.adults)} adult${ctx.stay.adults > 1 ? 's' : ''}${ctx.stay.children ? ` · ${ctx.stay.children} child${ctx.stay.children > 1 ? 'ren' : ''}` : ''}</dd>`;
   }
   if (ctx.type === 'banquet' && ctx.event) {

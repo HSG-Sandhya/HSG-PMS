@@ -86,12 +86,12 @@ const GLASS_LEVELS = [
   {
     value: 'full',
     label: 'Everywhere',
-    hint: 'Glass on every surface, including each card and row. The richest look and by far the most expensive.',
+    hint: 'Glass on every surface — each card and row, cards inside panels — plus the drifting background effects. The richest look and by far the most expensive.',
   },
   {
     value: 'panels',
     label: 'Panels & overlays',
-    hint: 'Glass on the page, panels, dialogs and menus — but not on repeated cards and rows. Nearly the same look, a fraction of the cost.',
+    hint: 'Glass on the page, sidebar, dialogs and menus. Cards inside them share that frost instead of blurring it again. Nearly the same look, a fraction of the cost.',
   },
   {
     value: 'overlays',
@@ -117,7 +117,7 @@ const PERF_PRESETS = {
   balanced: {
     label: 'Balanced',
     icon: LayersIcon,
-    caption: 'Keeps the glass look, drops the blur on repeated rows. Recommended.',
+    caption: 'Keeps the glass look without re-blurring cards inside it. Recommended.',
     values: { glassLevel: 'panels', blurStrength: 8, saturationBoost: true, cardGlow: true, glassSheen: true, uiAnimations: true, hoverEffects: true, nightTorch: true, reduceMotion: false },
   },
   fast: {
@@ -1814,8 +1814,9 @@ const ThemeSection = ({ onNotify }) => {
           p: 1.5,
           borderRadius: 3,
           background: isDarkMode ? 'rgba(15,23,42,0.85)' : 'rgba(255,255,255,0.85)',
-          backdropFilter: 'var(--app-blur-strong)',
-          WebkitBackdropFilter: 'var(--app-blur-strong)',
+          // Overlay tier: the section scrolls underneath this bar.
+          backdropFilter: 'var(--app-blur-overlay)',
+          WebkitBackdropFilter: 'var(--app-blur-overlay)',
           border: '1px solid',
           borderColor: isDarkMode ? 'rgba(148,163,184,0.18)' : 'rgba(226,232,240,0.8)',
           boxShadow: '0 12px 32px -16px rgba(15,23,42,0.35)',

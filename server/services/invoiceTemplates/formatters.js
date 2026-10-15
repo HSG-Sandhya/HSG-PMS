@@ -32,6 +32,21 @@ export const formatDate = (value) => {
   }
 };
 
+/**
+ * A stay moment: the date, with the time beside it when one is known.
+ *
+ * Arrival and departure times belong on a hotel bill. They are the facts a late
+ * checkout charge is argued about, and a guest reading the invoice afterwards
+ * has no other record of them. Falls back to the bare date rather than
+ * inventing a time when none was recorded.
+ */
+export const formatStayMoment = (date, time) => {
+  const day = formatDate(date);
+  if (!time) return day;
+  const clock = formatTime(time);
+  return clock && clock !== '—' ? `${day} · ${clock}` : day;
+};
+
 export const formatLongDate = (value) => {
   if (!value) return '—';
   try {

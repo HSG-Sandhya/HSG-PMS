@@ -10,7 +10,17 @@ import { packageTotal, addOnTotal } from '../quotationPricing.js';
 
 // Navy + gold: the hotel's print identity. Kept in one place so the whole sheet
 // stays in tune.
-const C = {
+const PALETTES = {
+  aurora:   { navy: '#12224a', navySoft: '#1c3467', gold: '#b58a34', goldSoft: '#f4ecdc' },
+  corporate:{ navy: '#18324b', navySoft: '#274b68', gold: '#3a8b8b', goldSoft: '#e5f3f2' },
+  royal:    { navy: '#20212a', navySoft: '#343642', gold: '#b58a34', goldSoft: '#f5eddd' },
+  blush:    { navy: '#753e50', navySoft: '#96576b', gold: '#c07a87', goldSoft: '#faedf0' },
+  emerald:  { navy: '#174b3b', navySoft: '#24634e', gold: '#b28b45', goldSoft: '#eff5e9' },
+  sapphire: { navy: '#174a78', navySoft: '#21638f', gold: '#c89c3e', goldSoft: '#eaf3fa' },
+  marigold: { navy: '#70451e', navySoft: '#925d28', gold: '#d18b25', goldSoft: '#fff3dc' },
+};
+
+const BASE_COLORS = {
   navy: '#12224a',
   navySoft: '#1c3467',
   gold: '#b58a34',
@@ -70,7 +80,11 @@ const DEFAULT_TERMS = [
   'GST applicable as per Government norms.',
 ];
 
-export const renderEventQuotation = ({ quotation: q, hotel = {} }) => {
+export const renderEventQuotation = ({ quotation: q, hotel = {}, templateId = 'aurora' }) => {
+  // Standalone package proposals have a different data model from booking
+  // invoices, so keep their comparison layout while applying the chosen
+  // banquet template's visual palette to the printed document.
+  const C = { ...BASE_COLORS, ...(PALETTES[templateId] || PALETTES.aurora) };
   const packages = (q.packages || []).filter((p) => p && p.name);
   const rows = sectionRows(packages);
   const addOns = (q.addOns || []).filter((a) => a && a.name);

@@ -5,6 +5,7 @@ import {
   formatLongDate,
   amountInWords,
   hsnFor,
+  formatStayMoment,
 } from './formatters.js';
 
 // ── Summit Pro ───────────────────────────────────────────────────────────────
@@ -23,7 +24,7 @@ const stayLine = (ctx) => {
   if (ctx.type === 'hotel' && ctx.stay) {
     return [
       ctx.stay.roomNumber && `Room ${e(ctx.stay.roomNumber)}${ctx.stay.roomType ? ` (${e(ctx.stay.roomType)})` : ''}`,
-      `${formatDate(ctx.stay.checkIn)} → ${formatDate(ctx.stay.checkOut)}`,
+      `${formatStayMoment(ctx.stay.checkIn, ctx.stay.checkInTime)} → ${formatStayMoment(ctx.stay.checkOut, ctx.stay.checkOutTime)}`,
       `${e(ctx.stay.nights)} night${ctx.stay.nights > 1 ? 's' : ''}`,
       `${e(ctx.stay.adults)} adult${ctx.stay.adults > 1 ? 's' : ''}${ctx.stay.children ? `, ${e(ctx.stay.children)} child${ctx.stay.children > 1 ? 'ren' : ''}` : ''}`,
     ].filter(Boolean).join(' · ');

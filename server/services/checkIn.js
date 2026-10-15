@@ -31,6 +31,19 @@ export const CHECK_IN_SOURCE_STATUSES = ['Pending', 'Confirmed', 'Tentative'];
 // the moment; beyond that it is likely the wrong booking on screen.
 export const EARLY_ARRIVAL_GRACE_MS = 24 * 60 * 60 * 1000;
 
+// How long past the booked departure a guest may still be walked in.
+//
+// checkIn/checkOut are calendar days wearing a timestamp. The desk picker posts
+// `date.toISOString()`, so a stay ending "22 Sep" is stored as whatever instant
+// that day's midnight happened to be -- 21 Sep 18:30Z from an IST browser,
+// 22 Sep 00:00Z from a UTC one -- and nothing about that instant marks the hour
+// the guest is actually due out (checkOutTime, a separate 'HH:mm' field, does).
+// Testing `now >= checkOut` therefore declared the whole DEPARTURE DAY over:
+// a 21-22 Sep booking could not be checked into at any point on the 22nd.
+// A day's grace spans the departure day whichever timezone stamped it, and
+// still refuses a stay that has genuinely finished.
+export const STAY_END_GRACE_MS = 24 * 60 * 60 * 1000;
+
 // Room states a guest cannot be walked into. 'occupied' is deliberately NOT
 // here: it is derived state that goes stale (a missed checkout leaves it set
 // forever), so a stale flag would block the desk permanently. The authoritative
@@ -118,7 +131,7 @@ export const checkInBlocker = ({
   // 5. Is this the right day?
   const checkIn = new Date(booking.checkIn);
   const checkOut = new Date(booking.checkOut);
-  if (Number.isFinite(checkOut.getTime()) && now >= checkOut) {
+  if (Number.isFinite(checkOut.getTime()) && now >= new Date(checkOut.getTime() + STAY_END_GRACE_MS)) {
     return {
       status: 409,
       message: 'This stay has already ended. Update the dates before checking the guest in.',

@@ -1,4 +1,4 @@
-import { escapeHtml as e, formatCurrency, formatDate, formatLongDate, amountInWords } from './formatters.js';
+import { escapeHtml as e, formatCurrency, formatDate, formatLongDate, amountInWords, formatStayMoment } from './formatters.js';
 
 const renderItems = (items) => items.map((item) => `
   <tr>
@@ -19,8 +19,8 @@ const stayBlock = (ctx) => {
       <div class="meta-title">Stay</div>
       <dl>
         ${ctx.stay.roomNumber ? `<dt>Room</dt><dd>${e(ctx.stay.roomNumber)}${ctx.stay.roomType ? ` · ${e(ctx.stay.roomType)}` : ''}</dd>` : ''}
-        <dt>Check-in</dt><dd>${formatDate(ctx.stay.checkIn)}</dd>
-        <dt>Check-out</dt><dd>${formatDate(ctx.stay.checkOut)}</dd>
+        <dt>Check-in</dt><dd>${formatStayMoment(ctx.stay.checkIn, ctx.stay.checkInTime)}</dd>
+        <dt>Check-out</dt><dd>${formatStayMoment(ctx.stay.checkOut, ctx.stay.checkOutTime)}</dd>
         <dt>Nights</dt><dd>${e(ctx.stay.nights)}</dd>
         <dt>Guests</dt><dd>${e(ctx.stay.adults)} adult${ctx.stay.adults > 1 ? 's' : ''}${ctx.stay.children ? ` · ${ctx.stay.children} child${ctx.stay.children > 1 ? 'ren' : ''}` : ''}</dd>
       </dl>

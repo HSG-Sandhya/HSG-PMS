@@ -148,8 +148,9 @@ class HotelRoomInvoiceTemplate extends BaseInvoiceTemplate {
         font-size: 8.5px;
         letter-spacing: 0.24em;
         text-transform: uppercase;
-        color: #8b8b88;
+        color: #1a1a1a;
         margin-bottom: 5px;
+        font-weight: 600;
       }
       .brand-name {
         font-size: 18px;
@@ -161,8 +162,9 @@ class HotelRoomInvoiceTemplate extends BaseInvoiceTemplate {
       .brand-meta {
         margin-top: 6px;
         font-size: 9.5px;
-        color: #4a4a4a;
+        color: #1a1a1a;
         line-height: 1.55;
+        font-weight: 500;
       }
 
       .invoice-meta { text-align: right; }
@@ -170,7 +172,8 @@ class HotelRoomInvoiceTemplate extends BaseInvoiceTemplate {
         font-size: 9px;
         letter-spacing: 0.26em;
         text-transform: uppercase;
-        color: #8b8b88;
+        color: #1a1a1a;
+        font-weight: 600;
       }
       .invoice-meta .number {
         margin-top: 4px;
@@ -192,8 +195,9 @@ class HotelRoomInvoiceTemplate extends BaseInvoiceTemplate {
         font-size: 9px;
         text-transform: uppercase;
         letter-spacing: 0.2em;
-        color: #8b8b88;
+        color: #1a1a1a;
         padding-top: 2px;
+        font-weight: 600;
       }
       .invoice-meta .meta-row dd {
         font-size: 10.5px;
@@ -205,8 +209,9 @@ class HotelRoomInvoiceTemplate extends BaseInvoiceTemplate {
          row so it is never mistaken for one. Used on the food bill only: the
          stay invoice deliberately carries no reference to the food bill. */
       .split-note {
-        margin: 10px 0 0; font-size: 10px; color: #6b6b68;
+        margin: 10px 0 0; font-size: 10px; color: #1a1a1a;
         line-height: 1.7; max-width: 560px;
+        font-weight: 500;
       }
 
       /* ───── sections ───── */
@@ -220,8 +225,9 @@ class HotelRoomInvoiceTemplate extends BaseInvoiceTemplate {
         font-size: 8.5px;
         letter-spacing: 0.26em;
         text-transform: uppercase;
-        color: #8b8b88;
+        color: #1a1a1a;
         margin-bottom: 8px;
+        font-weight: 600;
       }
 
       .split {
@@ -246,10 +252,11 @@ class HotelRoomInvoiceTemplate extends BaseInvoiceTemplate {
       .info-list .row + .row { border-top: 1px solid #efece6; }
       .info-list .key {
         flex: 0 0 88px;
-        color: #8b8b88;
+        color: #1a1a1a;
         font-size: 9px;
         text-transform: uppercase;
         letter-spacing: 0.2em;
+        font-weight: 600;
       }
       .info-list .val {
         color: #111111;
@@ -267,10 +274,10 @@ class HotelRoomInvoiceTemplate extends BaseInvoiceTemplate {
         font-size: 8.5px;
         text-transform: uppercase;
         letter-spacing: 0.22em;
-        color: #8b8b88;
+        color: #1a1a1a;
         padding: 0 0 7px 0;
         border-bottom: 1px solid #111111;
-        font-weight: 500;
+        font-weight: 700;
         text-align: left;
       }
       .charges thead th.right { text-align: right; }
@@ -285,24 +292,28 @@ class HotelRoomInvoiceTemplate extends BaseInvoiceTemplate {
         font-variant-numeric: tabular-nums;
       }
       .charges td.detail {
-        color: #4a4a4a;
+        color: #1a1a1a;
         font-variant-numeric: tabular-nums;
+        font-weight: 500;
       }
       .charges tbody td .sub {
         display: block;
-        color: #8b8b88;
+        color: #1a1a1a;
         font-size: 9.5px;
         margin-top: 3px;
+        font-weight: 500;
       }
       .charges tfoot tr.sub td {
         padding: 8px 0;
-        color: #4a4a4a;
+        color: #1a1a1a;
         border-bottom: 1px solid #efece6;
         font-variant-numeric: tabular-nums;
+        font-weight: 500;
       }
       .charges tfoot tr.sub td.lbl {
         font-size: 10px;
-        color: #4a4a4a;
+        color: #1a1a1a;
+        font-weight: 600;
       }
       .charges tfoot tr.total td {
         padding: 11px 0 0 0;
@@ -313,8 +324,8 @@ class HotelRoomInvoiceTemplate extends BaseInvoiceTemplate {
         font-size: 8.5px;
         text-transform: uppercase;
         letter-spacing: 0.22em;
-        color: #8b8b88;
-        font-weight: 500;
+        color: #1a1a1a;
+        font-weight: 700;
         vertical-align: middle;
       }
       .charges tfoot tr.total td.amt {
@@ -325,12 +336,13 @@ class HotelRoomInvoiceTemplate extends BaseInvoiceTemplate {
       }
       .charges tbody tr.sub-row td {
         padding: 4px 0;
-        color: #4a4a4a;
+        color: #1a1a1a;
         border-bottom: 1px dashed #efece6;
         font-variant-numeric: tabular-nums;
         font-size: 10px;
+        font-weight: 500;
       }
-      .charges tbody tr.sub-row td.lbl { color: #4a4a4a; padding-left: 14px; }
+      .charges tbody tr.sub-row td.lbl { color: #1a1a1a; padding-left: 14px; font-weight: 600; }
       .charges tbody tr.subtotal-row td {
         padding: 6px 0;
         border-top: 1px solid #d8d3c5;
@@ -358,10 +370,11 @@ class HotelRoomInvoiceTemplate extends BaseInvoiceTemplate {
         font-variant-numeric: tabular-nums;
       }
       .pay-list .row .key {
-        color: #8b8b88;
+        color: #1a1a1a;
         font-size: 8.5px;
         text-transform: uppercase;
         letter-spacing: 0.2em;
+        font-weight: 600;
       }
       .pay-list .row .val { color: #111111; font-size: 10.5px; }
 
@@ -382,16 +395,18 @@ class HotelRoomInvoiceTemplate extends BaseInvoiceTemplate {
       .status-card .amount {
         margin-top: 5px;
         font-size: 10.5px;
-        color: #4a4a4a;
+        color: #1a1a1a;
         font-variant-numeric: tabular-nums;
+        font-weight: 500;
       }
       .status-card .note {
         margin-top: 10px;
         padding-top: 8px;
         border-top: 1px solid #efece6;
         font-size: 9px;
-        color: #8b8b88;
+        color: #1a1a1a;
         line-height: 1.5;
+        font-weight: 500;
       }
 
       /* ───── terms ───── */
@@ -402,8 +417,9 @@ class HotelRoomInvoiceTemplate extends BaseInvoiceTemplate {
         gap: 5px 28px;
         counter-reset: term;
         font-size: 9px;
-        color: #4a4a4a;
+        color: #1a1a1a;
         line-height: 1.5;
+        font-weight: 500;
       }
       .terms li {
         position: relative;
@@ -417,7 +433,8 @@ class HotelRoomInvoiceTemplate extends BaseInvoiceTemplate {
         top: 1px;
         font-size: 8.5px;
         letter-spacing: 0.18em;
-        color: #8b8b88;
+        color: #1a1a1a;
+        font-weight: 700;
       }
 
       /* ───── signatures ───── */
@@ -433,7 +450,8 @@ class HotelRoomInvoiceTemplate extends BaseInvoiceTemplate {
         font-size: 8.5px;
         text-transform: uppercase;
         letter-spacing: 0.22em;
-        color: #8b8b88;
+        color: #1a1a1a;
+        font-weight: 600;
       }
       .sig .who {
         margin-top: 3px;
@@ -448,8 +466,9 @@ class HotelRoomInvoiceTemplate extends BaseInvoiceTemplate {
         padding-top: 14px;
         text-align: center;
         font-size: 10px;
-        color: #4a4a4a;
+        color: #1a1a1a;
         letter-spacing: 0.01em;
+        font-weight: 500;
       }
       .closing .mark {
         display: inline-block;
@@ -587,7 +606,7 @@ class HotelRoomInvoiceTemplate extends BaseInvoiceTemplate {
       settlementBlock = `
     <div class="section no-rule">
       <div class="eyebrow">— Note</div>
-      <p style="font-size:10.5px;color:#4a4a4a;line-height:1.7;max-width:520px;">
+      <p style="font-size:10.5px;color:#1a1a1a;line-height:1.7;max-width:520px;">
         These charges are billed separately from your accommodation invoice.
       </p>
     </div>`;
@@ -758,7 +777,7 @@ class HotelRoomInvoiceTemplate extends BaseInvoiceTemplate {
     const paymentInfoLine = (() => {
       if (!booking.paymentMethod) return '';
       const refPart = booking.paymentReference ? ` · Ref ${booking.paymentReference}` : '';
-      return `<span style="color:#8b8b88;"> &middot; ${booking.paymentMethod}${refPart}</span>`;
+      return `<span style="color:#1a1a1a;"> &middot; ${booking.paymentMethod}${refPart}</span>`;
     })();
 
     return `

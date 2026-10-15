@@ -81,8 +81,9 @@ class GuestPrintFormTemplate extends BaseInvoiceTemplate {
         font-size: 9px;
         letter-spacing: 0.24em;
         text-transform: uppercase;
-        color: #8b8b88;
+        color: #1a1a1a;
         margin-bottom: 8px;
+        font-weight: 600;
       }
       .brand-name {
         font-size: 22px;
@@ -94,8 +95,9 @@ class GuestPrintFormTemplate extends BaseInvoiceTemplate {
       .brand-meta {
         margin-top: 10px;
         font-size: 10px;
-        color: #4a4a4a;
+        color: #1a1a1a;
         line-height: 1.7;
+        font-weight: 500;
       }
 
       .form-meta { text-align: right; }
@@ -103,7 +105,8 @@ class GuestPrintFormTemplate extends BaseInvoiceTemplate {
         font-size: 9px;
         letter-spacing: 0.26em;
         text-transform: uppercase;
-        color: #8b8b88;
+        color: #1a1a1a;
+        font-weight: 600;
       }
       .form-meta .number {
         margin-top: 6px;
@@ -125,8 +128,9 @@ class GuestPrintFormTemplate extends BaseInvoiceTemplate {
         font-size: 9px;
         text-transform: uppercase;
         letter-spacing: 0.2em;
-        color: #8b8b88;
+        color: #1a1a1a;
         padding-top: 2px;
+        font-weight: 600;
       }
       .form-meta .meta-row dd {
         font-size: 10.5px;
@@ -145,8 +149,9 @@ class GuestPrintFormTemplate extends BaseInvoiceTemplate {
         font-size: 9px;
         letter-spacing: 0.26em;
         text-transform: uppercase;
-        color: #8b8b88;
+        color: #1a1a1a;
         margin-bottom: 14px;
+        font-weight: 600;
       }
 
       .grid-2 {
@@ -166,11 +171,12 @@ class GuestPrintFormTemplate extends BaseInvoiceTemplate {
       }
       .field .key {
         display: block;
-        color: #8b8b88;
+        color: #1a1a1a;
         font-size: 9px;
         text-transform: uppercase;
         letter-spacing: 0.2em;
         margin-bottom: 4px;
+        font-weight: 600;
       }
       .field .val {
         display: block;
@@ -194,10 +200,10 @@ class GuestPrintFormTemplate extends BaseInvoiceTemplate {
         font-size: 9px;
         text-transform: uppercase;
         letter-spacing: 0.22em;
-        color: #8b8b88;
+        color: #1a1a1a;
         padding: 0 0 12px 0;
         border-bottom: 1px solid #111111;
-        font-weight: 500;
+        font-weight: 700;
         text-align: left;
       }
       .charges thead th.right { text-align: right; }
@@ -212,14 +218,16 @@ class GuestPrintFormTemplate extends BaseInvoiceTemplate {
         font-variant-numeric: tabular-nums;
       }
       .charges td.detail {
-        color: #4a4a4a;
+        color: #1a1a1a;
         font-variant-numeric: tabular-nums;
+        font-weight: 500;
       }
       .charges tbody td .sub {
         display: block;
-        color: #8b8b88;
+        color: #1a1a1a;
         font-size: 9.5px;
         margin-top: 3px;
+        font-weight: 500;
       }
       .charges tfoot tr.total td {
         padding: 18px 0 0 0;
@@ -230,8 +238,8 @@ class GuestPrintFormTemplate extends BaseInvoiceTemplate {
         font-size: 9px;
         text-transform: uppercase;
         letter-spacing: 0.22em;
-        color: #8b8b88;
-        font-weight: 500;
+        color: #1a1a1a;
+        font-weight: 700;
         vertical-align: middle;
       }
       .charges tfoot tr.total td.amt {
@@ -245,9 +253,10 @@ class GuestPrintFormTemplate extends BaseInvoiceTemplate {
       .notes {
         padding: 18px 22px;
         border: 1px solid #e5e3dd;
-        color: #4a4a4a;
+        color: #1a1a1a;
         font-size: 10.5px;
         line-height: 1.7;
+        font-weight: 500;
       }
 
       /* ───── signatures ───── */
@@ -267,7 +276,8 @@ class GuestPrintFormTemplate extends BaseInvoiceTemplate {
         font-size: 9px;
         text-transform: uppercase;
         letter-spacing: 0.22em;
-        color: #8b8b88;
+        color: #1a1a1a;
+        font-weight: 600;
       }
       .sig .who {
         margin-top: 6px;
@@ -278,8 +288,9 @@ class GuestPrintFormTemplate extends BaseInvoiceTemplate {
       .sig .ack {
         margin-top: 6px;
         font-size: 9.5px;
-        color: #4a4a4a;
+        color: #1a1a1a;
         line-height: 1.6;
+        font-weight: 500;
       }
       .sig.right { text-align: right; }
 
@@ -288,8 +299,9 @@ class GuestPrintFormTemplate extends BaseInvoiceTemplate {
         padding-top: 28px;
         text-align: center;
         font-size: 10.5px;
-        color: #4a4a4a;
+        color: #1a1a1a;
         letter-spacing: 0.01em;
+        font-weight: 500;
       }
       .closing .mark {
         display: inline-block;
@@ -304,7 +316,8 @@ class GuestPrintFormTemplate extends BaseInvoiceTemplate {
         font-size: 9px;
         text-transform: uppercase;
         letter-spacing: 0.22em;
-        color: #8b8b88;
+        color: #1a1a1a;
+        font-weight: 600;
       }
 
       @media print {

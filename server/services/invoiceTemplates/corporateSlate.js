@@ -5,6 +5,7 @@ import {
   formatLongDate,
   amountInWords,
   hsnFor,
+  formatStayMoment,
 } from './formatters.js';
 
 // ── Corporate Slate ──────────────────────────────────────────────────────────
@@ -23,8 +24,8 @@ const stayRows = (ctx) => {
   if (ctx.type === 'hotel' && ctx.stay) {
     return `
       ${ctx.stay.roomNumber ? `<div class="kv"><span>Room</span><b>${e(ctx.stay.roomNumber)}${ctx.stay.roomType ? ` — ${e(ctx.stay.roomType)}` : ''}</b></div>` : ''}
-      <div class="kv"><span>Check-in</span><b>${formatDate(ctx.stay.checkIn)}</b></div>
-      <div class="kv"><span>Check-out</span><b>${formatDate(ctx.stay.checkOut)}</b></div>
+      <div class="kv"><span>Check-in</span><b>${formatStayMoment(ctx.stay.checkIn, ctx.stay.checkInTime)}</b></div>
+      <div class="kv"><span>Check-out</span><b>${formatStayMoment(ctx.stay.checkOut, ctx.stay.checkOutTime)}</b></div>
       <div class="kv"><span>Nights</span><b>${e(ctx.stay.nights)}</b></div>
       <div class="kv"><span>Occupancy</span><b>${e(ctx.stay.adults)}A${ctx.stay.children ? ` + ${e(ctx.stay.children)}C` : ''}</b></div>`;
   }

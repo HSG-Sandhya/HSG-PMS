@@ -2,6 +2,8 @@ import EventQuotation from '../models/EventQuotation.js';
 import BanquetBooking from '../models/BanquetBooking.js';
 import InvoiceService from '../services/invoiceService.js';
 import { renderEventQuotation } from '../services/invoiceTemplates/eventQuotation.js';
+import Settings from '../models/Settings.js';
+import { DEFAULT_BANQUET_TEMPLATE_ID } from '../services/invoiceTemplates/banquetIndex.js';
 import { packageTotal, addOnTotal, resolveQuantity, isPerHead } from '../services/quotationPricing.js';
 import { findSlotConflict } from './banquetController.js';
 
@@ -146,9 +148,11 @@ export const printQuotation = async (req, res) => {
     const quotation = await EventQuotation.findById(req.params.id).populate('hallId', 'name capacity').lean();
     if (!quotation) return res.status(404).json({ success: false, message: 'Quotation not found' });
     const hotel = await InvoiceService.getHotelInfo();
+    const invoiceSettings = await Settings.getSection('invoice').catch(() => ({}));
     const html = renderEventQuotation({
       quotation: { ...quotation, hallName: quotation.hallName || quotation.hallId?.name || '' },
       hotel,
+      templateId: invoiceSettings?.banquetTemplate || DEFAULT_BANQUET_TEMPLATE_ID,
     });
     res.setHeader('Content-Type', 'text/html');
     res.send(html);

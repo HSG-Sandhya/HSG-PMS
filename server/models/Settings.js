@@ -139,7 +139,20 @@ const SettingsSchema = new Schema(
       banquetTemplate: { type: String, default: 'aurora' },
       logo: { type: String, default: '' },
       footer: { type: String, default: '' },
-      terms: { type: String, default: '' }
+      terms: { type: String, default: '' },
+      // The hotel's ONE house styling for invoices — colours, wording, which
+      // blocks print, background motion — applied to every themed design:
+      //   { accent: '#c8a253', docTitle: 'Tax Invoice', showTerms: true, ... }
+      // Only fields the admin actually changed are stored; the rest fall back
+      // to each design's own defaults. Mixed because the field set lives in
+      // services/invoiceTemplates/theme.js, not in this schema.
+      // Nothing here is trusted on the way out: the renderer re-sanitizes every
+      // value before it reaches a stylesheet, so a stray write cannot inject
+      // CSS into an invoice.
+      templateTheme: { type: mongoose.Schema.Types.Mixed, default: () => ({}) },
+      // Superseded by templateTheme. Kept so styling saved under the previous
+      // per-template scheme is still readable and can be carried over.
+      templateCustomization: { type: mongoose.Schema.Types.Mixed, default: () => ({}) }
     },
 
     // Notifications
@@ -271,8 +284,10 @@ const SettingsSchema = new Schema(
       // How much rendering work the glass look is allowed to cost. Nested
       // backdrop-filters are the app's most expensive effect (each one re-blurs
       // everything beneath it), so `glassLevel` is the main lever:
-      //   full     — blur on every surface, including repeated cards/rows
-      //   panels   — blur on the page shell, panels and overlays (no per-row)
+      //   full     — blur on every surface, including repeated cards/rows and
+      //              surfaces nested inside other glass; ambient loops run
+      //   panels   — blur on the page shell, sidebar and overlays; what sits
+      //              inside them shares their frost (no nested/per-row blur)
       //   overlays — blur only on dialogs, menus and the sidebar
       //   off      — no backdrop-filter anywhere; flat translucent fills
       perfPreset: { type: String, default: 'balanced' }, // quality|balanced|fast|fastest|custom

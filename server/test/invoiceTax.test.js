@@ -46,7 +46,10 @@ test('with no billing passed, the canonical default rate applies', () => {
 // ── The hotel invoice's CGST/SGST split ─────────────────────────────────────
 import { normalizeInvoiceContext } from '../services/invoiceTemplates/normalize.js';
 
-test('the invoice taxes accommodation and food at their own configured rates', () => {
+test('accommodation and food are taxed at their own rates, on their own documents', () => {
+  // Each is now a separate document: the stay invoice carries accommodation at
+  // the room rate, the food bill carries food at the POS rate. One document
+  // could not honestly state both, since F&B may hold its own GST registration.
   const booking = {
     totalAmount: 1050,        // room, GST-inclusive at 5%  → taxable 1000
     restaurantCharges: 504,   // food, GST-inclusive at 12% → taxable 450
@@ -59,27 +62,47 @@ test('the invoice taxes accommodation and food at their own configured rates', (
     billing: { roomGstRate: 5, posGstRate: 12, roundAmounts: true },
   });
 
-  assert.equal(ctx.totals.total, 1554);
-  assert.equal(ctx.totals.subtotal, 1450);
-  assert.equal(ctx.totals.cgst, 52);
-  assert.equal(ctx.totals.sgst, 52);
+  // Stay invoice: accommodation alone, at 5%.
+  assert.equal(ctx.totals.total, 1050);
+  assert.equal(ctx.totals.subtotal, 1000);
+  assert.equal(ctx.totals.cgst, 25);
+  assert.equal(ctx.totals.sgst, 25);
+  assert.ok(!ctx.items.some((i) => i.category === 'restaurant'),
+    'food must not also appear on the stay invoice');
+
+  // Food bill: food alone, at 12%.
+  assert.equal(ctx.food.total, 504);
+  assert.equal(ctx.food.subtotal, 450);
+  assert.equal(ctx.food.cgst + ctx.food.sgst, 54);
+
   // Taxing the mixed total at a single 5% -- what the hardcode did -- would
-  // have claimed a taxable value of 1480, overstating it by 30.
-  assert.notEqual(ctx.totals.subtotal, Math.round((1554 / 1.05) * 100) / 100);
+  // have claimed a taxable value of 1480 across the two.
+  assert.notEqual(ctx.totals.subtotal + ctx.food.subtotal,
+    Math.round((1554 / 1.05) * 100) / 100);
+
+  // And the two documents still add up to one payable figure.
+  assert.equal(ctx.settlement.combinedTotal, 1554);
 });
 
-test('a tax invoice always reconciles: taxable + CGST + SGST = total', () => {
+test('both documents always reconcile: taxable + CGST + SGST = total', () => {
   for (const [roomGstRate, posGstRate] of [[5, 5], [5, 12], [12, 18], [18, 5], [0, 0]]) {
     const ctx = normalizeInvoiceContext({
       booking: { totalAmount: 7777, restaurantCharges: 3333, paidAmount: 0 },
       hotel: {}, type: 'hotel',
       billing: { roomGstRate, posGstRate, roundAmounts: true },
     });
-    const sum = Math.round((ctx.totals.subtotal + ctx.totals.cgst + ctx.totals.sgst) * 100) / 100;
+    const stay = Math.round((ctx.totals.subtotal + ctx.totals.cgst + ctx.totals.sgst) * 100) / 100;
     assert.ok(
-      Math.abs(sum - ctx.totals.total) <= 0.02,
-      `at room ${roomGstRate}% / food ${posGstRate}%: ${sum} vs ${ctx.totals.total}`
+      Math.abs(stay - ctx.totals.total) <= 0.02,
+      `stay invoice at room ${roomGstRate}%: ${stay} vs ${ctx.totals.total}`
     );
+    const food = Math.round((ctx.food.subtotal + ctx.food.cgst + ctx.food.sgst) * 100) / 100;
+    assert.ok(
+      Math.abs(food - ctx.food.total) <= 0.02,
+      `food bill at POS ${posGstRate}%: ${food} vs ${ctx.food.total}`
+    );
+    // Neither document loses money against what was actually charged.
+    assert.equal(ctx.settlement.combinedTotal, Math.round((7777 + 3333) * 100) / 100);
   }
 });
 

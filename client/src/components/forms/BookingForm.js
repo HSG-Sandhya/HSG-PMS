@@ -252,20 +252,31 @@ const BookingForm = ({
 
   // Defaults: check-in time = now (when the guest is being booked in),
   // check-out 11:00 AM (hotel policy).
-  useEffect(() => {
-    setFormData(prev => {
-      const checkInDate = prev.checkInDate || new Date().toISOString();
-      const nextDay = new Date(checkInDate);
-      nextDay.setDate(nextDay.getDate() + 1);
+  // useEffect(() => {
+  //   setFormData(prev => {
+  //     const checkInDate = prev.checkInDate || new Date().toISOString();
+  //     const nextDay = new Date(checkInDate);
+  //     nextDay.setDate(nextDay.getDate() + 1);
 
-      return {
-        ...prev,
-        checkInTime: prev.checkInTime || currentTimeHHmm(),
-        checkOutTime: billing.defaultCheckOutTime,
-        checkOutDate: prev.checkOutDate || nextDay.toISOString(),
-      };
-    });
-  }, [setFormData, billing.defaultCheckOutTime]);
+  //     return {
+  //       ...prev,
+  //       checkInTime: prev.checkInTime || currentTimeHHmm(),
+  //       checkOutTime: billing.defaultCheckOutTime,
+  //       checkOutDate: prev.checkOutDate || nextDay.toISOString(),
+  //     };
+  //   });
+  // }, [setFormData, billing.defaultCheckOutTime]);
+
+
+useEffect(() => {
+  setFormData(prev => ({
+    ...prev,
+    checkInTime: prev.checkInTime || currentTimeHHmm(),
+    checkOutTime: prev.checkOutTime || billing.defaultCheckOutTime,
+    checkOutDate: prev.checkOutDate || '',
+  }));
+}, [setFormData, billing.defaultCheckOutTime]);
+
 
   // Initialize default check-in date and time on component mount
   useEffect(() => {
@@ -278,7 +289,7 @@ const BookingForm = ({
         ...prev,
         checkInDate: prev.checkInDate || now.toISOString(),
         checkInTime: prev.checkInTime || currentTimeHHmm(),
-        checkOutDate: prev.checkOutDate || tomorrow.toISOString(),
+        checkOutDate: prev.checkOutDate || '',
         checkOutTime: prev.checkOutTime || billing.defaultCheckOutTime
       }));
     }
@@ -289,19 +300,19 @@ const BookingForm = ({
   // the current checkout is missing or is not strictly after the new
   // check-in. This preserves multi-night stays loaded from an existing
   // booking instead of collapsing them to one night.
-  useEffect(() => {
-    if (!formData.checkInDate) return;
-    const checkIn = new Date(formData.checkInDate);
-    const currentCheckOut = formData.checkOutDate ? new Date(formData.checkOutDate) : null;
-    if (currentCheckOut && currentCheckOut > checkIn) return; // already valid → leave alone
+  // useEffect(() => {
+  //   if (!formData.checkInDate) return;
+  //   const checkIn = new Date(formData.checkInDate);
+  //   const currentCheckOut = formData.checkOutDate ? new Date(formData.checkOutDate) : null;
+  //   if (currentCheckOut && currentCheckOut > checkIn) return; // already valid → leave alone
 
-    const nextDay = new Date(checkIn);
-    nextDay.setDate(nextDay.getDate() + 1);
-    setFormData(prev => ({
-      ...prev,
-      checkOutDate: nextDay.toISOString(),
-    }));
-  }, [formData.checkInDate, formData.checkOutDate, setFormData]);
+  //   const nextDay = new Date(checkIn);
+  //   nextDay.setDate(nextDay.getDate() + 1);
+  //   setFormData(prev => ({
+  //     ...prev,
+  //     checkOutDate: nextDay.toISOString(),
+  //   }));
+  // }, [formData.checkInDate, formData.checkOutDate, setFormData]);
 
   // Fire the parent submit once a requested status change has been committed.
   // Awaiting keeps the buttons disabled ("Saving…") for the whole request and
@@ -327,31 +338,47 @@ const BookingForm = ({
     }
   };
 
-  const handleDateChange = (field, date) => {
-    if (date && isValid(date)) {
-      const isoString = date.toISOString();
+  // const handleDateChange = (field, date) => {
+  //   if (date && isValid(date)) {
+  //     const isoString = date.toISOString();
 
-      if (field === 'checkInDate') {
-        // Set check-out date to next day; default check-in/out times to policy.
-        const nextDay = new Date(date);
-        nextDay.setDate(nextDay.getDate() + 1);
-        const checkOutIsoString = nextDay.toISOString();
+  //     if (field === 'checkInDate') {
+  //       // Set check-out date to next day; default check-in/out times to policy.
+  //       const nextDay = new Date(date);
+  //       nextDay.setDate(nextDay.getDate() + 1);
+  //       const checkOutIsoString = nextDay.toISOString();
 
-        setFormData({
-          ...formData,
-          checkInDate: isoString,
-          // Keep the time the operator set (defaulting to now) — changing the
-          // date shouldn't snap check-in back to a fixed noon.
-          checkInTime: formData.checkInTime || currentTimeHHmm(),
-          checkOutDate: checkOutIsoString,
-          checkOutTime: billing.defaultCheckOutTime
-        });
-      } else if (field !== 'checkOutDate') {
-        // Prevent manual changes to checkout date
-        setFormData({ ...formData, [field]: isoString });
-      }
-    }
-  };
+  //       setFormData({
+  //         ...formData,
+  //         checkInDate: isoString,
+  //         // Keep the time the operator set (defaulting to now) — changing the
+  //         // date shouldn't snap check-in back to a fixed noon.
+  //         checkInTime: formData.checkInTime || currentTimeHHmm(),
+  //         checkOutDate: checkOutIsoString,
+  //         checkOutTime: billing.defaultCheckOutTime
+  //       });
+  //     } else if (field !== 'checkOutDate') {
+  //       // Prevent manual changes to checkout date
+  //       setFormData({ ...formData, [field]: isoString });
+  //     }
+  //   }
+  // };
+
+
+const handleDateChange = (field, date) => {
+  if (!date || !isValid(date)) return;
+
+  const isoString = date.toISOString();
+
+  setFormData(prev => ({
+    ...prev,
+    [field]: isoString,
+    ...(field === 'checkInDate'
+      ? { checkInTime: prev.checkInTime || currentTimeHHmm() }
+      : {}),
+  }));
+};
+
 
   const handleTimeChange = (field, time) => {
     if (time && isValid(time)) {
